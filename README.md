@@ -11,14 +11,13 @@
 
 ## ✨ Demo
 
-* **Producción**: *link\_del\_deploy* (por ejemplo, Vercel/Netlify)
-* **Diseño/UI**: captura principal
+- **Producción**: _link_del_deploy_ (por ejemplo, Vercel/Netlify)
 
-> Sube la imagen `<img width="1918" height="870" alt="image" src="https://github.com/user-attachments/assets/5692df70-aec8-48ba-a7dd-0f1f40d64437" />
-` o `<img width="1919" height="863" alt="image" src="https://github.com/user-attachments/assets/7003e8b7-5792-42e0-81ba-186877ccb99a" />
-` y referencia:
->
-> `![Home — Human Power RRHH](./docs/hero.png)`
+### 🖼️ Capturas de pantalla
+
+<img width="1918" height="870" alt="Home" src="https://github.com/user-attachments/assets/5692df70-aec8-48ba-a7dd-0f1f40d64437" />
+
+<img width="1919" height="863" alt="Down" src="https://github.com/user-attachments/assets/7003e8b7-5792-42e0-81ba-186877ccb99a" />
 
 ---
 
