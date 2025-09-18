@@ -91,18 +91,9 @@ export default function HumanPowerLanding() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
-          <a href="#" className="flex items-center gap-3 text-white">
-            <div className="size-9 sm:size-10 rounded-xl bg-white text-black grid place-content-center font-bold">
-              <img src={rrhh} alt="Logo RRHH" className="rounded-xl object-cover" />
-            </div>
-            <div className="hidden xs:block">
-              <p className="font-semibold leading-none tracking-wide">
-                Human Power RRHH
-              </p>
-              <p className="text-[11px] sm:text-xs text-white/60">
-                Consultora integral en RRHH
-              </p>
-            </div>
+          {/* Logo como link de texto */}
+          <a href="#" className="text-white font-bold text-lg sm:text-xl">
+            Human Power | RRHH
           </a>
 
           {/* Desktop Nav */}
@@ -302,27 +293,26 @@ export default function HumanPowerLanding() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <p className="uppercase tracking-widest text-amber-400 text-[11px] sm:text-xs font-semibold">
+            <p className="uppercase tracking-widest text-amber-400 text-[11px] sm:text-xl font-semibold">
               Consultora integral en RRHH
             </p>
-            <h1 className="mt-1 sm:mt-2 text-3xl sm:text-5xl font-bold leading-tight">
-              El CV ahora habla por vos.
+            <h1 className="mt-1 sm:mt-2 text-3xl sm:text-4xl font-bold leading-tight">
+              EL <b className="text-amber-400">CV</b> AHORA HABLA POR VOS.
             </h1>
             <p className="mt-3 sm:mt-4 text-white/85 max-w-prose text-sm sm:text-base">
-              no somos un portal de empleo mas. En nuestra plataforma cada
-              candidato sube su CV y Video donde se presenta nombre , profesion
-              , Experiencia y Especialidad.
+              No somos un portal de empleo más. En nuestra plataforma, cada candidato sube su CV y un video donde se presenta: nombre, profesión, experiencia y especialidad.
             </p>
-            <h1 className="mt-1 sm:mt-1 text-3xl sm:text-3xl font-bold leading-tight">
-              Por que es distinto?
+            <h1 className="mt-1 sm:mt-1 text-3xl sm:text-3xl font-bold leading-tight  p-2">
+              ¿Por qué somos distintos?
             </h1>
-            <p className="mt-3 sm:mt-4 text-white/85 max-w-prose text-sm sm:text-base">
-              <b>Para Candidatos:</b> Te destacas entre cientos de <b>CV</b> con
-              tu primera impresión.
+
+            <p className="text-white/85 text-base">
+              <b className="text-amber-400">Para Candidatos:</b> Te destacas
+              entre cientos de <b>CV</b> con tu primera impresión.
               <br />
               <br />
-              <b>Para Empresas:</b> Ahorras tiempo: conoces al candidato antes
-              de entrevistarlo.
+              <b className="text-amber-400">Para Empresas:</b> Ahorras tiempo,
+              conoces al candidato antes de entrevistarlo.
             </p>
 
             <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row gap-3 sm:gap-3">
@@ -333,9 +323,8 @@ export default function HumanPowerLanding() {
               >
                 <a href="#puestos">Ofertas laborales</a>
               </Button>
-            </div>
-            <div className="mt-5 sm:mt-6 flex flex-col  w-full sm:w-auto">
-              <Button className="rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black border-none">
+
+              <Button className="rounded-xl bg-amber-500 hover:bg-amber-500/90 text-black px-6 py-3 text-sm sm:text-base">
                 Cargar CV - Video ahora
               </Button>
             </div>
@@ -370,7 +359,7 @@ export default function HumanPowerLanding() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <Card className="rounded-3xl shadow-2xl border-white/10 bg-white/95 backdrop-blur">
+            <Card className="rounded-3xl shadow-2xl border-amber/10 bg-white/95 backdrop-blur">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Search /> Búsquedas destacadas
@@ -440,23 +429,31 @@ export default function HumanPowerLanding() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>Identificación de necesidades y perfil del puesto.</li>
                 <li>Publicación de avisos y hunting/reclutamiento en redes.</li>
-                <li>Evaluación de CVs , Preselección y entrevista con candidato.</li>
+                <li>
+                  Evaluación de CVs , Preselección y entrevista con candidato.
+                </li>
                 <li>Presentación de Candidatos para evaluación final.</li>
-                <li><span className="text-red-500 font-bold">NO</span> cobramos <b className="text-amber-500">Anticipo</b></li>
-                <li><span className="text-red-500 font-bold">NO</span> pedimos  <b className="text-amber-500">Exclusividad</b></li>
+                <li>
+                  <span className="text-red-500 font-bold">NO</span> cobramos{" "}
+                  <b className="text-amber-500">Anticipo</b>
+                </li>
+                <li>
+                  <span className="text-red-500 font-bold">NO</span> pedimos{" "}
+                  <b className="text-amber-500">Exclusividad</b>
+                </li>
               </ul>
             </CardContent>
           </Card>
         </div>
         <Card className="rounded-3xl shadow-sm hover:shadow-md transition">
-            <CardHeader>
-              <CardTitle>Asesoría integral</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-700 leading-relaxed">
-              Consultoría en temas hard & soft. Gestión de desvinculaciones y
-              acuerdos con foco humano y legal.
-            </CardContent>
-          </Card>
+          <CardHeader>
+            <CardTitle>Asesoría integral</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-slate-700 leading-relaxed">
+            Consultoría en temas hard & soft. Gestión de desvinculaciones y
+            acuerdos con foco humano y legal.
+          </CardContent>
+        </Card>
       </section>
 
       {/* Ofertas */}
