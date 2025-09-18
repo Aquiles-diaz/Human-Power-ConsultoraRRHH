@@ -14,7 +14,9 @@
 * **Producción**: *link\_del\_deploy* (por ejemplo, Vercel/Netlify)
 * **Diseño/UI**: captura principal
 
-> Sube la imagen `docs/hero.png` o `public/cover.png` y referencia:
+> Sube la imagen `<img width="1918" height="870" alt="image" src="https://github.com/user-attachments/assets/5692df70-aec8-48ba-a7dd-0f1f40d64437" />
+` o `<img width="1919" height="863" alt="image" src="https://github.com/user-attachments/assets/7003e8b7-5792-42e0-81ba-186877ccb99a" />
+` y referencia:
 >
 > `![Home — Human Power RRHH](./docs/hero.png)`
 
@@ -175,39 +177,24 @@ pnpm test
 
 ---
 
-## 📈 SEO & Performance
+📝 Licencia
 
-* Metadatos básicos en `index.html` y por ruta (Open Graph/Twitter Card).
-* Imágenes optimizadas y `lazy` en componentes pesados.
-* División de código (code-splitting) por rutas.
-* Auditoría recomendada con Lighthouse.
+Este proyecto está bajo la Licencia MIT. Consulta el archivo LICENSE para más detalles.
 
 ---
 
-## 🔐 Seguridad
+📈 SEO & Performance
 
-* Sanitización de inputs y nombres de archivo.
-* Restricción de tipos MIME y tamaño de subida desde el frontend.
-* `.env.local` no se commitea; usar secretos del proveedor de deploy.
+Metadatos básicos en index.html y por ruta (Open Graph/Twitter Card).
 
----
+Imágenes optimizadas y lazy en componentes pesados.
 
-## 🧹 Convenciones
+División de código (code-splitting) por rutas.
 
-* **Commits**: [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, ...)
-* **Ramas**: `main` (prod), `develop` (pre-prod), `feat/*`, `fix/*`.
-* **Import paths**: alias opcional `@/` desde `tsconfig.json`.
+Auditoría recomendada con Lighthouse.
 
----
+👤 Autor
 
-## ⚙️ Scripts útiles
+Aquiles Díaz — Frontend (React + TS + Vite)
 
-```json
-{
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint --max-warnings=0 \"src/**/*.{ts,tsx}\"",
-    "
-```
+Contacto: tu_email • LinkedIn: www.linkedin.com/in/aquiles-diaz
