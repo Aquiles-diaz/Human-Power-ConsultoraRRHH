@@ -11,7 +11,7 @@
 
 ## ✨ Demo
 
-- **Producción**: _link_del_deploy_ (por ejemplo, Vercel/Netlify)
+- **Producción**: //aca tendria que estar el link de vercel
 
 ### 🖼️ Capturas de pantalla
 
