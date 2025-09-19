@@ -128,3 +128,36 @@ def list_cvs_admin():
     ]
     conn.close()
     return {"items": rows}
+# --- ADMIN: Eliminar CV ---
+@app.delete("/admin/cv/{cv_id}", dependencies=[Depends(verify_admin)])
+def delete_cv_admin(cv_id: int):
+    """
+    Elimina un CV por ID (con password admin)
+    Header requerido: X-Password
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # Buscar archivo y metadatos
+    cur.execute("SELECT filename FROM resumes WHERE id = ?", (cv_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="CV no encontrado")
+
+    filename = row[0]
+    file_path = UPLOAD_DIR / filename
+
+    # Borrar registro de DB
+    cur.execute("DELETE FROM resumes WHERE id = ?", (cv_id,))
+    conn.commit()
+    conn.close()
+
+    # Borrar archivo físico si existe
+    if file_path.exists():
+        try:
+            file_path.unlink()
+        except:
+            pass  # ignorar errores al borrar del disco
+
+    return {"success": True, "id": cv_id}

@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Download, RefreshCw, Search, ExternalLink, Video, Mail } from "lucide-react";
+import {
+  Download,
+  RefreshCw,
+  Search,
+  ExternalLink,
+  Video,
+  Mail,
+  Trash2,
+  Filter,
+} from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:10000";
 
@@ -21,9 +30,7 @@ type Provider =
   | "streamable"
   | "file";
 
-type VideoInfo =
-  | { type: Provider; src: string }
-  | null;
+type VideoInfo = { type: Provider; src: string } | null;
 
 // --- utils ---
 const truncate = (s = "", n = 60) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
@@ -45,7 +52,6 @@ function toYouTubeEmbed(url: string): string | null {
     if (u.hostname.includes("youtube.com")) {
       const v = u.searchParams.get("v");
       if (v) return `https://www.youtube.com/embed/${v}`;
-      // youtube.com/shorts/<id>
       const shorts = u.pathname.match(/\/shorts\/([^/?#]+)/);
       if (shorts?.[1]) return `https://www.youtube.com/embed/${shorts[1]}`;
     }
@@ -58,7 +64,6 @@ function toYouTubeEmbed(url: string): string | null {
 }
 
 function toTikTokEmbed(url: string): string | null {
-  // https://www.tiktok.com/@user/video/<id>  ->  https://www.tiktok.com/embed/v2/<id>
   try {
     const u = new URL(url);
     if (u.hostname.includes("tiktok.com")) {
@@ -70,7 +75,6 @@ function toTikTokEmbed(url: string): string | null {
 }
 
 function toInstagramEmbed(url: string): string | null {
-  // /p/<code>/ , /reel/<code>/ , /tv/<code>/
   try {
     const u = new URL(url);
     if (u.hostname.includes("instagram.com")) {
@@ -82,7 +86,6 @@ function toInstagramEmbed(url: string): string | null {
 }
 
 function toVimeoEmbed(url: string): string | null {
-  // https://vimeo.com/<id>  ->  https://player.vimeo.com/video/<id>
   try {
     const u = new URL(url);
     if (u.hostname.includes("vimeo.com")) {
@@ -94,7 +97,6 @@ function toVimeoEmbed(url: string): string | null {
 }
 
 function toDriveEmbed(url: string): string | null {
-  // https://drive.google.com/file/d/<id>/view  ->  /preview
   try {
     const u = new URL(url);
     if (u.hostname.includes("drive.google.com")) {
@@ -106,7 +108,6 @@ function toDriveEmbed(url: string): string | null {
 }
 
 function toStreamableEmbed(url: string): string | null {
-  // https://streamable.com/<code>  ->  https://streamable.com/e/<code>
   try {
     const u = new URL(url);
     if (u.hostname.includes("streamable.com")) {
@@ -152,16 +153,26 @@ function formatDate(iso: string) {
     timeStyle: "short",
   }).format(d);
 }
-// actualizar el filter y buscador no para nombres , sino para fecha , poner un tacho en rojo y delete el componente entero de la base  de datos
 
+function ymd(date?: Date) {
+  const d = date ?? new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+// --- Componente principal ---
 export default function AdminPanel() {
   const [password, setPassword] = useState(() => sessionStorage.getItem("hp_admin_pwd") || "");
   const [authed, setAuthed] = useState(false);
   const [cvs, setCvs] = useState<ResumeRow[]>([]);
   const [error, setError] = useState("");
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(""); // búsqueda de texto opcional
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [active, setActive] = useState<ResumeRow | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   const headers = useMemo(() => ({ "X-Password": password }), [password]);
 
@@ -192,16 +203,58 @@ export default function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Filtro por fecha + búsqueda opcional
   const filtered = useMemo(() => {
+    const hasFrom = !!dateFrom;
+    const hasTo = !!dateTo;
+
+    const from = hasFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = hasTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+
     const needle = q.trim().toLowerCase();
-    if (!needle) return cvs;
-    return cvs.filter((r) =>
-      (r.full_name || "").toLowerCase().includes(needle) ||
-      (r.email || "").toLowerCase().includes(needle) ||
-      (r.original_name || "").toLowerCase().includes(needle) ||
-      (r.message || "").toLowerCase().includes(needle)
-    );
-  }, [q, cvs]);
+
+    return cvs.filter((r) => {
+      const d = new Date(r.created_at);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+
+      if (!needle) return true;
+
+      return (
+        (r.full_name || "").toLowerCase().includes(needle) ||
+        (r.email || "").toLowerCase().includes(needle) ||
+        (r.original_name || "").toLowerCase().includes(needle) ||
+        (r.message || "").toLowerCase().includes(needle)
+      );
+    });
+  }, [q, cvs, dateFrom, dateTo]);
+
+  async function deleteCv(id: number) {
+    if (!confirm("¿Seguro que querés eliminar este CV? Esta acción no se puede deshacer.")) return;
+    try {
+      setDeleting(id);
+      const res = await fetch(`${API}/admin/cv/${id}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (!res.ok) {
+        const msg = res.status === 401 ? "Contraseña incorrecta" : `Error ${res.status}`;
+        throw new Error(msg);
+      }
+      setCvs((prev) => prev.filter((cv) => cv.id !== id));
+      if (active?.id === id) setActive(null);
+    } catch (e: any) {
+      alert(e?.message || "Error al eliminar");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  function clearFilters() {
+    setDateFrom("");
+    setDateTo("");
+    setQ("");
+  }
 
   if (!authed) {
     return (
@@ -227,46 +280,158 @@ export default function AdminPanel() {
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>
-          {error && <p className="mt-3 text-red-600 text-sm" aria-live="polite">{error}</p>}
+          {error && (
+            <p className="mt-3 text-red-600 text-sm" aria-live="polite">
+              {error}
+            </p>
+          )}
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
         <div className="flex items-center gap-2">
-          <span className="text-2xl" aria-hidden>📁</span>
+          <span className="text-2xl" aria-hidden>
+            📁
+          </span>
           <h1 className="text-2xl font-bold">CVs recibidos</h1>
           <span className="text-sm text-gray-500 ml-2">({filtered.length})</span>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          {/* Filtros por fecha */}
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex items-center gap-1 text-gray-600">
+              <Filter className="size-4" /> Fecha:
+            </span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 rounded-lg border bg-white w-full sm:w-auto"
+              aria-label="Desde"
+              placeholder={ymd()}
+            />
+            <span className="text-gray-500">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 rounded-lg border bg-white w-full sm:w-auto"
+              aria-label="Hasta"
+              placeholder={ymd()}
+            />
+          </div>
+
+          {/* Búsqueda opcional */}
           <label className="relative" aria-label="Buscar">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
             <input
-              placeholder="Buscar por nombre, email, mensaje…"
+              placeholder="Buscar texto…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="pl-8 pr-3 py-2 rounded-lg border bg-white w-[260px]"
+              className="pl-8 pr-3 py-2 rounded-lg border bg-white w-full sm:w-[220px]"
             />
           </label>
-          <button
-            onClick={loadData}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50 disabled:opacity-60"
-            title="Actualizar"
-            disabled={loading}
-            aria-busy={loading}
-          >
-            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-            <span>Actualizar</span>
-          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50"
+              title="Limpiar filtros"
+            >
+              Limpiar
+            </button>
+            <button
+              onClick={loadData}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50 disabled:opacity-60"
+              title="Actualizar"
+              disabled={loading}
+              aria-busy={loading}
+            >
+              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+              <span>Actualizar</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="overflow-x-auto">
+      {/* Lista en mobile (cards) */}
+      <div className="grid gap-3 md:hidden">
+        {filtered.length === 0 && (
+          <div className="rounded-xl border bg-white p-6 text-center text-gray-500">
+            Sin resultados.
+          </div>
+        )}
+
+        {filtered.map((cv) => (
+          <div key={cv.id} className="rounded-xl border bg-white p-4 shadow ring-1 ring-black/5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm text-gray-500">ID {cv.id}</p>
+                <h3 className="text-base font-semibold truncate">{cv.full_name}</h3>
+                <a
+                  href={`mailto:${cv.email}`}
+                  className="text-blue-600 hover:underline inline-flex items-center gap-1 break-all"
+                >
+                  <Mail className="size-3.5" />
+                  {cv.email}
+                </a>
+                <p className="text-sm text-gray-600 mt-1">{formatDate(cv.created_at)}</p>
+              </div>
+            </div>
+
+            <div className="mt-2 text-sm text-gray-700">
+              <span className="font-medium">Archivo:</span> {cv.original_name}
+            </div>
+
+            <div className="mt-2 text-sm text-gray-700">
+              <span className="font-medium">Mensaje:</span>{" "}
+              <span title={cv.message || ""}>{truncate(cv.message || "", 80)}</span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <a
+                href={`${API}/cv/${cv.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Download className="size-4" />
+                Descargar
+              </a>
+              <button
+                onClick={() => setActive(cv)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+                title="Ver detalle"
+              >
+                <ExternalLink className="size-4" />
+                Ver
+              </button>
+              <button
+                onClick={() => deleteCv(cv.id)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+                title="Eliminar"
+                disabled={deleting === cv.id}
+              >
+                {deleting === cv.id ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                Eliminar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabla en desktop */}
+      <div className="overflow-x-auto hidden md:block">
         <table className="w-full border-collapse text-sm bg-white rounded-xl shadow ring-1 ring-black/5">
           <thead>
             <tr className="bg-gray-100/70">
@@ -295,9 +460,9 @@ export default function AdminPanel() {
                 </td>
                 <td className="px-3 py-2">{cv.original_name}</td>
                 <td className="px-3 py-2">{formatDate(cv.created_at)}</td>
-                <td className="px-3 py-2 max-w-[280px]">
+                <td className="px-3 py-2 max-w-[320px]">
                   <span title={cv.message || ""} className="text-gray-700">
-                    {truncate(cv.message || "", 55)}
+                    {truncate(cv.message || "", 80)}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-center">
@@ -318,6 +483,19 @@ export default function AdminPanel() {
                     >
                       <ExternalLink className="size-4" />
                       Ver
+                    </button>
+                    <button
+                      onClick={() => deleteCv(cv.id)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+                      title="Eliminar"
+                      disabled={deleting === cv.id}
+                    >
+                      {deleting === cv.id ? (
+                        <RefreshCw className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                      Eliminar
                     </button>
                   </div>
                 </td>
@@ -341,7 +519,7 @@ export default function AdminPanel() {
           onClick={() => setActive(null)}
         >
           <div
-            className="w-full max-w-3xl bg-white rounded-2xl shadow-xl p-5"
+            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl p-5"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -359,15 +537,21 @@ export default function AdminPanel() {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <p><span className="font-medium">Nombre:</span> {active.full_name}</p>
+                <p>
+                  <span className="font-medium">Nombre:</span> {active.full_name}
+                </p>
                 <p className="break-all">
                   <span className="font-medium">Email:</span>{" "}
                   <a className="text-blue-600 hover:underline" href={`mailto:${active.email}`}>
                     {active.email}
                   </a>
                 </p>
-                <p><span className="font-medium">Archivo:</span> {active.original_name}</p>
-                <p><span className="font-medium">Fecha:</span> {formatDate(active.created_at)}</p>
+                <p>
+                  <span className="font-medium">Archivo:</span> {active.original_name}
+                </p>
+                <p>
+                  <span className="font-medium">Fecha:</span> {formatDate(active.created_at)}
+                </p>
                 <div>
                   <p className="font-medium mb-1">Mensaje:</p>
                   <div className="rounded-lg border bg-gray-50 p-3 text-sm whitespace-pre-wrap break-words">
@@ -385,7 +569,7 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <a
                 href={`${API}/cv/${active.id}`}
                 target="_blank"
@@ -402,6 +586,18 @@ export default function AdminPanel() {
                 <Mail className="size-4" />
                 Escribir
               </a>
+              <button
+                onClick={() => deleteCv(active.id)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+                disabled={deleting === active.id}
+              >
+                {deleting === active.id ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                Eliminar
+              </button>
             </div>
           </div>
         </div>
@@ -409,7 +605,6 @@ export default function AdminPanel() {
     </main>
   );
 }
-
 
 // --- Componente de previsualización de video ---
 function VideoPreview({ message }: { message: string }) {
@@ -447,7 +642,6 @@ function VideoPreview({ message }: { message: string }) {
     </div>
   );
 }
-
 
 /*
 Sugerencia CSP (Content-Security-Policy) para iframes:
