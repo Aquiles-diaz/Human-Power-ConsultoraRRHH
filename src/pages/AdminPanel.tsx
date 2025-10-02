@@ -9,8 +9,10 @@ import {
   Trash2,
   Filter,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:10000";
+const API = "/api";
 
 type ResumeRow = {
   id: number;
@@ -163,8 +165,9 @@ function ymd(date?: Date) {
 
 // --- Componente principal ---
 export default function AdminPanel() {
-  const [password, setPassword] = useState(() => sessionStorage.getItem("hp_admin_pwd") || "");
-  const [authed, setAuthed] = useState(false);
+  const navigate = useNavigate();
+  const { user, getAuthHeader, logout } = useAuth();
+
   const [cvs, setCvs] = useState<ResumeRow[]>([]);
   const [error, setError] = useState("");
   const [q, setQ] = useState(""); // búsqueda de texto opcional
@@ -174,32 +177,34 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  const headers = useMemo(() => ({ "X-Password": password }), [password]);
-
   async function loadData() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/cv`, { headers });
-      if (!res.ok) {
-        const msg = res.status === 401 ? "Contraseña incorrecta" : `Error ${res.status}`;
-        throw new Error(msg);
+      const res = await fetch(`${API}/admin/cv`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+      });
+      if (res.status === 401) {
+        logout();
+        navigate("/login", { replace: true });
+        return;
       }
+      if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       setCvs(data.items || []);
-      setAuthed(true);
       setError("");
-      sessionStorage.setItem("hp_admin_pwd", password);
     } catch (e: any) {
       setError(e?.message || "Error");
-      setAuthed(false);
     } finally {
       setLoading(false);
     }
   }
 
-  // Carga automática si ya había contraseña en sesión
+  // Carga al montar
   useEffect(() => {
-    if (password) loadData();
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -235,12 +240,17 @@ export default function AdminPanel() {
       setDeleting(id);
       const res = await fetch(`${API}/admin/cv/${id}`, {
         method: "DELETE",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
       });
-      if (!res.ok) {
-        const msg = res.status === 401 ? "Contraseña incorrecta" : `Error ${res.status}`;
-        throw new Error(msg);
+      if (res.status === 401) {
+        logout();
+        navigate("/login", { replace: true });
+        return;
       }
+      if (!res.ok) throw new Error(`Error ${res.status}`);
       setCvs((prev) => prev.filter((cv) => cv.id !== id));
       if (active?.id === id) setActive(null);
     } catch (e: any) {
@@ -256,107 +266,85 @@ export default function AdminPanel() {
     setQ("");
   }
 
-  if (!authed) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm">
-          <h1 className="text-xl font-bold mb-1">Panel Admin</h1>
-          <p className="text-sm text-gray-500 mb-4">Ingresá la contraseña para ver los CVs.</p>
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loadData()}
-            className="w-full border rounded-lg px-3 py-2 mb-3"
-            autoFocus
-            aria-label="Contraseña"
-          />
-          <button
-            onClick={loadData}
-            className="w-full rounded-lg bg-amber-500 hover:bg-amber-600 text-white py-2 font-medium disabled:opacity-60"
-            disabled={loading || !password}
-            aria-busy={loading}
-          >
-            {loading ? "Entrando..." : "Entrar"}
-          </button>
-          {error && (
-            <p className="mt-3 text-red-600 text-sm" aria-live="polite">
-              {error}
-            </p>
-          )}
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
         <div className="flex items-center gap-2">
-          <span className="text-2xl" aria-hidden>
-            📁
-          </span>
+          <span className="text-2xl" aria-hidden>📁</span>
           <h1 className="text-2xl font-bold">CVs recibidos</h1>
           <span className="text-sm text-gray-500 ml-2">({filtered.length})</span>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          {/* Filtros por fecha */}
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1 text-gray-600">
-              <Filter className="size-4" /> Fecha:
-            </span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="px-3 py-2 rounded-lg border bg-white w-full sm:w-auto"
-              aria-label="Desde"
-              placeholder={ymd()}
-            />
-            <span className="text-gray-500">→</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="px-3 py-2 rounded-lg border bg-white w-full sm:w-auto"
-              aria-label="Hasta"
-              placeholder={ymd()}
-            />
+          <div className="text-sm text-gray-600 mr-2">
+            Sesión: <b>{user?.email ?? "—"}</b>
           </div>
+          <button
+            onClick={() => { logout(); navigate("/login", { replace: true }); }}
+            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50"
+            title="Cerrar sesión"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
 
-          {/* Búsqueda opcional */}
-          <label className="relative" aria-label="Buscar">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-            <input
-              placeholder="Buscar texto…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="pl-8 pr-3 py-2 rounded-lg border bg-white w-full sm:w-[220px]"
-            />
-          </label>
+      {/* Controles */}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
+        {/* Filtros por fecha */}
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:inline-flex items-center gap-1 text-gray-600">
+            <Filter className="size-4" /> Fecha:
+          </span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-3 py-2 rounded-lg border bg-white w-full sm:w-auto"
+            aria-label="Desde"
+            placeholder={ymd()}
+          />
+          <span className="text-gray-500">→</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-3 py-2 rounded-lg border bg-white w-full sm:w-auto"
+            aria-label="Hasta"
+            placeholder={ymd()}
+          />
+        </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50"
-              title="Limpiar filtros"
-            >
-              Limpiar
-            </button>
-            <button
-              onClick={loadData}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50 disabled:opacity-60"
-              title="Actualizar"
-              disabled={loading}
-              aria-busy={loading}
-            >
-              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-              <span>Actualizar</span>
-            </button>
-          </div>
+        {/* Búsqueda opcional */}
+        <label className="relative" aria-label="Buscar">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+          <input
+            placeholder="Buscar texto…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="pl-8 pr-3 py-2 rounded-lg border bg-white w-full sm:w-[220px]"
+          />
+        </label>
+
+        <div className="flex gap-2">
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50"
+            title="Limpiar filtros"
+          >
+            Limpiar
+          </button>
+          <button
+            onClick={loadData}
+            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 bg-white hover:bg-gray-50 disabled:opacity-60"
+            title="Actualizar"
+            disabled={loading}
+            aria-busy={loading}
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            <span>Actualizar</span>
+          </button>
         </div>
       </div>
 
