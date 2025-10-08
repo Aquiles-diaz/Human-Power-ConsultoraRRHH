@@ -397,7 +397,7 @@ export default function HumanPowerLanding() {
             setShowWelcome(false);
             localStorage.setItem("hp.welcome.hidden", "1"); // no volver a mostrar hasta próximo login
           }}
-          autoDismissMs={window.innerWidth < 140 ? 2000 : undefined}
+          autoDismissMs={window.innerWidth < 768 ? 2000 : undefined}
         />
       </div>
 
