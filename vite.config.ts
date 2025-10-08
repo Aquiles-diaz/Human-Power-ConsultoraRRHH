@@ -1,4 +1,5 @@
 // vite.config.ts
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
@@ -22,5 +23,11 @@ export default defineConfig({
       },
     },
     hmr: { overlay: false },
+  },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: "./src/setupTests.ts",
+    css: true,
   },
 });
