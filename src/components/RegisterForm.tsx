@@ -37,7 +37,7 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
 
       <div className="space-y-1">
         <label className="text-sm font-medium">Contraseña</label>
-        <Input name="password" type="password" placeholder="********" value={values.password} onChange={handleChange} required />
+        <Input name="password" type="password" placeholder="********" value={values.password} onChange={handleChange} required maxLength={72} />
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

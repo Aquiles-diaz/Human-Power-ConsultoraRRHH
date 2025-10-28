@@ -1,105 +1,130 @@
 # backend/auth.py
 import logging
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
-from fastapi import APIRouter, HTTPException, Header
-from passlib.context import CryptContext
-from passlib.exc import MissingBackendError
-from jose import jwt, JWTError
-from datetime import datetime, timedelta
 import sqlite3
+from datetime import datetime, timedelta
+
+# 👇 1. Importa Header para leer las cabeceras HTTP
+from fastapi import APIRouter, Depends, HTTPException, Header
+from jose import JWTError, jwt
+from pydantic import BaseModel, EmailStr, Field
+from passlib.context import CryptContext
+
 from .db import get_conn
 
-log = logging.getLogger("auth")  # <<< añade esto
-
+log = logging.getLogger("auth")
 router = APIRouter()
 
-SECRET_KEY = "cambia-esto-en-.env"
+# --- Configuración de Seguridad ---
+SECRET_KEY = "cambia-esto-en-.env-o-un-gestor-de-secretos"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-# Contexto bcrypt
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# --- Modelos de Datos (Schemas) ---
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    role: str
 
 class RegisterDTO(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=8, max_length=72)
 
 class LoginDTO(BaseModel):
     email: EmailStr
     password: str
 
-def create_token(sub: str) -> str:
-    payload = {"sub": sub, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+class TokenData(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
 
-def get_user_by_email(email: str):
-    con = get_conn(); cur = con.cursor()
-    cur.execute("SELECT id, name, email, password_hash, role FROM users WHERE email = ?", (email.lower(),))
-    row = cur.fetchone(); con.close()
-    if not row: return None
-    return {"id": row["id"], "name": row["name"], "email": row["email"], "password_hash": row["password_hash"], "role": row["role"]}
+# --- Funciones de Base de Datos ---
+def get_user_by_email(email: str) -> dict | None:
+    with get_conn() as con:
+        cur = con.cursor()
+        cur.execute("SELECT id, name, email, password_hash, role FROM users WHERE email = ?", (email.lower(),))
+        row = cur.fetchone()
+        return dict(row) if row else None
 
-def create_user(name: str, email: str, password: str):
-    # bcrypt acepta hasta 72 bytes: truncamos por si acaso
-    safe_pwd = password[:72]
-    con = get_conn(); cur = con.cursor()
-    cur.execute(
-        "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
-        (name.strip(), email.strip().lower(), pwd.hash(safe_pwd))
+def create_user(name: str, email: str, password: str) -> dict:
+    hashed_password = pwd_context.hash(password)
+    with get_conn() as con:
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+            (name.strip(), email.strip().lower(), hashed_password)
+        )
+        user_id = cur.lastrowid
+        con.commit()
+        cur.execute("SELECT id, name, email, role FROM users WHERE id = ?", (user_id,))
+        new_user_row = cur.fetchone()
+        return dict(new_user_row)
+
+# --- Funciones de Autenticación y Tokens ---
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# 👇 2. La función de dependencia refactorizada para ser más clara
+def get_current_user(authorization: str | None = Header(default=None)):
+    """
+    Dependencia que lee la cabecera Authorization, valida el token JWT
+    y devuelve los datos del usuario.
+    """
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="No se pudieron validar las credenciales",
+        headers={"WWW-Authenticate": "Bearer"},
     )
-    uid = cur.lastrowid
-    cur.execute("SELECT id, name, email, role FROM users WHERE id = ?", (uid,))
-    row = cur.fetchone(); con.commit(); con.close()
-    return {"id": row["id"], "name": row["name"], "email": row["email"], "role": row["role"]}
 
-@router.post("/register")
-def register(dto: RegisterDTO):
-    try:
-        if get_user_by_email(dto.email):
-            raise HTTPException(status_code=400, detail="Email ya registrado")
-        user = create_user(dto.name, dto.email, dto.password)
-        token = create_token(user["email"])
-        return {"access_token": token, "token_type": "bearer", "user": user}
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise credentials_exception
 
-    except sqlite3.IntegrityError:
-        # UNIQUE(email)
-        raise HTTPException(status_code=400, detail="Email ya registrado")
+    token = authorization.split(" ")[1]
 
-    except MissingBackendError:
-        raise HTTPException(status_code=500, detail="Falta backend bcrypt. Ejecuta: pip install 'passlib[bcrypt]'")
-
-    except ValueError as e:
-        # p.ej. "password cannot be longer than 72 bytes"
-        raise HTTPException(status_code=400, detail=str(e))
-
-    except Exception as e:
-        log.exception("Fallo en /register con payload=%s", dto.model_dump())  # <<< ya hay logger
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@router.post("/login")
-def login(dto: LoginDTO):
-    u = get_user_by_email(dto.email)
-    if not u or not pwd.verify(dto.password[:72], u["password_hash"]):
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
-    token = create_token(u["email"])
-    return {"access_token": token, "token_type": "bearer", "user": {k: u[k] for k in ("id","name","email","role")}}
-
-@router.get("/me")
-def me(Authorization: str | None = Header(default=None)):
-    if not Authorization or not Authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="No autorizado")
-
-    token = Authorization.split(" ", 1)[1]
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub") or ""
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
     except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+        raise credentials_exception
 
-    u = get_user_by_email(email)
-    if not u:
-        raise HTTPException(status_code=401, detail="No autorizado")
+    user = get_user_by_email(email)
+    if user is None:
+        raise credentials_exception
+    return user
 
-    return {k: u[k] for k in ("id", "name", "email", "role")}
+# --- Endpoints de la API ---
+@router.post("/register", response_model=TokenData, status_code=201)
+def register(dto: RegisterDTO):
+    if get_user_by_email(dto.email):
+        raise HTTPException(status_code=409, detail="El email ya está en uso")
+    try:
+        user = create_user(dto.name, dto.email, dto.password)
+        access_token = create_access_token(data={"sub": user["email"]})
+        return {"access_token": access_token, "user": user}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="El email ya está en uso")
+    except Exception as e:
+        log.error(f"Error inesperado en el registro: {e}")
+        raise HTTPException(status_code=500, detail="Ocurrió un error en el servidor")
+
+@router.post("/login", response_model=TokenData)
+def login(dto: LoginDTO):
+    user = get_user_by_email(dto.email)
+    if not user or not pwd_context.verify(dto.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+    access_token = create_access_token(data={"sub": user["email"]})
+    return {"access_token": access_token, "user": user}
+
+# 👇 3. El endpoint ahora usa la dependencia de forma estándar
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: dict = Depends(get_current_user)):
+    """Endpoint protegido que devuelve los datos del usuario autenticado."""
+    return current_user

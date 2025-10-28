@@ -1,4 +1,4 @@
-// src/hooks/useAuth.ts
+// src/hooks/useProvideAuth.ts
 import { useCallback, useEffect, useState } from "react";
 import { API } from "../lib/api";
 
@@ -10,18 +10,17 @@ export type User = {
   email: string;
   role?: string;
 };
+
 type LoginPayload = { email: string; password: string };
 type RegisterPayload = { name: string; email: string; password: string };
 type LoginResponse = { access_token: string; token_type: string; user?: User };
 
-export function useAuth() {
+export function useProvideAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() =>
     typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null
   );
   const [loading, setLoading] = useState(false);
-
-  // Estado para indicar que estamos verificando la sesión en el inicio (race condition)
   const [isInitialLoading, setInitialLoading] = useState(true);
 
   const isAuthenticated = !!token && !!user;
@@ -31,7 +30,7 @@ export function useAuth() {
       if (t) localStorage.setItem(TOKEN_KEY, t);
       else localStorage.removeItem(TOKEN_KEY);
     } catch {
-      // ignorar errores de storage en entornos restringidos
+      // ignore storage errors (e.g., private mode)
     }
     setToken(t);
   }, []);
@@ -55,6 +54,7 @@ export function useAuth() {
         if (!data?.access_token) throw new Error("No se recibió token");
         saveToken(data.access_token);
         setUser(data.user ?? { email: payload.email });
+        // session flags
         sessionStorage.setItem("hp.welcome.show", "1");
         localStorage.removeItem("hp.welcome.hidden");
       } finally {
@@ -117,7 +117,7 @@ export function useAuth() {
   }, [saveToken]);
 
   const fetchMe = useCallback(async () => {
-    // Si no hay token, terminamos la comprobación inicial rápido
+    // Al inicio: si no hay token, terminamos la comprobación inicial
     if (!token) {
       setInitialLoading(false);
       return;
@@ -125,30 +125,33 @@ export function useAuth() {
 
     try {
       const res = await fetch(`${API}/me`, { headers: { ...getAuthHeader() } });
+
       if (res.status === 401) {
+        // token inválido -> desloguear
         logout();
         return;
       }
+
       if (!res.ok) {
-        // posible logging aquí si quieres
+        // no rompes la app por ahora, pero quizá quieras logging
         return;
       }
+
       const data: User = await res.json();
       setUser(data);
     } catch (err) {
-      // opcional: console.error("fetchMe error", err);
+      // opcional: console.error(err)
     } finally {
       setInitialLoading(false);
     }
   }, [token, getAuthHeader, logout]);
 
   useEffect(() => {
-    // Ejecutar la comprobación al montar y cuando cambie el token
+    // Ejecutar solo una vez al montar o cuando cambie token
     fetchMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchMe]);
 
-  // <-- devolver isInitialLoading para que los guards puedan esperarlo
   return {
     user,
     token,
@@ -159,6 +162,7 @@ export function useAuth() {
     register,
     logout,
     getAuthHeader,
+    // helpers útiles
     setUser, // opcional: útil para actualizar perfil desde UI
   };
 }

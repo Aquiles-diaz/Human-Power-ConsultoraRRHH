@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "./components/ui/dialog";
 import { Badge } from "./components/ui/badge";
-import rrhh from "./assets/rrhh.jpg";
+import presentacion from "./assets/presentacion.mp4";
 import {
   Upload,
   Search,
@@ -50,9 +50,24 @@ const initialFormState: FormState = { name: "", email: "", message: "" };
 
 // Datos estáticos (evita recrearlos en render)
 const JOBS = [
-  { id: 1, title: "Analista Contable Jr.", location: "Rosario, Santa Fe", type: "Presencial" },
-  { id: 2, title: "Desarrollador/a Frontend", location: "Remoto (ARG)", type: "Remoto" },
-  { id: 3, title: "Vendedor/a Comercial", location: "Zona Norte, Rosario", type: "Híbrido" },
+  {
+    id: 1,
+    title: "Analista Contable Jr.",
+    location: "Rosario, Santa Fe",
+    type: "Presencial",
+  },
+  {
+    id: 2,
+    title: "Desarrollador/a Frontend",
+    location: "Remoto (ARG)",
+    type: "Remoto",
+  },
+  {
+    id: 3,
+    title: "Vendedor/a Comercial",
+    location: "Zona Norte, Rosario",
+    type: "Híbrido",
+  },
 ] as const;
 
 // --- Subcomponente: Modal para subir CV ---
@@ -204,7 +219,7 @@ export default function HumanPowerLanding() {
     () =>
       [
         { href: "#servicios", label: "Servicios" },
-        { href: "#puestos", label: "Ofertas" },
+        { href: "/ofertas", label: "Ofertas" },
         { href: "#contacto", label: "Contacto" },
       ] as const,
     []
@@ -223,8 +238,13 @@ export default function HumanPowerLanding() {
     if (!cvFile) return alert("Subí tu CV en PDF/DOC/DOCX");
 
     const dotIndex = cvFile.name.lastIndexOf(".");
-    const extension = dotIndex >= 0 ? cvFile.name.slice(dotIndex).toLowerCase() : "";
-    if (!ALLOWED_EXTENSIONS.includes(extension as (typeof ALLOWED_EXTENSIONS)[number])) {
+    const extension =
+      dotIndex >= 0 ? cvFile.name.slice(dotIndex).toLowerCase() : "";
+    if (
+      !ALLOWED_EXTENSIONS.includes(
+        extension as (typeof ALLOWED_EXTENSIONS)[number]
+      )
+    ) {
       return alert("Formato no permitido. Solo PDF/DOC/DOCX");
     }
     if (cvFile.size > MAX_UPLOAD_BYTES) {
@@ -247,7 +267,8 @@ export default function HumanPowerLanding() {
       alert(`CV enviado ✅ (ID: ${data.resume_id})`);
       resetForm();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado";
+      const message =
+        error instanceof Error ? error.message : "Error inesperado";
       alert(`No se pudo enviar el CV: ${message}`);
     }
   }, [cvFile, form.message, form.name, form.email, resetForm]);
@@ -258,14 +279,25 @@ export default function HumanPowerLanding() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
           {/* Logo */}
-          <a href="#home" className="text-white font-bold text-lg sm:text-xl" aria-label="Inicio">
+          <a
+            href="#home"
+            className="text-white font-bold text-lg sm:text-xl"
+            aria-label="Inicio"
+          >
             Human Power | RRHH
           </a>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-7 text-[15px]" aria-label="Principal">
+          <nav
+            className="hidden md:flex items-center gap-7 text-[15px]"
+            aria-label="Principal"
+          >
             {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="text-white/80 hover:text-white transition-colors">
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-white/80 hover:text-white transition-colors"
+              >
                 {link.label}
               </a>
             ))}
@@ -283,9 +315,17 @@ export default function HumanPowerLanding() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle className="font-semibold">Acceso a tu cuenta</DialogTitle>
+                  <DialogTitle className="font-semibold">
+                    Acceso a tu cuenta
+                  </DialogTitle>
                 </DialogHeader>
-                <Suspense fallback={<div className="p-4 text-center text-sm text-slate-500">Cargando…</div>}>
+                <Suspense
+                  fallback={
+                    <div className="p-4 text-center text-sm text-slate-500">
+                      Cargando…
+                    </div>
+                  }
+                >
                   <AuthSection />
                 </Suspense>
               </DialogContent>
@@ -330,7 +370,10 @@ export default function HumanPowerLanding() {
         {/* Mobile Nav Panel */}
         {openNav && (
           <div className="md:hidden border-t border-white/10 bg-black/95">
-            <nav className="mx-auto max-w-7xl px-4 py-3 flex flex-col gap-3" aria-label="Navegación móvil">
+            <nav
+              className="mx-auto max-w-7xl px-4 py-3 flex flex-col gap-3"
+              aria-label="Navegación móvil"
+            >
               {navLinks.map((link) => (
                 <a
                   key={link.href}
@@ -352,9 +395,17 @@ export default function HumanPowerLanding() {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
-                    <DialogTitle className="font-semibold">Acceso a tu cuenta</DialogTitle>
+                    <DialogTitle className="font-semibold">
+                      Acceso a tu cuenta
+                    </DialogTitle>
                   </DialogHeader>
-                  <Suspense fallback={<div className="p-4 text-center text-sm text-slate-500">Cargando…</div>}>
+                  <Suspense
+                    fallback={
+                      <div className="p-4 text-center text-sm text-slate-500">
+                        Cargando…
+                      </div>
+                    }
+                  >
                     <AuthSection />
                   </Suspense>
                 </DialogContent>
@@ -364,7 +415,11 @@ export default function HumanPowerLanding() {
                 className="rounded-full bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 text-sm inline-flex items-center gap-2 shadow-sm"
                 asChild
               >
-                <a href="/empresas" onClick={() => setOpenNav(false)} aria-label="Ir al portal de empresas">
+                <a
+                  href="/empresas"
+                  onClick={() => setOpenNav(false)}
+                  aria-label="Ir al portal de empresas"
+                >
                   <Briefcase size={16} />
                   Portal Empresas
                 </a>
@@ -404,12 +459,23 @@ export default function HumanPowerLanding() {
       {/* Hero */}
       <section
         id="home"
-        className="relative min-h-[64vh] sm:min-h-[72vh] flex items-center scroll-mt-16"
-        style={{ backgroundImage: `url(${rrhh})`, backgroundSize: "cover", backgroundPosition: "center" }}
+        className="relative min-h-[64vh] sm:min-h-[72vh] flex items-center justify-center overflow-hidden scroll-mt-16"
       >
+        <video
+          src={presentacion}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute top-0 left-0 w-full h-full object-cover z-[0]"
+        />
         <div className="absolute inset-0 bg-black/60" />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 grid md:grid-cols-2 gap-8 sm:gap-10 items-center text-white">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
             <p className="uppercase tracking-widest text-amber-400 text-[11px] sm:text-xs font-semibold">
               Consultora integral en RRHH
             </p>
@@ -417,22 +483,34 @@ export default function HumanPowerLanding() {
               EL <span className="text-amber-400">CV</span> AHORA HABLA POR VOS.
             </h1>
             <p className="mt-4 text-white/85 max-w-prose text-sm sm:text-base">
-              No somos un portal de empleo más. En nuestra plataforma, cada candidato sube su CV y un video
-              donde se presenta: nombre, profesión, experiencia y especialidad.
+              No somos un portal de empleo más. En nuestra plataforma, cada
+              candidato sube su CV y un video donde se presenta: nombre,
+              profesión, experiencia y especialidad.
             </p>
 
-            <h2 className="mt-4 text-2xl sm:text-3xl font-bold leading-tight">¿Por qué somos distintos?</h2>
+            <h2 className="mt-4 text-2xl sm:text-3xl font-bold leading-tight">
+              ¿Por qué somos distintos?
+            </h2>
             <p className="mt-2 text-white/85 text-sm sm:text-base">
-              <span className="text-amber-400 font-semibold">Para Candidatos:</span> Te destacás entre cientos de{" "}
-              <strong>CV</strong> con tu primera impresión.
+              <span className="text-amber-400 font-semibold">
+                Para Candidatos:
+              </span>{" "}
+              Te destacás entre cientos de <strong>CV</strong> con tu primera
+              impresión.
               <br />
-              <span className="text-amber-400 font-semibold">Para Empresas:</span> Ahorrás tiempo, conocés al
-              candidato antes de entrevistarlo.
+              <span className="text-amber-400 font-semibold">
+                Para Empresas:
+              </span>{" "}
+              Ahorrás tiempo, conocés al candidato antes de entrevistarlo.
             </p>
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
-              <Button variant="outline" className="rounded-2xl border-white text-white hover:bg-white/10 w-full sm:w-auto" asChild>
-                <a href="#puestos">Ofertas laborales</a>
+              <Button
+                variant="outline"
+                className="rounded-2xl border-white text-white hover:bg-white/10 w-full sm:w-auto"
+                asChild
+              >
+                <a href="/ofertas">Ofertas laborales</a>
               </Button>
 
               {/* CTA Cargar CV */}
@@ -451,8 +529,13 @@ export default function HumanPowerLanding() {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-4 text-xs sm:text-sm text-white/80">
-              <span className="inline-flex items-center gap-1"><MapPin size={16} /> Rosario, ARG</span>
-              <a href="mailto:humanpower.rrhh@gmail.com" className="inline-flex items-center gap-1 hover:underline">
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={16} /> Rosario, ARG
+              </span>
+              <a
+                href="mailto:humanpower.rrhh@gmail.com"
+                className="inline-flex items-center gap-1 hover:underline"
+              >
                 <Mail size={16} /> humanpower.rrhh@gmail.com
               </a>
               <a
@@ -481,7 +564,10 @@ export default function HumanPowerLanding() {
               </CardHeader>
               <CardContent className="grid gap-3">
                 {JOBS.map((j) => (
-                  <div key={j.id} className="flex items-center justify-between border rounded-2xl p-3">
+                  <div
+                    key={j.id}
+                    className="flex items-center justify-between border rounded-2xl p-3"
+                  >
                     <div>
                       <p className="font-medium">{j.title}</p>
                       <p className="text-xs text-slate-500 flex items-center gap-1">
@@ -504,7 +590,10 @@ export default function HumanPowerLanding() {
       </section>
 
       {/* Servicios */}
-      <section id="servicios" className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+      <section
+        id="servicios"
+        className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16"
+      >
         <p className="uppercase tracking-widest text-amber-500 text-[11px] sm:text-xs font-semibold text-center">
           Servicios en RRHH
         </p>
@@ -513,49 +602,100 @@ export default function HumanPowerLanding() {
         </h2>
 
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="rounded-3xl shadow-sm hover:shadow-md transition">
-            <CardHeader><CardTitle>Objetivo</CardTitle></CardHeader>
-            <CardContent className="text-sm text-slate-700 leading-relaxed">
-              Identificar necesidades de RRHH, asesorar y crear herramientas. Delegaciones efectivas que aumentan rentabilidad y productividad.
+          <Card className="rounded-3xl shadow-sm hover:shadow-md transition h-full">
+            <CardHeader>
+              <CardTitle>Objetivo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Nos enfocamos en ser tu socio estratégico para potenciar el
+                capital humano de tu organización a través de:
+              </p>
+              <ul className="list-disc pl-5 mt-3 space-y-1 text-sm text-slate-700">
+                <li>Identificación precisa de necesidades.</li>
+                <li>Creación de herramientas a medida.</li>
+                <li>Asesoramiento para una delegación efectiva.</li>
+                <li>Aumento de la rentabilidad y productividad.</li>
+              </ul>
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl shadow-sm hover:shadow-md transition">
+          <Card className="rounded-3xl shadow-sm hover:shadow-md transition h-full">
             <CardHeader>
               <CardTitle>Búsqueda y selección</CardTitle>
-              <p className="text-xs text-slate-500 mt-1">Etapas del proceso completo</p>
             </CardHeader>
             <CardContent className="text-sm text-slate-700 leading-relaxed">
               <ul className="list-disc pl-5 space-y-1">
                 <li>Identificación de necesidades y perfil del puesto.</li>
                 <li>Publicación de avisos y hunting/reclutamiento en redes.</li>
-                <li>Evaluación de CVs, preselección e entrevista con candidato.</li>
+                <li>
+                  Evaluación de CVs, preselección e entrevista con candidato.
+                </li>
                 <li>Presentación de candidatos para evaluación final.</li>
-                <li><span className="text-red-500 font-bold">NO</span> cobramos <span className="text-amber-500 font-semibold">anticipo</span>.</li>
-                <li><span className="text-red-500 font-bold">NO</span> pedimos <span className="text-amber-500 font-semibold">exclusividad</span>.</li>
+                <li>
+                  <span className="text-red-500 font-bold">NO</span> cobramos{" "}
+                  <span className="text-amber-500 font-semibold">anticipo</span>
+                  .
+                </li>
+                <li>
+                  <span className="text-red-500 font-bold">NO</span> pedimos{" "}
+                  <span className="text-amber-500 font-semibold">
+                    exclusividad
+                  </span>
+                  .
+                </li>
               </ul>
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl shadow-sm hover:shadow-md transition">
-            <CardHeader><CardTitle>Asesoría integral</CardTitle></CardHeader>
-            <CardContent className="text-sm text-slate-700 leading-relaxed">
-              Consultoría en temas hard & soft. Gestión de desvinculaciones y acuerdos con foco humano y legal.
+          <Card className="rounded-3xl shadow-sm hover:shadow-md transition h-full">
+            <CardHeader>
+              <CardTitle>Asesoría integral</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Ofrecemos una consultoría 360° que abarca:
+              </p>
+              <ul className="list-disc pl-5 mt-3 space-y-1 text-sm text-slate-700">
+                <li>Temas de HR "Hard": Legales y administrativos.</li>
+                <li>Temas de HR "Soft": Cultura y desarrollo.</li>
+                <li>Gestión de desvinculaciones con foco humano.</li>
+                <li>Negociación de acuerdos bajo marco legal.</li>
+              </ul>
             </CardContent>
           </Card>
         </div>
       </section>
 
       {/* Ofertas */}
-      <section id="puestos" className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+      <section
+        id="puestos"
+        className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16"
+      >
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="uppercase tracking-widest text-amber-500 text-[11px] sm:text-xs font-semibold">Vacantes</p>
-            <h2 className="text-2xl sm:text-3xl font-bold">Ofertas laborales</h2>
-            <p className="mt-2 text-slate-600 text-sm sm:text-base">Pronto sincronizamos automáticamente con Instagram.</p>
+            <p className="uppercase tracking-widest text-amber-500 text-[11px] sm:text-xs font-semibold">
+              Vacantes
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold">
+              Ofertas laborales
+            </h2>
+            <p className="mt-2 text-slate-600 text-sm sm:text-base">
+              Pronto sincronizamos automáticamente con Instagram.
+            </p>
           </div>
-          <Button className="hidden sm:inline-flex rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black" asChild>
-            <a href="#contacto">Publicar un puesto</a>
+          <Button
+            className="inline-flex rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black"
+            asChild
+          >
+            <a
+              href="/puesto"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Publicar un puesto"
+            >
+              Publicar un puesto
+            </a>
           </Button>
         </div>
 
@@ -566,11 +706,20 @@ export default function HumanPowerLanding() {
         >
           {JOBS.map((j) => (
             <Card key={j.id} className="rounded-3xl min-w-[86%] snap-start">
-              <CardHeader><CardTitle className="text-lg">{j.title}</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-lg">{j.title}</CardTitle>
+              </CardHeader>
               <CardContent className="text-sm text-slate-600 grid gap-2">
-                <div className="inline-flex items-center gap-2 text-slate-700"><MapPin size={16} />{j.location}</div>
-                <Badge className="w-fit rounded-xl" variant="secondary">{j.type}</Badge>
-                <Button className="rounded-2xl mt-2" variant="outline">Postularme</Button>
+                <div className="inline-flex items-center gap-2 text-slate-700">
+                  <MapPin size={16} />
+                  {j.location}
+                </div>
+                <Badge className="w-fit rounded-xl" variant="secondary">
+                  {j.type}
+                </Badge>
+                <Button className="rounded-2xl mt-2" variant="outline">
+                  Postularme
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -579,19 +728,34 @@ export default function HumanPowerLanding() {
         {/* Desktop grid */}
         <div className="mt-6 hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {JOBS.map((j) => (
-            <Card key={j.id} className="rounded-3xl hover:shadow-lg transition-shadow">
-              <CardHeader><CardTitle className="text-lg">{j.title}</CardTitle></CardHeader>
+            <Card
+              key={j.id}
+              className="rounded-3xl hover:shadow-lg transition-shadow"
+            >
+              <CardHeader>
+                <CardTitle className="text-lg">{j.title}</CardTitle>
+              </CardHeader>
               <CardContent className="text-sm text-slate-600 grid gap-2">
-                <div className="inline-flex items-center gap-2 text-slate-700"><MapPin size={16} />{j.location}</div>
-                <Badge className="w-fit rounded-xl" variant="secondary">{j.type}</Badge>
-                <Button className="rounded-2xl mt-2" variant="outline">Postularme</Button>
+                <div className="inline-flex items-center gap-2 text-slate-700">
+                  <MapPin size={16} />
+                  {j.location}
+                </div>
+                <Badge className="w-fit rounded-xl" variant="secondary">
+                  {j.type}
+                </Badge>
+                <Button className="rounded-2xl mt-2" variant="outline">
+                  Postularme
+                </Button>
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* CTA mobile */}
-        <Button className="sm:hidden w-full mt-6 rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black" asChild>
+        <Button
+          className="sm:hidden w-full mt-6 rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black"
+          asChild
+        >
           <a href="#contacto">Publicar un puesto</a>
         </Button>
       </section>
@@ -600,14 +764,24 @@ export default function HumanPowerLanding() {
       <section className="bg-black text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10 grid sm:grid-cols-2 gap-4 sm:gap-6 items-center">
           <div>
-            <h3 className="text-lg sm:text-2xl font-semibold">¿Buscás cubrir una posición clave?</h3>
-            <p className="text-white/70 text-sm sm:text-base">Contanos tu necesidad y te presentamos una terna en tiempo récord.</p>
+            <h3 className="text-lg sm:text-2xl font-semibold">
+              ¿Buscás cubrir una posición clave?
+            </h3>
+            <p className="text-white/70 text-sm sm:text-base">
+              Contanos tu necesidad y te presentamos una terna en tiempo récord.
+            </p>
           </div>
           <div className="flex sm:justify-end gap-3">
-            <Button className="rounded-2xl bg-white text-black hover:bg-white/90 w-full sm:w-auto" asChild>
+            <Button
+              className="rounded-2xl bg-white text-black hover:bg-white/90 w-full sm:w-auto"
+              asChild
+            >
               <a href="#contacto">Contactar ahora</a>
             </Button>
-            <Button className="rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black w-full sm:w-auto" asChild>
+            <Button
+              className="rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black w-full sm:w-auto"
+              asChild
+            >
               <a href="#servicios">Ver servicios</a>
             </Button>
           </div>
@@ -615,29 +789,61 @@ export default function HumanPowerLanding() {
       </section>
 
       {/* Contacto */}
-      <section id="contacto" className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+      <section
+        id="contacto"
+        className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16"
+      >
         <div className="grid md:grid-cols-2 gap-6 sm:gap-8 items-center">
           <div>
-            <p className="uppercase tracking-widest text-amber-500 text-[11px] sm:text-xs font-semibold">Contacto</p>
-            <h2 className="mt-2 text-2xl sm:text-3xl font-bold">¿Sos empresa? Hablemos.</h2>
-            <p className="mt-2 text-slate-600 text-sm sm:text-base">Contanos tu búsqueda y te armamos una terna en tiempo récord.</p>
+            <p className="uppercase tracking-widest text-amber-500 text-[11px] sm:text-xs font-semibold">
+              Contacto
+            </p>
+            <h2 className="mt-2 text-2xl sm:text-3xl font-bold">
+              ¿Sos empresa? Hablemos.
+            </h2>
+            <p className="mt-2 text-slate-600 text-sm sm:text-base">
+              Contanos tu búsqueda y te armamos una terna en tiempo récord.
+            </p>
             <div className="mt-6 space-y-3 text-sm sm:text-base text-slate-700">
-              <div className="inline-flex items-center gap-2 font-medium">Contacto: Sergio Ducca</div>
-              <a className="inline-flex items-center gap-2 hover:underline" href="tel:+543415893829"><Phone size={16} /> 341 589 3829</a>
-              <a className="inline-flex items-center gap-2 hover:underline" href="mailto:humanpower.rrhh@gmail.com"><Mail size={16} /> humanpower.rrhh@gmail.com</a>
-              <a className="inline-flex items-center gap-2 hover:underline" href="https://www.instagram.com/human.power.rrhh/" target="_blank" rel="noopener noreferrer"><Instagram size={16} /> @human.power.rrhh</a>
+              <div className="inline-flex items-center gap-2 font-medium">
+                Contacto: Sergio Ducca
+              </div>
+              <a
+                className="inline-flex items-center gap-2 hover:underline"
+                href="tel:+543415893829"
+              >
+                <Phone size={16} /> 341 589 3829
+              </a>
+              <a
+                className="inline-flex items-center gap-2 hover:underline"
+                href="mailto:humanpower.rrhh@gmail.com"
+              >
+                <Mail size={16} /> humanpower.rrhh@gmail.com
+              </a>
+              <a
+                className="inline-flex items-center gap-2 hover:underline"
+                href="https://www.instagram.com/human.power.rrhh/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Instagram size={16} /> @human.power.rrhh
+              </a>
             </div>
           </div>
 
           <Card className="rounded-3xl">
-            <CardHeader><CardTitle>Dejanos tu consulta</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Dejanos tu consulta</CardTitle>
+            </CardHeader>
             <CardContent className="grid gap-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input placeholder="Nombre" aria-label="Nombre" />
                 <Input type="email" placeholder="Email" aria-label="Email" />
               </div>
               <Textarea placeholder="Mensaje" rows={5} aria-label="Mensaje" />
-              <Button className="rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black w-full sm:w-auto">Enviar</Button>
+              <Button className="rounded-2xl bg-amber-500 hover:bg-amber-500/90 text-black w-full sm:w-auto">
+                Enviar
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -645,9 +851,13 @@ export default function HumanPowerLanding() {
 
       {/* Footer */}
       <footer className="bg-black text-white/70 py-7 sm:py-8 text-center text-xs sm:text-sm">
-        <p>© {new Date().getFullYear()} Human Power RRHH • Rosario, Argentina</p>
+        <p>
+          © {new Date().getFullYear()} Human Power RRHH • Rosario, Argentina
+        </p>
         <p className="mt-1">
-          <a href="/admin" className="text-white/40 hover:text-white/70">Acceso clientes</a>
+          <a href="/admin" className="text-white/40 hover:text-white/70">
+            Acceso clientes
+          </a>
         </p>
       </footer>
     </div>

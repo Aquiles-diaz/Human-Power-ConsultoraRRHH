@@ -1,6 +1,6 @@
 # backend/main.py
 from __future__ import annotations
-
+from .db import get_conn as _get_conn, init_db
 import logging
 import mimetypes
 import os
@@ -17,6 +17,7 @@ from starlette.responses import FileResponse
 from starlette.staticfiles import StaticFiles
 
 from .db import get_conn as _get_conn  # conexión a SQLite
+init_db()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuración
@@ -134,7 +135,7 @@ def root() -> RootOut:
 @app.post("/cv", response_model=UploadCvOut, tags=["default"])
 async def upload_cv(
     full_name: str = Form(..., min_length=2, max_length=200),
-    email: str = Form(..., max_length=320),  # si querés estricta, usa EmailStr
+    email: str = Form(..., max_length=320), 
     message: Optional[str] = Form(None, max_length=10_000),
     file: UploadFile = File(...),
 ) -> UploadCvOut:
