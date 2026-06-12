@@ -1,45 +1,70 @@
 // src/App.tsx
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import HumanPowerLanding from "./HumanPowerLanding";
-import Ofertas from "@/pages/Ofertas";
-import { useAuth } from "./hooks/AuthContext"; // ahora viene del context
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import LandingPage from "@/features/landing/LandingPage";
+import OfertasPage from "@/features/jobs/OfertasPage";
+import { RequireAuth, RequireRole, LoadingScreen } from "@/app/guards";
 
-const AdminPanel = React.lazy(() => import("./pages/AdminPanel"));
-
-function LoadingScreen({ text = "Cargando sesión…" }: { text?: string }) {
-  return <div className="p-6">{text}</div>;
-}
-
-function RequireAuth() {
-  const { isAuthenticated, isInitialLoading } = useAuth();
-  if (isInitialLoading) return <LoadingScreen />;
-  if (!isAuthenticated) return <Navigate to="/" replace />;
-  return <Outlet />;
-}
-
-function RequireRole({ role }: { role: "admin" | "user" }) {
-  const { user, isInitialLoading } = useAuth();
-  console.log("DEBUG RUTA PROTEGIDA:", { role, user });
-  if (isInitialLoading) return <LoadingScreen />;
-  if (!user) return <Navigate to="/" replace />;
-  if (role === "admin" && user.role !== "admin") return <Navigate to="/" replace />;
-  return <Outlet />;
-}
+const AdminPanel = React.lazy(() => import("@/features/admin/AdminPanel"));
+const AuthPage = React.lazy(() => import("@/features/auth/AuthPage"));
+const ProfilePage = React.lazy(() => import("@/features/profile/ProfilePage"));
+const ForgotPasswordPage = React.lazy(() => import("@/features/auth/ForgotPasswordPage"));
+const ResetPasswordPage = React.lazy(() => import("@/features/auth/ResetPasswordPage"));
+const VerifyEmailPage = React.lazy(() => import("@/features/auth/VerifyEmailPage"));
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<HumanPowerLanding />} />
-        <Route path="/ofertas" element={<Ofertas />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/ofertas" element={<OfertasPage />} />
+        <Route
+          path="/login"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <AuthPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/recuperar"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <ForgotPasswordPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <ResetPasswordPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/verify-email"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <VerifyEmailPage />
+            </React.Suspense>
+          }
+        />
 
         <Route element={<RequireAuth />}>
+          <Route
+            path="/perfil"
+            element={
+              <React.Suspense fallback={<LoadingScreen />}>
+                <ProfilePage />
+              </React.Suspense>
+            }
+          />
           <Route element={<RequireRole role="admin" />}>
             <Route
               path="/admin"
               element={
-                <React.Suspense fallback={<div className="p-6">Cargando…</div>}>
+                <React.Suspense fallback={<LoadingScreen />}>
                   <AdminPanel />
                 </React.Suspense>
               }

@@ -1,7 +1,18 @@
 # requirements.txt
-fastapi==0.111.1
-uvicorn[standard]==0.30.3
-passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
-python-multipart==0.0.9
-pydantic[email]==2.8.2
+# Versiones mínimas con wheels para Python 3.13/3.14 (las versiones viejas
+# fijadas no compilan en 3.14: pydantic-core/PyO3 no lo soportaban).
+# El backend hashea con pbkdf2_sha256 (passlib), no usa bcrypt.
+fastapi>=0.136
+uvicorn[standard]>=0.49
+passlib>=1.7.4
+python-jose[cryptography]>=3.5
+python-multipart>=0.0.32
+pydantic[email]>=2.13
+# Migración a Supabase: Postgres (psycopg v3) + Storage (supabase-py).
+psycopg[binary]>=3.2
+supabase>=2.0
+python-dotenv>=1.0
+# Rate limiting (protección de fuerza bruta en login/register).
+slowapi>=0.1.9
+# Login con Google: verificación del ID token (endpoint /auth/google).
+google-auth>=2.0

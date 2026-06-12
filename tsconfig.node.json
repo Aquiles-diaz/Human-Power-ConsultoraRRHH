@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
     "composite": true,
+    "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "types": ["node"],
     "lib": ["ESNext"],
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "noEmit": true
   },
   "include": ["vite.config.ts"]
 }
