@@ -1,0 +1,31 @@
+# Blueprint de Render para el backend (FastAPI).
+# Crear el servicio desde el dashboard: New + → Blueprint → este repo.
+# Los secretos (sync: false) se pegan a mano al crear el servicio.
+services:
+  - type: web
+    name: human-power-api
+    runtime: python
+    plan: free
+    region: virginia # misma costa que la DB de Supabase (aws-1-us-east-1)
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4
+      - key: RUN_INIT_DB
+        value: "0" # esquema gestionado por migraciones (ya aplicado en Supabase cloud)
+      - key: PG_DISABLE_PREPARE
+        value: "1" # requerido por el transaction pooler de Supabase
+      - key: CORS_ORIGINS
+        value: https://human-power-rrhh.vercel.app
+      - key: FRONTEND_URL
+        value: https://human-power-rrhh.vercel.app
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # pooler de Supabase (aws-1-us-east-1, puerto 6543)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
