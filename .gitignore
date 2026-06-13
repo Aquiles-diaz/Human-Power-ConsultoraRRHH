@@ -44,3 +44,4 @@ backend/data.db-wal
 # Output compilado de vite.config.ts (Vite usa el .ts; estos confunden)
 vite.config.js
 vite.config.d.ts
+.vercel
