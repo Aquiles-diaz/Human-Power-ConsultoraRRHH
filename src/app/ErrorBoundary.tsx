@@ -31,9 +31,13 @@ export default class ErrorBoundary extends React.Component<
           <p className="mt-2 text-sm text-white/60">
             Ocurrió un error inesperado al mostrar esta página.
           </p>
-          <pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-black/40 p-3 text-left text-xs text-red-300">
-            {this.state.error.message}
-          </pre>
+          {import.meta.env.DEV && (
+            // Solo en desarrollo: en producción no exponemos detalles técnicos
+            // (nombres internos, stack) que sirven para fingerprinting.
+            <pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-black/40 p-3 text-left text-xs text-red-300">
+              {this.state.error.message}
+            </pre>
+          )}
           <div className="mt-5 flex justify-center gap-2">
             <button
               onClick={() => this.setState({ error: null })}

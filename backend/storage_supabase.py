@@ -77,14 +77,21 @@ def download_bytes(bucket: str, key: str) -> bytes:
         raise
 
 
-def remove(bucket: str, key: str) -> None:
-    """Borra el objeto. No falla si ya no existe (para ser idempotente)."""
+def remove(bucket: str, key: str) -> bool:
+    """Borra el objeto. No falla si ya no existe (para ser idempotente).
+
+    Devuelve True si el objeto fue borrado (o ya no existía) y False si el borrado
+    falló por otra razón (red, permisos, etc.), para que el caller pueda decidir si
+    reintentar o avisar en vez de asumir éxito silencioso.
+    """
     try:
         _bucket(bucket).remove([key])
+        return True
     except Exception as e:  # pragma: no cover
         if _is_not_found(e):
-            return
+            return True
         log.warning("No se pudo borrar %s/%s: %s", bucket, key, e)
+        return False
 
 
 def signed_url(bucket: str, key: str, expires_in: int = SIGNED_URL_TTL) -> str:

@@ -4,6 +4,7 @@ import GoogleAuthButton from "./GoogleAuthButton";
 import { useAuth } from "./AuthContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ShieldAlert, LogOut } from "lucide-react";
+import { getErrorMessage } from "@/lib/utils";
 
 export default function AuthPage() {
   const { login, loading, isAuthenticated, user, logout } = useAuth();
@@ -26,8 +27,8 @@ export default function AuthPage() {
     try {
       await login(v);
       // El useEffect de arriba completa la redirección cuando el rol corresponde.
-    } catch (e: any) {
-      setError(e?.message ?? "Error al iniciar sesión");
+    } catch (e) {
+      setError(getErrorMessage(e) ?? "Error al iniciar sesión");
     }
   };
 

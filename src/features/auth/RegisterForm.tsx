@@ -38,8 +38,13 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
       setLocalError("Las contraseñas no coinciden.");
       return;
     }
-    const { confirm, ...payload } = values;
-    onSubmit(payload);
+    // Excluimos `confirm` (solo se usa para la validación local) del payload.
+    onSubmit({
+      name: values.name,
+      last_name: values.last_name,
+      email: values.email,
+      password: values.password,
+    });
   };
 
   const shownError = localError ?? error;

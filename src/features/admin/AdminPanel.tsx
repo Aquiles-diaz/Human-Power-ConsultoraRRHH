@@ -21,7 +21,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
-import { API } from "@/lib/api";
+import { authFetch, parseApiError } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import CandidatesView from "./CandidatesView";
 import VideoPreview from "./VideoPreview";
 import JobsManager from "./JobsManager";
@@ -83,25 +84,36 @@ export default function AdminPanel() {
   async function loadData() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/cv`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
+      // authFetch: ante 401 cierra sesión global y el guard redirige al login.
+      const res = await authFetch(`/admin/cv`, getAuthHeader(), {
+        headers: { "Content-Type": "application/json" },
       });
-      if (res.status === 401) {
-        logout();
-        navigate("/login", { replace: true });
-        return;
-      }
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       setCvs(data.items || []);
       setError("");
-    } catch (e: any) {
-      setError(e?.message || "Error");
+    } catch (e) {
+      setError(getErrorMessage(e) || "Error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Descarga autenticada del CV (el endpoint /cv/{id} exige Bearer admin; un <a href>
+  // plano no manda el token → 401). Bajamos el blob con authFetch y lo guardamos.
+  async function downloadCv(id: number, filename?: string | null) {
+    try {
+      const res = await authFetch(`/cv/${id}`, getAuthHeader());
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "cv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error("No se pudo descargar el CV", { description: getErrorMessage(e) });
     }
   }
 
@@ -173,24 +185,16 @@ export default function AdminPanel() {
     if (!confirm("¿Seguro que querés eliminar este CV? Esta acción no se puede deshacer.")) return;
     try {
       setDeleting(id);
-      const res = await fetch(`${API}/admin/cv/${id}`, {
+      const res = await authFetch(`/admin/cv/${id}`, getAuthHeader(), {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
+        headers: { "Content-Type": "application/json" },
       });
-      if (res.status === 401) {
-        logout();
-        navigate("/login", { replace: true });
-        return;
-      }
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await parseApiError(res));
       setCvs((prev) => prev.filter((cv) => cv.id !== id));
       if (active?.id === id) setActive(null);
       toast.success("CV eliminado");
-    } catch (e: any) {
-      toast.error("Error al eliminar", { description: e?.message });
+    } catch (e) {
+      toast.error("Error al eliminar", { description: getErrorMessage(e) });
     } finally {
       setDeleting(null);
     }
@@ -431,6 +435,7 @@ export default function AdminPanel() {
                               key={cv.id}
                               cv={cv}
                               onView={() => setActive(cv)}
+                              onDownload={() => downloadCv(cv.id, cv.original_name)}
                               onDelete={() => deleteCv(cv.id)}
                               deleting={deleting === cv.id}
                             />
@@ -489,15 +494,13 @@ export default function AdminPanel() {
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <a
-                  href={`${API}/cv/${cv.id}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => downloadCv(cv.id, cv.original_name)}
                   className="inline-flex items-center gap-2 rounded-lg bg-amber-500/90 px-3 py-1.5 text-sm font-medium text-black hover:bg-amber-400"
                 >
                   <Download className="size-4" />
                   Descargar
-                </a>
+                </button>
                 <button
                   onClick={() => setActive(cv)}
                   className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
@@ -573,15 +576,13 @@ export default function AdminPanel() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1.5">
-                      <a
-                        href={`${API}/cv/${cv.id}`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={() => downloadCv(cv.id, cv.original_name)}
                         className="grid size-9 place-items-center rounded-lg bg-amber-500/90 text-black transition hover:bg-amber-400"
                         title="Descargar"
                       >
                         <Download className="size-4" />
-                      </a>
+                      </button>
                       <button
                         onClick={() => setActive(cv)}
                         className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/10"
@@ -679,15 +680,13 @@ export default function AdminPanel() {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <a
-                href={`${API}/cv/${active.id}`}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                onClick={() => downloadCv(active.id, active.original_name)}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-semibold text-black shadow-lg shadow-amber-500/20 hover:brightness-105"
               >
                 <Download className="size-4" />
                 Descargar CV
-              </a>
+              </button>
               <a
                 href={`mailto:${active.email}`}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/80 hover:bg-white/10"
@@ -771,11 +770,13 @@ function TabButton({
 function ApplicantRow({
   cv,
   onView,
+  onDownload,
   onDelete,
   deleting,
 }: {
   cv: ResumeRow;
   onView: () => void;
+  onDownload: () => void;
   onDelete: () => void;
   deleting: boolean;
 }) {
@@ -798,15 +799,13 @@ function ApplicantRow({
         {formatDate(cv.created_at)}
       </span>
       <div className="flex items-center gap-1.5">
-        <a
-          href={`${API}/cv/${cv.id}`}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          onClick={onDownload}
           className="grid size-8 place-items-center rounded-lg bg-amber-500/90 text-black transition hover:bg-amber-400"
           title="Descargar CV"
         >
           <Download className="size-4" />
-        </a>
+        </button>
         <button
           onClick={onView}
           className="grid size-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/10"

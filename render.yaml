@@ -8,7 +8,11 @@ services:
     plan: free
     region: virginia # misma costa que la DB de Supabase (aws-1-us-east-1)
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    # --proxy-headers + --forwarded-allow-ips: en Render el único hop frente a la
+    # app es su proxy de borde, así que uvicorn puede derivar la IP real del
+    # cliente desde X-Forwarded-For (necesario para que el rate limiting por IP
+    # funcione de verdad y no agrupe a todos bajo la IP del proxy).
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION

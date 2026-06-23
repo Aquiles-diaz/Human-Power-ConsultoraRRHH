@@ -1,25 +1,14 @@
 // Llamadas de recuperación de contraseña y verificación de email.
 // (El login/registro/Google viven en useProvideAuth porque tocan el estado de sesión.)
-import { API } from "@/lib/api";
+import { apiFetch, parseApiError } from "@/lib/api";
 
 async function postJson(path: string, body: unknown): Promise<{ message: string }> {
-  const res = await fetch(`${API}${path}`, {
+  const res = await apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    let msg = `Error ${res.status}`;
-    try {
-      const d = await res.json();
-      if (typeof d?.detail === "string") msg = d.detail;
-      else if (Array.isArray(d?.detail))
-        msg = d.detail.map((x: any) => x.msg || JSON.stringify(x)).join(" · ");
-    } catch {
-      /* respuesta sin JSON */
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
 }
 

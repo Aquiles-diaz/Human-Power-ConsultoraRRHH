@@ -99,3 +99,21 @@ CREATE INDEX IF NOT EXISTS idx_resumes_email      ON resumes(email);
 CREATE INDEX IF NOT EXISTS idx_resumes_job        ON resumes(job_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_created_at ON resumes(created_at DESC);  -- listado admin ordena por fecha
 CREATE INDEX IF NOT EXISTS idx_jobs_published     ON jobs(is_published, posted_at DESC);
+
+-- ── Integridad referencial: resumes.job_id -> jobs.id ──────────────────────
+-- Se agrega después (idempotente). ON DELETE SET NULL: si se borra un puesto, las
+-- postulaciones NO se pierden; quedan con job_id NULL (job_title se conserva como
+-- referencia histórica) y se vuelven envíos espontáneos a efectos del listado.
+-- Primero limpiamos referencias colgadas para que el ALTER no falle en bases que
+-- ya tienen datos con un job_id inexistente.
+UPDATE resumes SET job_id = NULL
+ WHERE job_id IS NOT NULL AND job_id NOT IN (SELECT id FROM jobs);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_resumes_job_id') THEN
+    ALTER TABLE resumes
+      ADD CONSTRAINT fk_resumes_job_id
+      FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL;
+  END IF;
+END $$;

@@ -37,7 +37,9 @@ function toYouTubeEmbed(url: string): string | null {
       const id = u.pathname.replace("/", "");
       if (id) return `https://www.youtube.com/embed/${id}`;
     }
-  } catch {}
+  } catch {
+    /* URL malformada: se ignora */
+  }
   return null;
 }
 
@@ -48,7 +50,9 @@ function toTikTokEmbed(url: string): string | null {
       const m = u.pathname.match(/\/video\/(\d+)/);
       if (m?.[1]) return `https://www.tiktok.com/embed/v2/${m[1]}`;
     }
-  } catch {}
+  } catch {
+    /* URL malformada: se ignora */
+  }
   return null;
 }
 
@@ -56,10 +60,12 @@ function toInstagramEmbed(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.hostname.includes("instagram.com")) {
-      const m = u.pathname.match(/^\/(p|reel|tv)\/([^\/?#]+)/);
+      const m = u.pathname.match(/^\/(p|reel|tv)\/([^/?#]+)/);
       if (m?.[1] && m?.[2]) return `https://www.instagram.com/${m[1]}/${m[2]}/embed`;
     }
-  } catch {}
+  } catch {
+    /* URL malformada: se ignora */
+  }
   return null;
 }
 
@@ -70,7 +76,9 @@ function toVimeoEmbed(url: string): string | null {
       const m = u.pathname.match(/\/(\d+)/);
       if (m?.[1]) return `https://player.vimeo.com/video/${m[1]}`;
     }
-  } catch {}
+  } catch {
+    /* URL malformada: se ignora */
+  }
   return null;
 }
 
@@ -78,10 +86,14 @@ function toDriveEmbed(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.hostname.includes("drive.google.com")) {
-      const m = u.pathname.match(/\/file\/d\/([^/]+)\//);
-      if (m?.[1]) return `https://drive.google.com/file/d/${m[1]}/preview`;
+      // Acepta .../file/d/ID/view, .../file/d/ID (sin slash final) y .../open?id=ID
+      const m = u.pathname.match(/\/file\/d\/([^/]+)/);
+      const id = m?.[1] || u.searchParams.get("id");
+      if (id) return `https://drive.google.com/file/d/${id}/preview`;
     }
-  } catch {}
+  } catch {
+    /* URL malformada: se ignora */
+  }
   return null;
 }
 
@@ -92,7 +104,9 @@ function toStreamableEmbed(url: string): string | null {
       const m = u.pathname.match(/\/([a-z0-9]+)$/i);
       if (m?.[1]) return `https://streamable.com/e/${m[1]}`;
     }
-  } catch {}
+  } catch {
+    /* URL malformada: se ignora */
+  }
   return null;
 }
 

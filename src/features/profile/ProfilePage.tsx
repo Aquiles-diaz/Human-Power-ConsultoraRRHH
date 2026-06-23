@@ -16,7 +16,9 @@ import { toast } from "sonner";
 import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
-import { API } from "@/lib/api";
+import { API, authFetch, parseApiError } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
+import { validateCvFile } from "@/features/landing/data";
 import {
   AGE_RANGES,
   AVAILABILITY_OPTIONS,
@@ -27,9 +29,13 @@ import {
   type Profile,
 } from "./types";
 
-// Valida que la URL sea de TikTok o YouTube
+// Límite de tamaño del CV en el perfil (alineado con el backend: 15MB).
+const PROFILE_CV_MAX_BYTES = 15 * 1024 * 1024;
+
+// Valida que la URL sea de TikTok o YouTube y esté bien formada (con protocolo y
+// el dominio real al final, para no aceptar cosas como "tiktok.com.evil.com").
 function isValidVideoUrl(url: string): boolean {
-  return /(?:tiktok\.com|youtube\.com|youtu\.be)/i.test(url.trim());
+  return /^https?:\/\/([a-z0-9-]+\.)*(tiktok\.com|youtube\.com|youtu\.be)\//i.test(url.trim());
 }
 
 function initials(name?: string | null, last?: string | null) {
@@ -45,6 +51,8 @@ export default function ProfilePage() {
   const [form, setForm] = useState<Partial<Profile>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [cvUploading, setCvUploading] = useState(false);
   const [langInput, setLangInput] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
@@ -54,13 +62,13 @@ export default function ProfilePage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/me/profile`, { headers: { ...authHeaders } });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const res = await authFetch(`/me/profile`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
       const data: Profile = await res.json();
       setProfile(data);
       setForm(data);
-    } catch (e: any) {
-      toast.error("No se pudo cargar tu perfil", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo cargar tu perfil", { description: getErrorMessage(e) });
     } finally {
       setLoading(false);
     }
@@ -89,13 +97,8 @@ export default function ProfilePage() {
 
   async function saveProfile() {
     const video = (form.video_url ?? "").trim();
-    if (!video) {
-      toast.error("Falta el video de presentación", {
-        description: "Pegá el link de tu video de TikTok o YouTube (es obligatorio).",
-      });
-      return;
-    }
-    if (!isValidVideoUrl(video)) {
+    // El video es opcional, pero si pegan un link tiene que ser válido.
+    if (video && !isValidVideoUrl(video)) {
       toast.error("Link de video inválido", {
         description: "Tiene que ser una URL de TikTok o YouTube.",
       });
@@ -104,20 +107,20 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { languages: form.languages ?? [] };
-      for (const f of PROFILE_TEXT_FIELDS) payload[f] = (form as any)[f] ?? null;
+      for (const f of PROFILE_TEXT_FIELDS) payload[f] = form[f] ?? null;
 
-      const res = await fetch(`${API}/me/profile`, {
+      const res = await authFetch(`/me/profile`, authHeaders, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await parseApiError(res));
       const data: Profile = await res.json();
       setProfile(data);
       setForm(data);
       toast.success("Perfil actualizado");
-    } catch (e: any) {
-      toast.error("No se pudo guardar", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo guardar", { description: getErrorMessage(e) });
     } finally {
       setSaving(false);
     }
@@ -126,15 +129,8 @@ export default function ProfilePage() {
   async function uploadFile(endpoint: string, file: File, okMsg: string) {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${API}${endpoint}`, {
-      method: "POST",
-      headers: { ...authHeaders },
-      body: fd,
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(detail || `Error ${res.status}`);
-    }
+    const res = await authFetch(endpoint, authHeaders, { method: "POST", body: fd });
+    if (!res.ok) throw new Error(await parseApiError(res));
     const data: Profile = await res.json();
     setProfile(data);
     setForm((f) => ({ ...f, ...data }));
@@ -144,11 +140,13 @@ export default function ProfilePage() {
   async function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPhotoUploading(true);
     try {
       await uploadFile("/me/profile/photo", file, "Foto actualizada");
-    } catch (err: any) {
-      toast.error("No se pudo subir la foto", { description: err?.message });
+    } catch (err) {
+      toast.error("No se pudo subir la foto", { description: getErrorMessage(err) });
     } finally {
+      setPhotoUploading(false);
       e.target.value = "";
     }
   }
@@ -156,11 +154,20 @@ export default function ProfilePage() {
   async function onCvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Validación en cliente (extensión + tamaño) para feedback inmediato.
+    const validationError = validateCvFile(file, PROFILE_CV_MAX_BYTES);
+    if (validationError) {
+      toast.error(validationError);
+      e.target.value = "";
+      return;
+    }
+    setCvUploading(true);
     try {
       await uploadFile("/me/profile/cv", file, "CV actualizado");
-    } catch (err: any) {
-      toast.error("No se pudo subir el CV", { description: err?.message });
+    } catch (err) {
+      toast.error("No se pudo subir el CV", { description: getErrorMessage(err) });
     } finally {
+      setCvUploading(false);
       e.target.value = "";
     }
   }
@@ -168,23 +175,20 @@ export default function ProfilePage() {
   async function deleteCv() {
     if (!confirm("¿Eliminar tu CV?")) return;
     try {
-      const res = await fetch(`${API}/me/profile/cv`, {
-        method: "DELETE",
-        headers: { ...authHeaders },
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const res = await authFetch(`/me/profile/cv`, authHeaders, { method: "DELETE" });
+      if (!res.ok) throw new Error(await parseApiError(res));
       const data: Profile = await res.json();
       setProfile(data);
       toast.success("CV eliminado");
-    } catch (e: any) {
-      toast.error("No se pudo eliminar", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo eliminar", { description: getErrorMessage(e) });
     }
   }
 
   async function downloadCv() {
     try {
-      const res = await fetch(`${API}/me/profile/cv`, { headers: { ...authHeaders } });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const res = await authFetch(`/me/profile/cv`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -192,8 +196,8 @@ export default function ProfilePage() {
       a.download = profile?.cv_original_name || "cv";
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
-      toast.error("No se pudo descargar", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo descargar", { description: getErrorMessage(e) });
     }
   }
 
@@ -240,10 +244,15 @@ export default function ProfilePage() {
                       )}
                       <button
                         onClick={() => photoInputRef.current?.click()}
-                        className="absolute bottom-0 right-0 grid size-8 place-items-center rounded-full bg-amber-500 text-black shadow-md transition hover:bg-amber-400"
+                        disabled={photoUploading}
+                        className="absolute bottom-0 right-0 grid size-8 place-items-center rounded-full bg-amber-500 text-black shadow-md transition hover:bg-amber-400 disabled:opacity-60"
                         title="Cambiar foto"
                       >
-                        <Camera size={15} />
+                        {photoUploading ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Camera size={15} />
+                        )}
                       </button>
                       <input
                         ref={photoInputRef}
@@ -296,8 +305,14 @@ export default function ProfilePage() {
                           size="sm"
                           className="rounded-lg"
                           onClick={() => cvInputRef.current?.click()}
+                          disabled={cvUploading}
                         >
-                          <UploadCloud size={15} /> Reemplazar
+                          {cvUploading ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <UploadCloud size={15} />
+                          )}{" "}
+                          Reemplazar
                         </Button>
                         <Button
                           variant="ghost"
@@ -312,13 +327,20 @@ export default function ProfilePage() {
                   ) : (
                     <button
                       onClick={() => cvInputRef.current?.click()}
-                      className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 p-4 text-left transition hover:border-amber-400 hover:bg-amber-50/40"
+                      disabled={cvUploading}
+                      className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 p-4 text-left transition hover:border-amber-400 hover:bg-amber-50/40 disabled:opacity-60"
                     >
                       <span className="grid size-10 place-items-center rounded-lg bg-white text-amber-500 shadow-sm">
-                        <UploadCloud size={18} />
+                        {cvUploading ? (
+                          <Loader2 className="size-5 animate-spin" />
+                        ) : (
+                          <UploadCloud size={18} />
+                        )}
                       </span>
                       <span className="text-sm text-slate-500">
-                        Subí tu CV en PDF, DOC o DOCX (máx 15MB)
+                        {cvUploading
+                          ? "Subiendo tu CV…"
+                          : "Subí tu CV en PDF, DOC o DOCX (máx 15MB)"}
                       </span>
                     </button>
                   )}
@@ -330,22 +352,21 @@ export default function ProfilePage() {
                     onChange={onCvChange}
                   />
 
-                  {/* Video de presentación (obligatorio) */}
+                  {/* Video de presentación (opcional) */}
                   <div className="mt-5 border-t border-slate-100 pt-5">
                     <div className="mb-1 flex items-center gap-2">
                       <span className="grid size-8 place-items-center rounded-lg bg-amber-100 text-amber-600">
                         <Video size={16} />
                       </span>
                       <label htmlFor="video_url" className="text-sm font-medium text-slate-700">
-                        Video de presentación <span className="text-rose-600">*</span>
+                        Video de presentación{" "}
+                        <span className="font-normal text-slate-400">(opcional)</span>
                       </label>
                     </div>
                     <p className="mb-2 text-sm text-slate-500">
-                      Pegá el link de tu video en <strong>TikTok</strong> o{" "}
-                      <strong>YouTube</strong> presentándote.{" "}
-                      <strong className="text-rose-600">
-                        Obligatorio y debe durar menos de 1 minuto.
-                      </strong>
+                      Opcional: puedes subir el link de tu video presentándote en{" "}
+                      <strong>TikTok</strong> o <strong>YouTube</strong>, y lo veremos con mucho
+                      gusto. Idealmente de menos de 1 minuto.
                     </p>
                     <div className="relative">
                       <ExternalLink
@@ -487,6 +508,7 @@ function TextField({
         type={type}
         value={value ?? ""}
         placeholder={placeholder}
+        aria-label={label}
         onChange={(e) => onChange(e.target.value)}
         className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
       />
@@ -510,6 +532,7 @@ function SelectField({
       <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
       <select
         value={value ?? ""}
+        aria-label={label}
         onChange={(e) => onChange(e.target.value)}
         className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
       >

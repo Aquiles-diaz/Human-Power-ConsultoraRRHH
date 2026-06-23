@@ -89,7 +89,9 @@ app.add_middleware(
     allow_origins=[o.strip() for o in settings.cors_origins if o.strip()],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    # Allowlist explícita en vez de "*": para una API JWT solo hacen falta estos
+    # dos headers desde el navegador (el control real de origen es allow_origins).
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Las fotos de perfil se sirven vía la ruta GET /uploads/{key} (más abajo),
@@ -489,26 +491,31 @@ async def _store_resume(
     mimetype = file.content_type or _detect_mimetype(original)
     _upload_or_502(storage.CV_BUCKET, key, data, mimetype)
 
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO resumes (full_name, email, message, filename, original_name, mimetype, size, job_id, job_title)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-            """,
-            (
-                full_name.strip(), email.strip(), message or "", key, original,
-                mimetype, len(data), job_id, job_title,
-            ),
-        )
-        resume_id = cur.fetchone()[0]
-        conn.commit()
+    # Si la DB falla luego de subir el archivo, borramos el objeto recién subido
+    # para no dejar huérfanos en el bucket (compensación). storage.remove es
+    # idempotente, así que no enmascara el error original.
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO resumes (full_name, email, message, filename, original_name, mimetype, size, job_id, job_title)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    full_name.strip(), email.strip(), message or "", key, original,
+                    mimetype, len(data), job_id, job_title,
+                ),
+            )
+            resume_id = cur.fetchone()[0]
+            conn.commit()
+    except Exception:
+        storage.remove(storage.CV_BUCKET, key)
+        raise
 
-    log.info(
-        "CV guardado: id=%s, email=%s, file=%s (%s bytes) job=%s",
-        resume_id, email, original, len(data), job_id or "—",
-    )
+    # No logueamos email ni nombre de archivo (PII); con el id alcanza para auditar.
+    log.info("CV guardado: id=%s (%s bytes) job=%s", resume_id, len(data), job_id or "—")
     return resume_id
 
 
@@ -534,13 +541,22 @@ async def apply_to_job(
     current_user: dict = Depends(get_current_user),
 ) -> UploadCvOut:
     """Postulación a un puesto. Requiere sesión iniciada; toma nombre/email de la cuenta."""
+    # Validamos que el puesto exista y esté publicado, y usamos su título canónico
+    # (ignoramos el job_title del Form para evitar inconsistencias/spoofing).
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT title FROM jobs WHERE id = %s AND is_published = true", (job_id,))
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="El puesto no existe o ya no está disponible")
+
     resume_id = await _store_resume(
         full_name=current_user.get("name") or current_user.get("email", ""),
         email=current_user["email"],
         message=message,
         file=file,
         job_id=job_id,
-        job_title=job_title,
+        job_title=row[0],
     )
     return UploadCvOut(resume_id=resume_id)
 
@@ -693,17 +709,22 @@ async def upload_my_cv(
         pass
     _upload_or_502(storage.CV_BUCKET, key, data, file.content_type or _detect_mimetype(original))
 
-    with get_db() as conn:
-        _ensure_profile(conn, current_user["id"])
-        old = conn.execute(
-            "SELECT cv_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
-        ).fetchone()
-        conn.execute(
-            "UPDATE profiles SET cv_filename = %s, cv_original_name = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
-            (key, original, current_user["id"]),
-        )
-        conn.commit()
-        row = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)).fetchone()
+    # Si la DB falla tras subir el archivo, borramos el objeto nuevo (compensación).
+    try:
+        with get_db() as conn:
+            _ensure_profile(conn, current_user["id"])
+            old = conn.execute(
+                "SELECT cv_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
+            ).fetchone()
+            conn.execute(
+                "UPDATE profiles SET cv_filename = %s, cv_original_name = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
+                (key, original, current_user["id"]),
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)).fetchone()
+    except Exception:
+        storage.remove(storage.CV_BUCKET, key)
+        raise
     if old and old[0]:
         storage.remove(storage.CV_BUCKET, old[0])  # borra el CV anterior del bucket
     return _profile_row_to_out(current_user, row)
@@ -744,17 +765,22 @@ async def upload_my_photo(
         pass
     _upload_or_502(storage.PHOTO_BUCKET, key, data, file.content_type or _detect_mimetype(original))
 
-    with get_db() as conn:
-        _ensure_profile(conn, current_user["id"])
-        old = conn.execute(
-            "SELECT photo_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
-        ).fetchone()
-        conn.execute(
-            "UPDATE profiles SET photo_filename = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
-            (key, current_user["id"]),
-        )
-        conn.commit()
-        row = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)).fetchone()
+    # Si la DB falla tras subir la imagen, borramos el objeto nuevo (compensación).
+    try:
+        with get_db() as conn:
+            _ensure_profile(conn, current_user["id"])
+            old = conn.execute(
+                "SELECT photo_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
+            ).fetchone()
+            conn.execute(
+                "UPDATE profiles SET photo_filename = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
+                (key, current_user["id"]),
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)).fetchone()
+    except Exception:
+        storage.remove(storage.PHOTO_BUCKET, key)
+        raise
     if old and old[0]:
         storage.remove(storage.PHOTO_BUCKET, old[0])  # borra la foto anterior del bucket
     return _profile_row_to_out(current_user, row)
@@ -779,7 +805,10 @@ def serve_upload(key: str):
     Reemplaza el antiguo mount StaticFiles. Se mantiene la ruta /uploads/<key>
     para que el frontend (img src) siga funcionando sin cambios. Sólo expone
     claves de foto (no CVs)."""
-    if not key.startswith("photo-") or "/" in key:
+    # Allowlist estricta: las claves de foto son siempre "photo-<uuid hex>.<ext>".
+    # Validar contra el patrón exacto descarta cualquier path traversal (../, %2f,
+    # backslashes, null bytes, etc.) sin depender de chequeos parciales.
+    if not re.fullmatch(r"photo-[0-9a-f]{32}\.(?:jpg|jpeg|png|webp)", key, re.IGNORECASE):
         raise HTTPException(status_code=404, detail="No encontrado")
     try:
         data = storage.download_bytes(storage.PHOTO_BUCKET, key)

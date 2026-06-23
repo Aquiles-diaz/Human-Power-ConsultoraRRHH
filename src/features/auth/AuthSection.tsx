@@ -5,6 +5,7 @@ import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
 import GoogleAuthButton from "./GoogleAuthButton";
 import { useAuth } from "./AuthContext";
+import { getErrorMessage } from "@/lib/utils";
 
 const LAST_LOGIN_KEY = "hp_last_login";
 const LAST_LOGOUT_KEY = "hp_last_logout";
@@ -57,8 +58,8 @@ export default function AuthSection() {
       const ts = new Date().toISOString();
       localStorage.setItem(LAST_LOGIN_KEY, ts);
       setLastLogin(ts);
-    } catch (e: any) {
-      setError(e?.message ?? "Error al iniciar sesión");
+    } catch (e) {
+      setError(getErrorMessage(e) ?? "Error al iniciar sesión");
     }
   };
 
@@ -72,8 +73,8 @@ export default function AuthSection() {
     try {
       await register(v);
       setMode("login");
-    } catch (e: any) {
-      setError(e?.message ?? "Error al registrarse");
+    } catch (e) {
+      setError(getErrorMessage(e) ?? "Error al registrarse");
     }
   };
 

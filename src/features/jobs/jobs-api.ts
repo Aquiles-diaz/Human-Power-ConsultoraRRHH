@@ -1,6 +1,6 @@
 // Capa de acceso a la API de puestos. El tipo `Job` se mantiene en jobs-data.ts
 // (sigue siendo el contrato que renderiza /ofertas); acá viven las llamadas HTTP.
-import { API } from "@/lib/api";
+import { apiFetch, authFetch, parseApiError } from "@/lib/api";
 import type { Job } from "./jobs-data";
 
 // Lo que envía el formulario del admin al crear/editar un puesto.
@@ -26,62 +26,49 @@ export type AdminJob = Job & { isPublished: boolean };
 
 type AuthHeader = Record<string, string>;
 
-async function parseError(res: Response): Promise<string> {
-  try {
-    const data = await res.json();
-    if (typeof data?.detail === "string") return data.detail;
-    if (Array.isArray(data?.detail))
-      return data.detail.map((d: any) => d.msg || JSON.stringify(d)).join(" · ");
-  } catch {
-    /* respuesta sin JSON */
-  }
-  return `Error ${res.status}`;
-}
-
 // ── Público ──
 export async function fetchJobs(): Promise<Job[]> {
-  const res = await fetch(`${API}/jobs`);
-  if (!res.ok) throw new Error(await parseError(res));
+  const res = await apiFetch(`/jobs`);
+  if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
 }
 
 export async function fetchJob(id: string): Promise<Job> {
-  const res = await fetch(`${API}/jobs/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error(await parseError(res));
+  const res = await apiFetch(`/jobs/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
 }
 
-// ── Admin ──
+// ── Admin (authFetch: ante 401 cierra sesión global y redirige al login) ──
 export async function fetchAdminJobs(auth: AuthHeader): Promise<AdminJob[]> {
-  const res = await fetch(`${API}/admin/jobs`, { headers: { ...auth } });
-  if (!res.ok) throw new Error(await parseError(res));
+  const res = await authFetch(`/admin/jobs`, auth);
+  if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
 }
 
 export async function createJob(input: JobInput, auth: AuthHeader): Promise<AdminJob> {
-  const res = await fetch(`${API}/admin/jobs`, {
+  const res = await authFetch(`/admin/jobs`, auth, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...auth },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
 }
 
 export async function updateJob(id: string, input: JobInput, auth: AuthHeader): Promise<AdminJob> {
-  const res = await fetch(`${API}/admin/jobs/${encodeURIComponent(id)}`, {
+  const res = await authFetch(`/admin/jobs/${encodeURIComponent(id)}`, auth, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...auth },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
 }
 
 export async function deleteJob(id: string, auth: AuthHeader): Promise<void> {
-  const res = await fetch(`${API}/admin/jobs/${encodeURIComponent(id)}`, {
+  const res = await authFetch(`/admin/jobs/${encodeURIComponent(id)}`, auth, {
     method: "DELETE",
-    headers: { ...auth },
   });
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) throw new Error(await parseApiError(res));
 }

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { MailWarning, X } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { requestEmailVerify } from "./auth-api";
+import { getErrorMessage } from "@/lib/utils";
 
 // Banner global (no bloqueante) para usuarios logueados con email SIN verificar.
 // Se monta en AppProviders, así que aparece arriba de todo en cualquier página.
@@ -22,8 +23,8 @@ export default function VerifyEmailBanner() {
       toast.success("Te reenviamos el email de verificación", {
         description: "Revisá tu bandeja de entrada (y el spam).",
       });
-    } catch (e: any) {
-      toast.error("No se pudo reenviar", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo reenviar", { description: getErrorMessage(e) });
     } finally {
       setSending(false);
     }

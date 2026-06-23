@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, X, Eye, RefreshCw, Loader2, MapPin } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getErrorMessage } from "@/lib/utils";
 import {
   fetchAdminJobs,
   createJob,
@@ -55,7 +56,7 @@ export default function JobsManager() {
         setJobs(data);
         setError(null);
       })
-      .catch((e) => setError(e?.message ?? "No se pudieron cargar los puestos"))
+      .catch((e) => setError(getErrorMessage(e) ?? "No se pudieron cargar los puestos"))
       .finally(() => setLoading(false));
   }, [getAuthHeader]);
 
@@ -71,8 +72,8 @@ export default function JobsManager() {
       await deleteJob(j.id, getAuthHeader());
       toast.success("Puesto eliminado");
       load();
-    } catch (e: any) {
-      toast.error("No se pudo eliminar", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo eliminar", { description: getErrorMessage(e) });
     }
   }
 
@@ -263,8 +264,8 @@ function JobFormModal({
         toast.success(payload.isPublished ? "Puesto creado y publicado" : "Borrador guardado");
       }
       onDone();
-    } catch (e: any) {
-      toast.error("No se pudo guardar", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo guardar", { description: getErrorMessage(e) });
     } finally {
       setSaving(false);
     }

@@ -16,9 +16,11 @@ import sys
 from .auth import get_user_by_email, pwd_context
 from .db import get_conn, init_db
 
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "ducca@humanpower.com").strip().lower()
+# Defaults genéricos (solo para dev local); en prod se pasan por variables de
+# entorno. Se alinean con .env.example y no exponen datos personales reales.
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@humanpower.com").strip().lower()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD_SEED", "")
-ADMIN_NAME = os.getenv("ADMIN_NAME", "Sergio Ducca")
+ADMIN_NAME = os.getenv("ADMIN_NAME", "Administrador")
 
 
 def seed_admin() -> None:

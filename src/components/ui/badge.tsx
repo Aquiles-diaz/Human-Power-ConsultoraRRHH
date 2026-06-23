@@ -33,4 +33,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   )
 }
 
+// badgeVariants (cva) se exporta junto al componente; es un patrón estándar de
+// shadcn/ui y no afecta runtime, solo el fast-refresh de dev.
+// eslint-disable-next-line react-refresh/only-export-components
 export { Badge, badgeVariants }

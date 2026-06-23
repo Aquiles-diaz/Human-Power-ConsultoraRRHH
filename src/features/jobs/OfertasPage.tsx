@@ -12,7 +12,7 @@ import {
   Lock,
   X,
 } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { Header } from "@/components/shared/Header";
 import { useAuth } from "@/features/auth/AuthContext";
-import { API } from "@/lib/api";
+import { authFetch, parseApiError } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import { type Job } from "./jobs-data";
 import { fetchJobs } from "./jobs-api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -180,8 +181,8 @@ const JobDetail: React.FC<{
           Skills
         </h3>
         <div className="flex flex-wrap gap-2">
-          {job.skills.map((s) => (
-            <Badge key={s} variant="secondary" className="rounded-lg">
+          {job.skills.map((s, i) => (
+            <Badge key={`${s}-${i}`} variant="secondary" className="rounded-lg">
               {s}
             </Badge>
           ))}
@@ -193,9 +194,9 @@ const JobDetail: React.FC<{
           Beneficios
         </h3>
         <div className="flex flex-wrap gap-2">
-          {job.benefits.map((b) => (
+          {job.benefits.map((b, i) => (
             <span
-              key={b}
+              key={`${b}-${i}`}
               className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm text-emerald-700"
             >
               <CheckCircle2 size={14} /> {b}
@@ -211,8 +212,8 @@ const DetailList: React.FC<{ title: string; items: string[] }> = ({ title, items
   <section>
     <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
     <ul className="space-y-1.5">
-      {items.map((it) => (
-        <li key={it} className="flex gap-2 text-sm text-slate-600">
+      {items.map((it, i) => (
+        <li key={`${it}-${i}`} className="flex gap-2 text-sm text-slate-600">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-amber-500" />
           <span>{it}</span>
         </li>
@@ -261,27 +262,15 @@ const ApplyModal: React.FC<{
       fd.append("message", message);
       fd.append("file", file);
 
-      const res = await fetch(`${API}/apply`, {
-        method: "POST",
-        headers: { ...getAuthHeader() },
-        body: fd,
-      });
-
-      if (res.status === 401) {
-        toast.error("Tu sesión expiró", { description: "Iniciá sesión de nuevo para postularte." });
-        navigate("/login", { state: { from: location } });
-        return;
-      }
-      if (!res.ok) {
-        const detail = await res.text();
-        throw new Error(detail || `Error ${res.status}`);
-      }
+      // authFetch: ante 401 cierra la sesión global; el modal pasa solo a pedir login.
+      const res = await authFetch(`/apply`, getAuthHeader(), { method: "POST", body: fd });
+      if (!res.ok) throw new Error(await parseApiError(res));
       setDone(true);
       toast.success("¡Postulación enviada!", {
         description: `Tu CV fue enviado para "${job.title}".`,
       });
-    } catch (err: any) {
-      toast.error("No se pudo enviar la postulación", { description: err?.message });
+    } catch (err) {
+      toast.error("No se pudo enviar la postulación", { description: getErrorMessage(err) });
     } finally {
       setSubmitting(false);
     }

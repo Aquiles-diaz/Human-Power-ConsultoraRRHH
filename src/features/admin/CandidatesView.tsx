@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
-import { API } from "@/lib/api";
+import { API, authFetch, parseApiError } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import {
   EDUCATION_LEVELS,
   PROFESSIONAL_AREAS,
@@ -68,14 +69,12 @@ export default function CandidatesView() {
       if (area) params.set("area", area);
       if (education) params.set("education", education);
       if (onlyCv) params.set("only_with_cv", "true");
-      const res = await fetch(`${API}/admin/candidates?${params}`, {
-        headers: { ...authHeaders },
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const res = await authFetch(`/admin/candidates?${params}`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       setItems(data.items || []);
-    } catch (e: any) {
-      toast.error("No se pudieron cargar los candidatos", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudieron cargar los candidatos", { description: getErrorMessage(e) });
     } finally {
       setLoading(false);
     }
@@ -89,13 +88,11 @@ export default function CandidatesView() {
   async function openDetail(userId: number) {
     setLoadingDetail(true);
     try {
-      const res = await fetch(`${API}/admin/candidates/${userId}`, {
-        headers: { ...authHeaders },
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const res = await authFetch(`/admin/candidates/${userId}`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
       setActive(await res.json());
-    } catch (e: any) {
-      toast.error("No se pudo abrir el candidato", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo abrir el candidato", { description: getErrorMessage(e) });
     } finally {
       setLoadingDetail(false);
     }
@@ -103,10 +100,8 @@ export default function CandidatesView() {
 
   async function downloadCv(userId: number, filename?: string | null) {
     try {
-      const res = await fetch(`${API}/admin/candidates/${userId}/cv`, {
-        headers: { ...authHeaders },
-      });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const res = await authFetch(`/admin/candidates/${userId}/cv`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -114,8 +109,8 @@ export default function CandidatesView() {
       a.download = filename || "cv";
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
-      toast.error("No se pudo descargar el CV", { description: e?.message });
+    } catch (e) {
+      toast.error("No se pudo descargar el CV", { description: getErrorMessage(e) });
     }
   }
 

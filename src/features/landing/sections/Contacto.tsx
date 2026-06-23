@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fadeUp } from "@/lib/motion";
-import { API } from "@/lib/api";
+import { apiFetch, parseApiError } from "@/lib/api";
 
 const contactLink =
   "inline-flex items-center gap-2 text-muted-foreground hover:text-amber-600 transition-colors";
@@ -26,7 +26,7 @@ export default function Contacto() {
     }
     setSending(true);
     try {
-      const res = await fetch(`${API}/contacto`, {
+      const res = await apiFetch(`/contacto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -35,25 +35,16 @@ export default function Contacto() {
           message: message.trim(),
         }),
       });
-      if (!res.ok) {
-        let detail = `(${res.status})`;
-        try {
-          const data = await res.json();
-          if (typeof data?.detail === "string") detail = data.detail;
-        } catch {
-          /* respuesta sin JSON */
-        }
-        throw new Error(detail);
-      }
+      if (!res.ok) throw new Error(await parseApiError(res));
       toast.success("¡Consulta enviada!", {
         description: "Te vamos a contactar a la brevedad.",
       });
       setName("");
       setEmail("");
       setMessage("");
-    } catch (err: any) {
+    } catch (err) {
       toast.error("No se pudo enviar la consulta", {
-        description: err?.message ?? "Probá de nuevo en un momento.",
+        description: err instanceof Error ? err.message : "Probá de nuevo en un momento.",
       });
     } finally {
       setSending(false);

@@ -1,12 +1,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import {
-  API,
-  ALLOWED_EXTENSIONS,
-  MAX_UPLOAD_BYTES,
-  initialFormState,
-  type FormState,
-} from "./data";
+import { apiFetch, parseApiError } from "@/lib/api";
+import { initialFormState, validateCvFile, type FormState } from "./data";
 
 export type CvUpload = ReturnType<typeof useCvUpload>;
 
@@ -34,19 +29,9 @@ export function useCvUpload() {
       return;
     }
 
-    const dotIndex = cvFile.name.lastIndexOf(".");
-    const extension =
-      dotIndex >= 0 ? cvFile.name.slice(dotIndex).toLowerCase() : "";
-    if (
-      !ALLOWED_EXTENSIONS.includes(
-        extension as (typeof ALLOWED_EXTENSIONS)[number]
-      )
-    ) {
-      toast.error("Formato no permitido. Solo PDF/DOC/DOCX");
-      return;
-    }
-    if (cvFile.size > MAX_UPLOAD_BYTES) {
-      toast.error("El archivo supera 10MB");
+    const validationError = validateCvFile(cvFile);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -57,11 +42,8 @@ export function useCvUpload() {
     fd.append("file", cvFile);
 
     try {
-      const res = await fetch(`${API}/cv`, { method: "POST", body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Error" }));
-        throw new Error(err.detail || `Error ${res.status}`);
-      }
+      const res = await apiFetch(`/cv`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       toast.success("¡CV enviado!", {
         description: `Te contactaremos pronto. (ID: ${data.resume_id})`,

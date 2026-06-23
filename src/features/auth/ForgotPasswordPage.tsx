@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Mail, Loader2, CheckCircle2 } from "lucide-react";
 import AuthShell, { authInputCls } from "./AuthShell";
 import { requestPasswordReset } from "./auth-api";
+import { getErrorMessage } from "@/lib/utils";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,8 +18,8 @@ export default function ForgotPasswordPage() {
     try {
       await requestPasswordReset(email.trim());
       setDone(true);
-    } catch (err: any) {
-      setError(err?.message ?? "No se pudo procesar la solicitud.");
+    } catch (err) {
+      setError(getErrorMessage(err) ?? "No se pudo procesar la solicitud.");
     } finally {
       setSending(false);
     }

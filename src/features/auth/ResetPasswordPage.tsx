@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import AuthShell, { authInputCls } from "./AuthShell";
 import PasswordStrength from "./PasswordStrength";
 import { confirmPasswordReset } from "./auth-api";
+import { getErrorMessage } from "@/lib/utils";
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -52,8 +53,8 @@ export default function ResetPasswordPage() {
       await confirmPasswordReset(token, pw);
       toast.success("Contraseña actualizada", { description: "Ya podés iniciar sesión." });
       navigate("/login", { replace: true });
-    } catch (err: any) {
-      setError(err?.message ?? "No se pudo actualizar la contraseña.");
+    } catch (err) {
+      setError(getErrorMessage(err) ?? "No se pudo actualizar la contraseña.");
     } finally {
       setSaving(false);
     }

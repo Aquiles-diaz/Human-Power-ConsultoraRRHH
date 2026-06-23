@@ -1,4 +1,6 @@
 // Medidor simple de fuerza de contraseña (para los formularios sobre fondo oscuro).
+// passwordScore es un helper puro que convive con el componente por defecto.
+// eslint-disable-next-line react-refresh/only-export-components
 export function passwordScore(pw: string): number {
   let s = 0;
   if (pw.length >= 8) s++;

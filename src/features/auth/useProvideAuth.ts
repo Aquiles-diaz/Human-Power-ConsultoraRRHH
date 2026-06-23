@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { API } from "@/lib/api";
+import { apiFetch, parseApiError, setUnauthorizedHandler } from "@/lib/api";
 
 const TOKEN_KEY = "hp_token";
 
@@ -16,6 +16,18 @@ export type User = {
 type LoginPayload = { email: string; password: string };
 type RegisterPayload = { name: string; last_name?: string; email: string; password: string };
 type LoginResponse = { access_token: string; token_type: string; user?: User };
+
+// Toast de bienvenida reutilizado por login y loginWithGoogle (evita duplicar el
+// armado del nombre y el copy en dos lugares).
+function showWelcomeToast(loggedUser: User, source?: "google") {
+  const firstName = (loggedUser.name || "").trim().split(" ")[0];
+  toast.success(`¡Bienvenido/a${firstName ? `, ${firstName}` : ""}!`, {
+    description:
+      source === "google"
+        ? "Iniciaste sesión con Google."
+        : "Tu sesión quedó iniciada y guardada de forma segura.",
+  });
+}
 
 export function useProvideAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -38,31 +50,38 @@ export function useProvideAuth() {
   }, []);
 
   const getAuthHeader = useCallback(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    (): Record<string, string> =>
+      token ? { Authorization: `Bearer ${token}` } : {},
     [token]
   );
+
+  // Manejo global de sesión expirada: cuando authFetch (en cualquier componente)
+  // recibe un 401, limpiamos la sesión acá una sola vez. Al quedar sin token,
+  // los guards de ruta redirigen al login solos.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      saveToken(null);
+      setUser(null);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [saveToken]);
 
   const login = useCallback(
     async (payload: LoginPayload) => {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/login`, {
+        const res = await apiFetch(`/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error(`Login falló (${res.status})`);
+        if (!res.ok) throw new Error(await parseApiError(res));
         const data: LoginResponse = await res.json();
         if (!data?.access_token) throw new Error("No se recibió token");
         saveToken(data.access_token);
         const loggedUser = data.user ?? { email: payload.email };
         setUser(loggedUser);
-
-        // Notificación profesional de sesión iniciada
-        const firstName = (loggedUser.name || "").trim().split(" ")[0];
-        toast.success(`¡Bienvenido/a${firstName ? `, ${firstName}` : ""}!`, {
-          description: "Tu sesión quedó iniciada y guardada de forma segura.",
-        });
+        showWelcomeToast(loggedUser);
       } finally {
         setLoading(false);
       }
@@ -81,32 +100,15 @@ export function useProvideAuth() {
           password: payload.password ?? "",
         };
 
-        const res = await fetch(`${API}/register`, {
+        const res = await apiFetch(`/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
 
-        const raw = await res.text();
-        let data: any = null;
-        try {
-          data = raw ? JSON.parse(raw) : null;
-        } catch {}
+        if (!res.ok) throw new Error(`Registro falló ${await parseApiError(res)}`);
 
-        if (!res.ok) {
-          let msg = `(${res.status})`;
-          const detail = data?.detail ?? raw;
-          if (Array.isArray(detail)) {
-            msg = detail
-              .map((d: any) => d.msg || d.detail || JSON.stringify(d))
-              .join(" · ");
-          } else if (typeof detail === "string") {
-            msg = detail;
-          }
-          throw new Error(`Registro falló ${msg}`);
-        }
-
-        const { access_token, user } = data as LoginResponse;
+        const { access_token, user } = (await res.json()) as LoginResponse;
         if (access_token) {
           // El backend ya devuelve token: dejamos la sesión iniciada (auto-login).
           saveToken(access_token);
@@ -131,30 +133,18 @@ export function useProvideAuth() {
     async (credential: string) => {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/auth/google`, {
+        const res = await apiFetch(`/auth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ credential }),
         });
-        if (!res.ok) {
-          let msg = `(${res.status})`;
-          try {
-            const d = await res.json();
-            if (typeof d?.detail === "string") msg = d.detail;
-          } catch {
-            /* sin json */
-          }
-          throw new Error(msg);
-        }
+        if (!res.ok) throw new Error(await parseApiError(res));
         const data: LoginResponse = await res.json();
         if (!data?.access_token) throw new Error("No se recibió token");
         saveToken(data.access_token);
         const loggedUser = data.user ?? { email: "" };
         setUser(loggedUser);
-        const firstName = (loggedUser.name || "").trim().split(" ")[0];
-        toast.success(`¡Bienvenido/a${firstName ? `, ${firstName}` : ""}!`, {
-          description: "Iniciaste sesión con Google.",
-        });
+        showWelcomeToast(loggedUser, "google");
       } finally {
         setLoading(false);
       }
@@ -169,39 +159,35 @@ export function useProvideAuth() {
   }, [saveToken]);
 
   const fetchMe = useCallback(async () => {
-    // Al inicio: si no hay token, terminamos la comprobación inicial
+    // Al inicio: si no hay token, terminamos la comprobación inicial.
     if (!token) {
       setInitialLoading(false);
       return;
     }
 
     try {
-      const res = await fetch(`${API}/me`, { headers: { ...getAuthHeader() } });
+      const res = await apiFetch(`/me`, { headers: { ...getAuthHeader() } });
 
       if (res.status === 401) {
-        // token inválido -> desloguear
-        logout();
+        // token inválido -> desloguear (sin redirect: puede estar en una página pública)
+        saveToken(null);
+        setUser(null);
         return;
       }
 
-      if (!res.ok) {
-        // no rompes la app por ahora, pero quizá quieras logging
-        return;
-      }
-
+      if (!res.ok) return; // error transitorio; no rompemos la app
       const data: User = await res.json();
       setUser(data);
     } catch (err) {
-      // opcional: console.error(err)
+      console.error("[Auth] Error verificando la sesión (/me):", err);
     } finally {
       setInitialLoading(false);
     }
-  }, [token, getAuthHeader, logout]);
+  }, [token, getAuthHeader, saveToken]);
 
   useEffect(() => {
-    // Ejecutar solo una vez al montar o cuando cambie token
+    // Ejecutar al montar y cuando cambie el token (re-valida la sesión).
     fetchMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchMe]);
 
   return {

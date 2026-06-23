@@ -1,6 +1,7 @@
 import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
+import { getErrorMessage } from "@/lib/utils";
 
 // Si no hay VITE_GOOGLE_CLIENT_ID configurado, el botón simplemente no se muestra.
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
@@ -25,8 +26,8 @@ export default function GoogleAuthButton() {
             }
             try {
               await loginWithGoogle(resp.credential);
-            } catch (e: any) {
-              toast.error("No se pudo iniciar con Google", { description: e?.message });
+            } catch (e) {
+              toast.error("No se pudo iniciar con Google", { description: getErrorMessage(e) });
             }
           }}
           onError={() => toast.error("No se pudo iniciar con Google")}
