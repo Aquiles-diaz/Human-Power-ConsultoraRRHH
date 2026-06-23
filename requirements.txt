@@ -15,4 +15,7 @@ python-dotenv>=1.0
 # Rate limiting (protección de fuerza bruta en login/register).
 slowapi>=0.1.9
 # Login con Google: verificación del ID token (endpoint /auth/google).
-google-auth>=2.0
+# El extra [requests] trae la librería `requests`, que usa
+# google.auth.transport.requests para validar el token. Sin ella, /auth/google
+# revienta con ModuleNotFoundError: No module named 'requests'.
+google-auth[requests]>=2.0
