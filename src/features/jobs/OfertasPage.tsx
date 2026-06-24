@@ -29,8 +29,12 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { type Job } from "./jobs-data";
-import { fetchJobs } from "./jobs-api";
+import { useJobs } from "./use-jobs";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
+// Los filtros siguen operando en memoria sobre la lista completa.
+const PAGE_SIZE = 20;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades
@@ -427,31 +431,16 @@ const ApplyModal: React.FC<{
 // Página principal
 // ─────────────────────────────────────────────────────────────────────────────
 const OfertasPage: React.FC = () => {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
+  // y se revalidan en background (suaviza el cold start del backend).
+  const { jobs, loading, error: loadError } = useJobs();
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
   const [applyOpen, setApplyOpen] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    fetchJobs()
-      .then((data) => {
-        if (!alive) return;
-        setJobs(data);
-        setLoadError(null);
-      })
-      .catch((e) => alive && setLoadError(e?.message ?? "No se pudieron cargar las ofertas"))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const locations = useMemo(
     () => [...new Set(jobs.map((j) => j.location).filter(Boolean))],
@@ -469,6 +458,17 @@ const OfertasPage: React.FC = () => {
       );
     });
   }, [jobs, searchTerm, locationFilter, typeFilter]);
+
+  // Al cambiar los filtros, la lista se reordena: volvemos a mostrar desde el principio.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchTerm, locationFilter, typeFilter]);
+
+  // Render incremental: solo las primeras `visibleCount` tarjetas; el resto con "Ver más".
+  const visibleJobs = useMemo(
+    () => filteredJobs.slice(0, visibleCount),
+    [filteredJobs, visibleCount]
+  );
 
   // El puesto seleccionado debe estar dentro de los filtrados; si no, tomamos el primero.
   const selectedJob = useMemo(() => {
@@ -550,7 +550,7 @@ const OfertasPage: React.FC = () => {
               </div>
               <Skeleton className="hidden h-[420px] w-full rounded-2xl lg:block" />
             </div>
-          ) : loadError ? (
+          ) : loadError && jobs.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/40 py-16 text-center">
               <h3 className="text-lg font-semibold text-slate-800">No pudimos cargar las ofertas</h3>
               <p className="mt-1 text-sm text-slate-500">{loadError}</p>
@@ -586,7 +586,7 @@ const OfertasPage: React.FC = () => {
                   mobileDetail ? "hidden" : "block"
                 }`}
               >
-                {filteredJobs.map((job) => (
+                {visibleJobs.map((job) => (
                   <JobListItem
                     key={job.id}
                     job={job}
@@ -594,6 +594,14 @@ const OfertasPage: React.FC = () => {
                     onSelect={() => handleSelect(job.id)}
                   />
                 ))}
+                {filteredJobs.length > visibleCount && (
+                  <button
+                    onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 transition hover:border-amber-400 hover:text-amber-600"
+                  >
+                    Ver más ({filteredJobs.length - visibleCount} restantes)
+                  </button>
+                )}
               </div>
 
               {/* Detalle */}
