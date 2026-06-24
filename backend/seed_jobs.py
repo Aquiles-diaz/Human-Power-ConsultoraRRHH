@@ -19,6 +19,7 @@ EXAMPLES = [
         "company": "Estudio Contable Rosell",
         "location": "Rosario, Santa Fe",
         "type": "Presencial",
+        "category": "administracion",
         "seniority": "Junior",
         "salary": "$700.000 - $950.000 ARS",
         "shortDescription": "Sumate a nuestro equipo financiero para contabilidad general, conciliaciones y reportes.",
@@ -42,6 +43,7 @@ EXAMPLES = [
         "company": "Tech Rosario",
         "location": "Remoto (Argentina)",
         "type": "Remoto",
+        "category": "it",
         "seniority": "Semi Senior",
         "salary": "$1.800.000 - $2.400.000 ARS",
         "shortDescription": "Construí interfaces modernas con React y TypeScript para productos con miles de usuarios.",
@@ -65,6 +67,7 @@ EXAMPLES = [
         "company": "Distribuidora del Litoral",
         "location": "Rosario, Santa Fe",
         "type": "Híbrido",
+        "category": "comercial",
         "seniority": "Semi Senior",
         "salary": "$900.000 + comisiones",
         "shortDescription": "Gestioná tu cartera de clientes y desarrollá nuevas oportunidades comerciales.",
@@ -96,13 +99,13 @@ def seed_jobs() -> None:
                 continue
             cur.execute(
                 """
-                INSERT INTO jobs (id, title, company, location, type, seniority, salary,
+                INSERT INTO jobs (id, title, company, location, type, category, seniority, salary,
                                   posted_at, short_description, description,
                                   responsibilities, requirements, benefits, skills, is_published)
-                VALUES (%s,%s,%s,%s,%s,%s,%s, CURRENT_DATE, %s,%s, %s,%s,%s,%s, true)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s, CURRENT_DATE, %s,%s, %s,%s,%s,%s, true)
                 """,
                 (
-                    j["id"], j["title"], j["company"], j["location"], j["type"],
+                    j["id"], j["title"], j["company"], j["location"], j["type"], j["category"],
                     j["seniority"], j["salary"], j["shortDescription"], j["description"],
                     json.dumps(j["responsibilities"]), json.dumps(j["requirements"]),
                     json.dumps(j["benefits"]), json.dumps(j["skills"]),
