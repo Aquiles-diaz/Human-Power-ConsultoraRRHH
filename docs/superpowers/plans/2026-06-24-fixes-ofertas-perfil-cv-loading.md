@@ -1184,6 +1184,200 @@ git commit -m "fix: estados de error con reintentar en perfil y JobsManager (no 
 
 ---
 
+### Task 18: Logger central de errores (logError + buffer localStorage) (TDD)
+
+> Agregada 2026-06-24 a pedido del usuario: que un error nunca quede invisible y sirva
+> a futuro para diagnosticar. Se hace ANTES de las tareas de estados de error (11/12) para
+> que esas lo integren, y se cablea en los catches de errores ya existentes (ofertas/detalle).
+
+**Files:**
+- Create: `src/lib/log.ts`
+- Create: `src/lib/log.test.ts`
+- Modify: `src/features/jobs/OfertasPage.tsx` (cablear en el `.catch` de `fetchJobs` + mostrar código)
+- Modify: `src/features/jobs/OfertaDetailPage.tsx` (cablear en el `.catch` de `fetchJob` + mostrar código)
+
+**Interfaces:**
+- Produces:
+  - `logError(context: string, err: unknown, extra?: { status?: number }): string` — registra y devuelve un código corto (ej. `ERR-AB12CD`).
+  - `getErrorLog(): LoggedError[]`, `clearErrorLog(): void`.
+  - `type LoggedError = { code; ts; context; message; url; status? }`.
+  - En el navegador: `window.__hpErrors()` devuelve el log.
+
+- [ ] **Step 1: Escribir el test que falla**
+
+Crear `src/lib/log.test.ts`:
+
+```ts
+import { vi, beforeEach, afterEach } from "vitest";
+import { logError, getErrorLog, clearErrorLog } from "./log";
+
+describe("logError", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("registra un error con contexto y devuelve un código ERR-", () => {
+    const code = logError("ofertas:load", new Error("API caída"), { status: 500 });
+    expect(code).toMatch(/^ERR-/);
+    const log = getErrorLog();
+    expect(log).toHaveLength(1);
+    expect(log[0].context).toBe("ofertas:load");
+    expect(log[0].message).toBe("API caída");
+    expect(log[0].status).toBe(500);
+    expect(log[0].code).toBe(code);
+  });
+
+  it("mantiene como máximo 50 entradas (conserva las más nuevas)", () => {
+    for (let i = 0; i < 60; i++) logError(`ctx:${i}`, new Error(`e${i}`));
+    const log = getErrorLog();
+    expect(log).toHaveLength(50);
+    expect(log[log.length - 1].message).toBe("e59");
+  });
+
+  it("clearErrorLog vacía el log", () => {
+    logError("x", new Error("y"));
+    clearErrorLog();
+    expect(getErrorLog()).toHaveLength(0);
+  });
+});
+```
+
+- [ ] **Step 2: Correr el test y verlo fallar**
+
+Run: `npx vitest run src/lib/log.test.ts`
+Expected: FAIL ("Cannot find module './log'").
+
+- [ ] **Step 3: Implementar `log.ts`**
+
+Crear `src/lib/log.ts`:
+
+```ts
+// Logger central de errores del cliente: loguea con contexto a consola y guarda
+// los últimos errores en localStorage para poder diagnosticarlos a futuro.
+// Acceso rápido desde la consola del navegador: window.__hpErrors()
+
+export type LoggedError = {
+  code: string;
+  ts: string;
+  context: string;
+  message: string;
+  url: string;
+  status?: number;
+};
+
+const STORAGE_KEY = "hp_error_log";
+const MAX_ENTRIES = 50;
+
+function shortCode(): string {
+  const t = Date.now().toString(36).slice(-4);
+  const r = Math.random().toString(36).slice(2, 6);
+  return `ERR-${t}${r}`.toUpperCase();
+}
+
+function readLog(): LoggedError[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as LoggedError[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLog(entries: LoggedError[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
+  } catch {
+    /* storage lleno o no disponible: el console.error ya dejó rastro */
+  }
+}
+
+/**
+ * Registra un error con contexto. Devuelve un código corto de referencia que la
+ * UI puede mostrar ("Código: ERR-XXXX") para cruzarlo después con el log.
+ * Guarda los últimos 50 en localStorage (recuperables con getErrorLog() o
+ * window.__hpErrors()).
+ */
+export function logError(context: string, err: unknown, extra?: { status?: number }): string {
+  const code = shortCode();
+  const message =
+    err instanceof Error ? err.message : typeof err === "string" ? err : "Error desconocido";
+  const entry: LoggedError = {
+    code,
+    ts: new Date().toISOString(),
+    context,
+    message,
+    url: typeof window !== "undefined" ? window.location.href : "",
+    ...(extra?.status != null ? { status: extra.status } : {}),
+  };
+  console.error(`[HP ${code}] ${context}:`, err, entry);
+  writeLog([...readLog(), entry]);
+  return code;
+}
+
+/** Devuelve el log de errores guardado (para inspección manual a futuro). */
+export function getErrorLog(): LoggedError[] {
+  return readLog();
+}
+
+/** Limpia el log de errores guardado. */
+export function clearErrorLog(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+if (typeof window !== "undefined") {
+  (window as unknown as { __hpErrors?: () => LoggedError[] }).__hpErrors = getErrorLog;
+}
+```
+
+- [ ] **Step 4: Correr el test y verlo pasar**
+
+Run: `npx vitest run src/lib/log.test.ts`
+Expected: PASS (3 tests, output pristine).
+
+- [ ] **Step 5: Cablear en el catch de ofertas (lista)**
+
+En `src/features/jobs/OfertasPage.tsx`, importar `import { logError } from "@/lib/log";` y en el `.catch` de `fetchJobs()` registrar y guardar el código:
+
+```tsx
+      .catch((e) => {
+        if (!alive) return;
+        const code = logError("ofertas:load", e);
+        setLoadError(`${e?.message ?? "No se pudieron cargar las ofertas"} (cód. ${code})`);
+      })
+```
+
+- [ ] **Step 6: Cablear en el catch del detalle**
+
+En `src/features/jobs/OfertaDetailPage.tsx`, importar `logError` y en el `.catch` de `fetchJob(id)`:
+
+```tsx
+      .catch((e) => {
+        if (!alive) return;
+        const code = logError("oferta:detail", e);
+        setError(`${getErrorMessage(e) ?? "No se pudo cargar la oferta"} (cód. ${code})`);
+      })
+```
+
+- [ ] **Step 7: Verificar build + tests**
+
+Run: `npx vitest run src/lib/log.test.ts && npm run build`
+Expected: PASS.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/lib/log.ts src/lib/log.test.ts src/features/jobs/OfertasPage.tsx src/features/jobs/OfertaDetailPage.tsx
+git commit -m "feat: logger central de errores (logError + buffer localStorage) y cableado en ofertas"
+```
+
+---
+
 ## FASE F — Lazy loading con identidad de marca
 
 ### Task 13: Shimmer + componente `BrandLoader`
@@ -1427,6 +1621,11 @@ git commit -m "feat: reaseguro de confianza/privacidad en el diálogo de carga d
 ---
 
 ### Task 16: Medidor de perfil completo + momento de éxito
+
+> **SALTEADA (2026-06-24):** el usuario está construyendo la barra de progreso del perfil
+> en paralelo (rama `fixes/ofertas-perfil-cv-loading`). Se respeta esa versión; NO se
+> implementa el medidor de este task para evitar duplicar/pisar. El "momento de éxito"
+> al cargar CV se cubre dentro de Task 15/Task 12 si hace falta, sin tocar la barra.
 
 **Files:**
 - Modify: `src/features/profile/ProfilePage.tsx`
