@@ -25,6 +25,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Header } from "@/components/shared/Header";
+import { useSeo } from "@/lib/use-seo";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
@@ -431,6 +432,13 @@ const ApplyModal: React.FC<{
 // Página principal
 // ─────────────────────────────────────────────────────────────────────────────
 const OfertasPage: React.FC = () => {
+  useSeo({
+    title: "Ofertas de empleo | Human Power",
+    description:
+      "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
+    path: "/ofertas",
+  });
+
   // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
   // y se revalidan en background (suaviza el cold start del backend).
   const { jobs, loading, error: loadError } = useJobs();
