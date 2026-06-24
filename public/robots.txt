@@ -1,0 +1,13 @@
+# Human Power — reglas de rastreo
+User-agent: *
+Allow: /
+
+# Zonas privadas / sin valor para indexar
+Disallow: /admin
+Disallow: /perfil
+Disallow: /login
+Disallow: /recuperar
+Disallow: /reset-password
+Disallow: /verify-email
+
+Sitemap: https://human-power-rrhh.vercel.app/sitemap.xml
