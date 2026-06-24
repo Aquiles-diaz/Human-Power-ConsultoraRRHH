@@ -31,6 +31,40 @@ const EMPTY: JobInput = {
   isPublished: true,
 };
 
+// Plantilla con la que arranca el formulario al crear un puesto nuevo: un aviso
+// de ejemplo realista que el admin edita con los datos reales. Arranca como
+// borrador (isPublished: false) para que nunca se publique el ejemplo por error.
+const TEMPLATE: JobInput = {
+  title: "Analista Contable Semi Senior",
+  company: "Empresa del rubro [completar]",
+  location: "Rosario, Santa Fe",
+  type: "Presencial",
+  seniority: "Semi Senior",
+  salary: "A convenir según experiencia",
+  postedAt: null,
+  shortDescription: "Buscamos un/a analista contable para sumarse a un equipo en crecimiento.",
+  description:
+    "Importante empresa de la región incorpora un/a Analista Contable para su equipo de " +
+    "administración. Reemplazá este texto con la descripción real del puesto y de la empresa.",
+  responsibilities: [
+    "Registración de operaciones contables",
+    "Conciliaciones bancarias",
+    "Liquidación de impuestos",
+  ],
+  requirements: [
+    "Título de Contador/a o estudiante avanzado/a",
+    "2+ años de experiencia en posiciones similares",
+    "Manejo de Excel y sistemas de gestión",
+  ],
+  benefits: [
+    "Obra social de primer nivel",
+    "Capacitaciones a cargo de la empresa",
+    "Buen clima laboral",
+  ],
+  skills: ["Excel", "Tango Gestión", "Impuestos"],
+  isPublished: false,
+};
+
 const toLines = (arr: string[]) => arr.join("\n");
 const fromLines = (s: string) =>
   s.split("\n").map((x) => x.trim()).filter(Boolean);
@@ -181,7 +215,7 @@ export default function JobsManager() {
 
       {showForm && (
         <JobFormModal
-          initial={editing ? jobToInput(editing) : EMPTY}
+          initial={editing ? jobToInput(editing) : TEMPLATE}
           jobId={editing?.id}
           auth={getAuthHeader()}
           onCancel={() => {
@@ -241,6 +275,15 @@ function JobFormModal({
   const set = <K extends keyof JobInput>(k: K, v: JobInput[K]) =>
     setF((p) => ({ ...p, [k]: v }));
 
+  // Vacía el formulario para quien prefiera cargar desde cero en vez de editar la plantilla.
+  function clearForm() {
+    setF(EMPTY);
+    setRespText("");
+    setReqText("");
+    setBenText("");
+    setSkillsText("");
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!f.title.trim() || !f.company.trim()) {
@@ -281,14 +324,29 @@ function JobFormModal({
         onMouseDown={(e) => e.stopPropagation()}
         className="my-8 w-full max-w-2xl space-y-4 rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
       >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">
-            {jobId ? "Editar puesto" : "Nuevo puesto"}
-          </h3>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">
+              {jobId ? "Editar puesto" : "Nuevo puesto"}
+            </h3>
+            {!jobId && (
+              <p className="mt-0.5 text-xs text-white/50">
+                Cargamos una plantilla de ejemplo (queda como borrador). Editá cada campo con los
+                datos reales y tildá “Publicar”.{" "}
+                <button
+                  type="button"
+                  onClick={clearForm}
+                  className="text-amber-400 underline-offset-2 hover:underline"
+                >
+                  Empezar en blanco
+                </button>
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+            className="rounded-lg p-1.5 shrink-0 text-white/50 transition hover:bg-white/10 hover:text-white"
           >
             <X className="size-5" />
           </button>
