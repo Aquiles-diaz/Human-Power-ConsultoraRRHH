@@ -12,6 +12,7 @@ import {
   type JobInput,
 } from "@/features/jobs/jobs-api";
 import { parseAviso } from "./parse-aviso";
+import { CATEGORIES } from "@/features/jobs/categories";
 
 const JOB_TYPES = ["Presencial", "Remoto", "Híbrido"] as const;
 
@@ -20,6 +21,7 @@ const EMPTY: JobInput = {
   company: "",
   location: "",
   type: "Presencial",
+  category: "otros",
   seniority: "",
   salary: "",
   postedAt: null,
@@ -40,6 +42,7 @@ const TEMPLATE: JobInput = {
   company: "Empresa del rubro [completar]",
   location: "Rosario, Santa Fe",
   type: "Presencial",
+  category: "administracion",
   seniority: "Semi Senior",
   salary: "A convenir según experiencia",
   postedAt: null,
@@ -240,6 +243,7 @@ function jobToInput(j: AdminJob): JobInput {
     company: j.company,
     location: j.location,
     type: j.type,
+    category: j.category,
     seniority: j.seniority,
     salary: j.salary,
     postedAt: j.postedAt || null,
@@ -292,6 +296,7 @@ function JobFormModal({
       company: p.company ?? "",
       location: p.location ?? "",
       type: p.type ?? EMPTY.type,
+      category: f.category,
       seniority: p.seniority ?? "",
       salary: p.salary ?? "",
       shortDescription: p.shortDescription ?? "",
@@ -459,6 +464,20 @@ function JobFormModal({
               {JOB_TYPES.map((t) => (
                 <option key={t} value={t} className="bg-neutral-900">
                   {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Rubro</label>
+            <select
+              className={inputCls}
+              value={f.category}
+              onChange={(e) => set("category", e.target.value)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value} className="bg-neutral-900">
+                  {c.label}
                 </option>
               ))}
             </select>
