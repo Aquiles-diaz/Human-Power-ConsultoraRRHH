@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -5,20 +6,44 @@ import CargarCvButton from "@/components/shared/CargarCvButton";
 import presentacion from "@/assets/presentacion.mp4";
 
 export default function Hero() {
+  // El video de fondo pesa ~3.5MB. Lo sacamos del critical path: se monta recién
+  // cuando el navegador está ocioso (ya pintada la home) y se omite si el usuario
+  // pidió ahorrar datos o reducir movimiento. Hasta entonces, el fondo es negro.
+  const [stage, setStage] = useState<"idle" | "mount" | "ready">("idle");
+
+  useEffect(() => {
+    const saveData = (navigator as unknown as { connection?: { saveData?: boolean } })
+      .connection?.saveData;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (saveData || reduceMotion) return;
+
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setStage("mount"));
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setStage("mount"), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <section
       id="home"
-      className="relative flex min-h-[88vh] items-start justify-center overflow-hidden scroll-mt-16 md:items-center"
+      className="relative flex min-h-[88vh] items-start justify-center overflow-hidden bg-neutral-950 scroll-mt-16 md:items-center"
     >
-      {/* Video de fondo */}
-      <video
-        src={presentacion}
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+      {/* Video de fondo (diferido para no bloquear el primer paint) */}
+      {stage !== "idle" && (
+        <video
+          src={presentacion}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onLoadedData={() => setStage("ready")}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+            stage === "ready" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
 
       {/* Capas de gradiente */}
       <div className="absolute inset-0 bg-gradient-to-br from-black/90 via-black/70 to-black/85" />
