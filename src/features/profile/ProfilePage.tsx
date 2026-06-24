@@ -27,10 +27,13 @@ import {
   AVAILABILITY_OPTIONS,
   EDUCATION_LEVELS,
   EXPERIENCE_OPTIONS,
+  LANGUAGES,
+  LANGUAGE_LEVELS,
   PROFESSIONAL_AREAS,
   PROFILE_TEXT_FIELDS,
   type Profile,
 } from "./types";
+import { composeLanguage } from "./profile-langs";
 import { PROVINCES, COUNTRIES, CITIES_BY_PROVINCE } from "./ar-geo";
 
 // Límite de tamaño del CV en el perfil (alineado con el backend: 15MB).
@@ -57,7 +60,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [cvUploading, setCvUploading] = useState(false);
-  const [langInput, setLangInput] = useState("");
+  const [langName, setLangName] = useState("");
+  const [langLevel, setLangLevel] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,11 +112,12 @@ export default function ProfilePage() {
   }
 
   function addLanguage() {
-    const v = langInput.trim();
-    if (!v) return;
+    if (!langName) return;
+    const entry = composeLanguage(langName, langLevel);
     const current = form.languages ?? [];
-    if (!current.includes(v)) setField("languages", [...current, v]);
-    setLangInput("");
+    if (!current.includes(entry)) setField("languages", [...current, entry]);
+    setLangName("");
+    setLangLevel("");
   }
 
   function removeLanguage(lang: string) {
@@ -461,19 +466,33 @@ export default function ProfilePage() {
                   {/* Idiomas (tags) */}
                   <div className="mt-4">
                     <label className="mb-1 block text-sm font-medium text-slate-700">Idiomas</label>
-                    <div className="flex gap-2">
-                      <input
-                        value={langInput}
-                        onChange={(e) => setLangInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addLanguage();
-                          }
-                        }}
-                        placeholder="Ej: Inglés, Portugués…"
-                        className="h-10 flex-1 rounded-xl border border-slate-200 px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      />
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <select
+                        value={langName}
+                        onChange={(e) => setLangName(e.target.value)}
+                        aria-label="Idioma"
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                      >
+                        <option value="">Idioma…</option>
+                        {LANGUAGES.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={langLevel}
+                        onChange={(e) => setLangLevel(e.target.value)}
+                        aria-label="Nivel"
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                      >
+                        <option value="">Nivel (opcional)…</option>
+                        {LANGUAGE_LEVELS.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </select>
                       <Button type="button" variant="outline" className="rounded-xl" onClick={addLanguage}>
                         Agregar
                       </Button>
