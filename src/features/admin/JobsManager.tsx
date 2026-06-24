@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, X, Eye, RefreshCw, Loader2, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Eye, RefreshCw, Loader2, MapPin, ClipboardPaste } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getErrorMessage } from "@/lib/utils";
 import {
@@ -11,6 +11,7 @@ import {
   type AdminJob,
   type JobInput,
 } from "@/features/jobs/jobs-api";
+import { parseAviso } from "./parse-aviso";
 
 const JOB_TYPES = ["Presencial", "Remoto", "Híbrido"] as const;
 
@@ -271,9 +272,42 @@ function JobFormModal({
   const [benText, setBenText] = useState(toLines(initial.benefits));
   const [skillsText, setSkillsText] = useState(initial.skills.join(", "));
   const [saving, setSaving] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
   const set = <K extends keyof JobInput>(k: K, v: JobInput[K]) =>
     setF((p) => ({ ...p, [k]: v }));
+
+  // "Pegar y autocompletar": el cliente manda el aviso por WhatsApp/texto y se
+  // cargan los campos reconocidos. Reinicia desde vacío para no mezclar con la
+  // plantilla, pero conserva la elección de Publicar/Borrador.
+  function autofillFromPaste() {
+    const p = parseAviso(pasteText);
+    if (Object.keys(p).length === 0) {
+      toast.error("No se reconoció nada en el texto pegado.");
+      return;
+    }
+    setF({
+      ...EMPTY,
+      title: p.title ?? "",
+      company: p.company ?? "",
+      location: p.location ?? "",
+      type: p.type ?? EMPTY.type,
+      seniority: p.seniority ?? "",
+      salary: p.salary ?? "",
+      shortDescription: p.shortDescription ?? "",
+      description: p.description ?? "",
+      responsibilities: p.responsibilities ?? [],
+      requirements: p.requirements ?? [],
+      benefits: p.benefits ?? [],
+      skills: p.skills ?? [],
+      isPublished: f.isPublished,
+    });
+    setRespText(toLines(p.responsibilities ?? []));
+    setReqText(toLines(p.requirements ?? []));
+    setBenText(toLines(p.benefits ?? []));
+    setSkillsText((p.skills ?? []).join(", "));
+    toast.success("Campos autocompletados. Revisá y ajustá lo que haga falta.");
+  }
 
   // Vacía el formulario para quien prefiera cargar desde cero en vez de editar la plantilla.
   function clearForm() {
@@ -350,6 +384,39 @@ function JobFormModal({
           >
             <X className="size-5" />
           </button>
+        </div>
+
+        {/* Pegar y autocompletar: el cliente manda el aviso por texto/WhatsApp y se carga acá */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <label className="mb-1 block text-xs font-medium text-white/70">
+            ¿Tenés el aviso en texto? Pegalo y autocompletá los campos
+          </label>
+          <textarea
+            className={inputCls}
+            rows={3}
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder={"Puesto: …\nEmpresa: …\nUbicación: …\nRequisitos:\n- …"}
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={autofillFromPaste}
+              disabled={!pasteText.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-300 transition hover:bg-amber-400/20 disabled:opacity-50"
+            >
+              <ClipboardPaste className="size-4" /> Autocompletar
+            </button>
+            {pasteText && (
+              <button
+                type="button"
+                onClick={() => setPasteText("")}
+                className="text-xs text-white/50 transition hover:text-white/80"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -45,3 +45,5 @@ backend/data.db-wal
 vite.config.js
 vite.config.d.ts
 .vercel
+# Mockups del compañero visual de brainstorming
+.superpowers/

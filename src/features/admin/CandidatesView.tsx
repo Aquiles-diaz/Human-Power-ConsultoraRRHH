@@ -16,6 +16,7 @@ import {
   Wallet,
   CalendarDays,
   Video,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -54,6 +55,7 @@ export default function CandidatesView() {
 
   const [items, setItems] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [area, setArea] = useState("");
   const [education, setEducation] = useState("");
@@ -73,7 +75,9 @@ export default function CandidatesView() {
       if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       setItems(data.items || []);
+      setError(null);
     } catch (e) {
+      setError(getErrorMessage(e) || "No se pudieron cargar los candidatos");
       toast.error("No se pudieron cargar los candidatos", { description: getErrorMessage(e) });
     } finally {
       setLoading(false);
@@ -186,6 +190,17 @@ export default function CandidatesView() {
       {loading ? (
         <div className="grid place-items-center py-20 text-white/30">
           <Loader2 className="size-6 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-400/30 bg-red-500/10 py-16 text-center">
+          <p className="font-medium text-red-200">No se pudieron cargar los candidatos</p>
+          <p className="text-sm text-red-200/70">{error}</p>
+          <button
+            onClick={load}
+            className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-black"
+          >
+            <RefreshCw className="size-4" /> Reintentar
+          </button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] py-16 text-center">
