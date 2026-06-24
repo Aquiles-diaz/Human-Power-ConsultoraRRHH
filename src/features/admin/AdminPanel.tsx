@@ -16,6 +16,7 @@ import {
   Briefcase,
   Users,
   ChevronDown,
+  LayoutDashboard,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ import { getErrorMessage } from "@/lib/utils";
 import CandidatesView from "./CandidatesView";
 import VideoPreview from "./VideoPreview";
 import JobsManager from "./JobsManager";
+import ResumenDashboard from "./ResumenDashboard";
 
 type ResumeRow = {
   id: number;
@@ -38,7 +40,7 @@ type ResumeRow = {
   job_title?: string | null;
 };
 
-type AdminTab = "candidates" | "applications" | "all" | "jobs";
+type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
 
 // --- utils ---
 const truncate = (s = "", n = 60) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
@@ -78,7 +80,7 @@ export default function AdminPanel() {
   const [active, setActive] = useState<ResumeRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [tab, setTab] = useState<AdminTab>("candidates");
+  const [tab, setTab] = useState<AdminTab>("resumen");
   const [openJobs, setOpenJobs] = useState<Record<string, boolean>>({});
 
   async function loadData() {
@@ -253,7 +255,8 @@ export default function AdminPanel() {
       </header>
 
       <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {/* Stat cards */}
+        {/* Stat cards (el Resumen trae sus propios KPIs, no duplicamos) */}
+        {tab !== "resumen" && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             icon={<FileText className="size-5" />}
@@ -276,9 +279,16 @@ export default function AdminPanel() {
             value={filtered.length}
           />
         </div>
+        )}
 
         {/* Selector de vista */}
         <div className="mb-4 inline-flex flex-wrap rounded-xl border border-white/10 bg-white/[0.04] p-1">
+          <TabButton
+            active={tab === "resumen"}
+            onClick={() => setTab("resumen")}
+            icon={<LayoutDashboard className="size-4" />}
+            label="Resumen"
+          />
           <TabButton
             active={tab === "candidates"}
             onClick={() => setTab("candidates")}
@@ -304,6 +314,8 @@ export default function AdminPanel() {
             label="Base de datos general"
           />
         </div>
+
+        {tab === "resumen" && <ResumenDashboard onNavigate={(t) => setTab(t)} />}
 
         {tab === "candidates" && <CandidatesView />}
 

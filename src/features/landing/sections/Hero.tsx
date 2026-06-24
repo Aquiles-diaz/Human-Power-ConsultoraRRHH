@@ -1,123 +1,146 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, ChevronDown } from "lucide-react";
+import { Search, Flame, ChevronDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import CargarCvButton from "@/components/shared/CargarCvButton";
+import { HOT_CATEGORIES } from "@/features/jobs/categories";
 import presentacion from "@/assets/presentacion.mp4";
 
 export default function Hero() {
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+
+  // El video de fondo pesa ~3.5 MB. Lo sacamos del critical path: se monta recién
+  // cuando el navegador está ocioso (ya pintada la home) y se omite si el usuario
+  // pidió ahorrar datos o reducir movimiento. Hasta entonces, el fondo es el
+  // gradiente slate sólido que ya está debajo del velo.
+  const [stage, setStage] = useState<"idle" | "mount" | "ready">("idle");
+
+  useEffect(() => {
+    const saveData = (navigator as unknown as { connection?: { saveData?: boolean } })
+      .connection?.saveData;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (saveData || reduceMotion) return;
+
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setStage("mount"));
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setStage("mount"), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  function onSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const term = q.trim();
+    navigate(term ? `/ofertas?q=${encodeURIComponent(term)}` : "/ofertas");
+  }
+
   return (
     <section
       id="home"
-      className="relative flex min-h-[88vh] items-start justify-center overflow-hidden scroll-mt-16 md:items-center"
+      className="relative flex min-h-[88vh] items-center justify-center overflow-hidden scroll-mt-16 bg-slate-950"
     >
-      {/* Video de fondo */}
-      <video
-        src={presentacion}
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+      {/* Video de fondo (diferido para no bloquear el primer paint) */}
+      {stage !== "idle" && (
+        <video
+          src={presentacion}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onLoadedData={() => setStage("ready")}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+            stage === "ready" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
+      {/* Velo navy (sin neón) — se asienta sobre el bg-slate-950 cuando no hay video */}
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/85 via-slate-900/80 to-slate-950/92" />
 
-      {/* Capas de gradiente */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/90 via-black/70 to-black/85" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,hsl(38_92%_50%/0.22),transparent_55%)]" />
-
-      {/* Blobs animados (glow de marca) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 -left-16 h-72 w-72 rounded-full bg-amber-500/30 blur-3xl animate-blob"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-orange-500/20 blur-3xl animate-blob animation-delay-2000"
-      />
-
-      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-10 text-white sm:px-6 sm:py-16 md:grid-cols-2 lg:px-8 lg:py-20">
+      <div className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-16 text-center text-white sm:px-6 lg:py-20">
         <motion.div
-          className="text-center md:text-left"
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
+          className="flex flex-col items-center"
         >
-          {/* Emblema arriba del título (solo mobile; en desktop está el grande a la derecha) */}
+          {/* Emblema de marca */}
           <img
             src="/logohumap-white.png"
             alt="Human Power RRHH"
-            className="mx-auto mb-5 size-24 object-contain drop-shadow-xl md:hidden"
+            className="mb-6 size-32 object-contain drop-shadow-xl md:size-44"
           />
 
-          <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] sm:text-xs font-semibold uppercase tracking-widest text-amber-300 backdrop-blur">
-            <Sparkles size={13} /> Consultora integral en RRHH
+          <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-300 sm:text-xs">
+            Consultora integral en RRHH
           </span>
 
-          <h1 className="mt-5 text-4xl sm:text-5xl font-extrabold leading-[1.05] tracking-tight">
-            EL <span className="text-gradient-brand">CV</span> AHORA HABLA POR
-            VOS.
+          <h1 className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl">
+            EL <span className="text-amber-400">CV</span> AHORA HABLA POR VOS.
           </h1>
 
-          <p className="mx-auto mt-5 max-w-prose text-sm leading-relaxed text-white/80 sm:text-base md:mx-0">
-            No somos un portal de empleo más. Cada candidato sube su CV y un
-            video donde se presenta: nombre, profesión, experiencia y
-            especialidad.
+          <p className="mx-auto mt-4 max-w-prose text-sm leading-relaxed text-white/75 sm:text-base">
+            Encontrá tu próximo trabajo por rubro. Subí tu CV + un video donde te
+            presentás y destacate entre cientos de candidatos.
           </p>
 
-          <div className="mt-5 grid gap-2 text-sm sm:text-base">
-            <p className="text-white/85">
-              <span className="font-semibold text-amber-400">
-                Para candidatos:
-              </span>{" "}
-              te destacás entre cientos de CV con tu primera impresión.
-            </p>
-            <p className="text-white/85">
-              <span className="font-semibold text-amber-400">
-                Para empresas:
-              </span>{" "}
-              ahorrás tiempo, conocés al candidato antes de entrevistarlo.
-            </p>
+          {/* Buscador prominente */}
+          <form
+            onSubmit={onSearch}
+            className="mt-7 flex w-full max-w-xl items-center gap-2 rounded-2xl bg-white p-2 shadow-2xl shadow-black/40"
+          >
+            <Search className="ml-2 size-5 shrink-0 text-amber-500" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscá por rubro o puesto…"
+              aria-label="Buscar por rubro o puesto"
+              className="h-11 flex-1 rounded-lg bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 sm:text-base"
+            />
+            <Button type="submit" variant="brand" className="rounded-xl px-5 py-5">
+              Buscar
+            </Button>
+          </form>
+
+          {/* Rubros más calientes */}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-[11px] uppercase tracking-widest text-white/50">
+              Más buscados:
+            </span>
+            {HOT_CATEGORIES.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => navigate(`/ofertas?categoria=${encodeURIComponent(c.value)}`)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-900 transition hover:bg-amber-400"
+              >
+                <Flame size={13} /> {c.label}
+              </button>
+            ))}
+            <a
+              href="#areas"
+              className="inline-flex items-center rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+            >
+              Ver todas las áreas →
+            </a>
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center md:justify-start">
-            <CargarCvButton
-              className="w-full justify-center rounded-2xl px-7 py-6 text-base sm:w-auto"
-              label="Cargar CV + Video ahora"
-            />
+          {/* CTA */}
+          <div className="mt-8 flex justify-center">
             <Button
               variant="outline"
-              className="w-full justify-center rounded-2xl border-white/30 bg-white/5 px-7 py-6 text-base text-white backdrop-blur hover:bg-white/15 hover:text-white sm:w-auto"
+              className="w-full justify-center rounded-2xl border-white/30 bg-white/5 px-7 py-6 text-base text-white hover:bg-white/15 hover:text-white sm:w-auto"
               asChild
             >
               <a href="/ofertas">Ver ofertas laborales</a>
             </Button>
           </div>
         </motion.div>
-
-        {/* Logo de marca (solo desktop; en mobile queda el del navbar) */}
-        <motion.div
-          className="hidden items-center justify-center md:flex"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.15 }}
-        >
-          <div className="relative">
-            {/* glow ámbar detrás del logo */}
-            <div
-              aria-hidden
-              className="absolute inset-0 -z-10 rounded-full bg-amber-500/20 blur-3xl"
-            />
-            <img
-              src="/logohumap-white.png"
-              alt="Human Power RRHH"
-              className="size-72 object-contain drop-shadow-2xl lg:size-80"
-            />
-          </div>
-        </motion.div>
       </div>
 
-      {/* Indicador de scroll (solo desktop, evita solaparse con los botones en mobile) */}
       <motion.a
-        href="#servicios"
+        href="#areas"
         aria-label="Bajar"
         className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 text-white/60 hover:text-white md:block"
         animate={{ y: [0, 8, 0] }}

@@ -2,14 +2,55 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logohumap-sinfondo.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f59e0b" />
+
+    <!-- Preconnect para acelerar la carga de las fuentes (Core Web Vitals). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
 
-    <title>Human Power | Consultora integral RRHH</title>
+    <!-- ── SEO ─────────────────────────────────────────────────────────────
+         Meta base de la home. Es lo que ven los crawlers que NO ejecutan JS
+         (WhatsApp, Facebook, LinkedIn, etc.). El meta por-ruta vendrá en Fase 2.
+         Si pasás a un dominio propio, actualizá las URLs absolutas de abajo. -->
+    <title>Human Power | Consultora integral de RRHH</title>
+    <meta
+      name="description"
+      content="Human Power, consultora integral de RRHH. Subí tu CV con un video donde te presentás y destacate entre cientos de candidatos. Ofertas de empleo y selección de talento."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Human Power" />
+    <link rel="canonical" href="https://human-power-rrhh.vercel.app/" />
+
+    <!-- Open Graph (previews al compartir en redes / WhatsApp) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Human Power" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:title" content="Human Power | Consultora integral de RRHH" />
+    <meta
+      property="og:description"
+      content="No somos un portal de empleo más. Cada candidato se presenta con un video junto a su CV. Mirá las ofertas y postulate online."
+    />
+    <meta property="og:url" content="https://human-power-rrhh.vercel.app/" />
+    <meta property="og:image" content="https://human-power-rrhh.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Human Power · Consultora integral de RRHH" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Human Power | Consultora integral de RRHH" />
+    <meta
+      name="twitter:description"
+      content="No somos un portal de empleo más. Cada candidato se presenta con un video junto a su CV. Mirá las ofertas y postulate online."
+    />
+    <meta name="twitter:image" content="https://human-power-rrhh.vercel.app/og-image.png" />
   </head>
   <body>
     <div id="root"></div>

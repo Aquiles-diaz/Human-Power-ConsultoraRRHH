@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     company           TEXT NOT NULL,
     location          TEXT NOT NULL DEFAULT '',
     type              TEXT NOT NULL DEFAULT 'Presencial',  -- Presencial | Remoto | Híbrido
+    category          TEXT NOT NULL DEFAULT 'otros',       -- rubro (ver categories.ts)
     seniority         TEXT NOT NULL DEFAULT '',
     salary            TEXT NOT NULL DEFAULT '',
     posted_at         date NOT NULL DEFAULT CURRENT_DATE,

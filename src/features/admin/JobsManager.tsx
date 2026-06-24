@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, X, Eye, RefreshCw, Loader2, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Eye, RefreshCw, Loader2, MapPin, ClipboardPaste } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getErrorMessage } from "@/lib/utils";
 import {
@@ -11,6 +11,8 @@ import {
   type AdminJob,
   type JobInput,
 } from "@/features/jobs/jobs-api";
+import { parseAviso } from "./parse-aviso";
+import { CATEGORIES } from "@/features/jobs/categories";
 
 const JOB_TYPES = ["Presencial", "Remoto", "Híbrido"] as const;
 
@@ -19,6 +21,7 @@ const EMPTY: JobInput = {
   company: "",
   location: "",
   type: "Presencial",
+  category: "otros",
   seniority: "",
   salary: "",
   postedAt: null,
@@ -29,6 +32,41 @@ const EMPTY: JobInput = {
   benefits: [],
   skills: [],
   isPublished: true,
+};
+
+// Plantilla con la que arranca el formulario al crear un puesto nuevo: un aviso
+// de ejemplo realista que el admin edita con los datos reales. Arranca como
+// borrador (isPublished: false) para que nunca se publique el ejemplo por error.
+const TEMPLATE: JobInput = {
+  title: "Analista Contable Semi Senior",
+  company: "Empresa del rubro [completar]",
+  location: "Rosario, Santa Fe",
+  type: "Presencial",
+  category: "administracion",
+  seniority: "Semi Senior",
+  salary: "A convenir según experiencia",
+  postedAt: null,
+  shortDescription: "Buscamos un/a analista contable para sumarse a un equipo en crecimiento.",
+  description:
+    "Importante empresa de la región incorpora un/a Analista Contable para su equipo de " +
+    "administración. Reemplazá este texto con la descripción real del puesto y de la empresa.",
+  responsibilities: [
+    "Registración de operaciones contables",
+    "Conciliaciones bancarias",
+    "Liquidación de impuestos",
+  ],
+  requirements: [
+    "Título de Contador/a o estudiante avanzado/a",
+    "2+ años de experiencia en posiciones similares",
+    "Manejo de Excel y sistemas de gestión",
+  ],
+  benefits: [
+    "Obra social de primer nivel",
+    "Capacitaciones a cargo de la empresa",
+    "Buen clima laboral",
+  ],
+  skills: ["Excel", "Tango Gestión", "Impuestos"],
+  isPublished: false,
 };
 
 const toLines = (arr: string[]) => arr.join("\n");
@@ -181,7 +219,7 @@ export default function JobsManager() {
 
       {showForm && (
         <JobFormModal
-          initial={editing ? jobToInput(editing) : EMPTY}
+          initial={editing ? jobToInput(editing) : TEMPLATE}
           jobId={editing?.id}
           auth={getAuthHeader()}
           onCancel={() => {
@@ -205,6 +243,7 @@ function jobToInput(j: AdminJob): JobInput {
     company: j.company,
     location: j.location,
     type: j.type,
+    category: j.category,
     seniority: j.seniority,
     salary: j.salary,
     postedAt: j.postedAt || null,
@@ -237,9 +276,52 @@ function JobFormModal({
   const [benText, setBenText] = useState(toLines(initial.benefits));
   const [skillsText, setSkillsText] = useState(initial.skills.join(", "));
   const [saving, setSaving] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
   const set = <K extends keyof JobInput>(k: K, v: JobInput[K]) =>
     setF((p) => ({ ...p, [k]: v }));
+
+  // "Pegar y autocompletar": el cliente manda el aviso por WhatsApp/texto y se
+  // cargan los campos reconocidos. Reinicia desde vacío para no mezclar con la
+  // plantilla, pero conserva la elección de Publicar/Borrador.
+  function autofillFromPaste() {
+    const p = parseAviso(pasteText);
+    if (Object.keys(p).length === 0) {
+      toast.error("No se reconoció nada en el texto pegado.");
+      return;
+    }
+    setF({
+      ...EMPTY,
+      title: p.title ?? "",
+      company: p.company ?? "",
+      location: p.location ?? "",
+      type: p.type ?? EMPTY.type,
+      category: f.category,
+      seniority: p.seniority ?? "",
+      salary: p.salary ?? "",
+      shortDescription: p.shortDescription ?? "",
+      description: p.description ?? "",
+      responsibilities: p.responsibilities ?? [],
+      requirements: p.requirements ?? [],
+      benefits: p.benefits ?? [],
+      skills: p.skills ?? [],
+      isPublished: f.isPublished,
+    });
+    setRespText(toLines(p.responsibilities ?? []));
+    setReqText(toLines(p.requirements ?? []));
+    setBenText(toLines(p.benefits ?? []));
+    setSkillsText((p.skills ?? []).join(", "));
+    toast.success("Campos autocompletados. Revisá y ajustá lo que haga falta.");
+  }
+
+  // Vacía el formulario para quien prefiera cargar desde cero en vez de editar la plantilla.
+  function clearForm() {
+    setF(EMPTY);
+    setRespText("");
+    setReqText("");
+    setBenText("");
+    setSkillsText("");
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -281,17 +363,65 @@ function JobFormModal({
         onMouseDown={(e) => e.stopPropagation()}
         className="my-8 w-full max-w-2xl space-y-4 rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
       >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">
-            {jobId ? "Editar puesto" : "Nuevo puesto"}
-          </h3>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">
+              {jobId ? "Editar puesto" : "Nuevo puesto"}
+            </h3>
+            {!jobId && (
+              <p className="mt-0.5 text-xs text-white/50">
+                Cargamos una plantilla de ejemplo (queda como borrador). Editá cada campo con los
+                datos reales y tildá “Publicar”.{" "}
+                <button
+                  type="button"
+                  onClick={clearForm}
+                  className="text-amber-400 underline-offset-2 hover:underline"
+                >
+                  Empezar en blanco
+                </button>
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+            className="rounded-lg p-1.5 shrink-0 text-white/50 transition hover:bg-white/10 hover:text-white"
           >
             <X className="size-5" />
           </button>
+        </div>
+
+        {/* Pegar y autocompletar: el cliente manda el aviso por texto/WhatsApp y se carga acá */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <label className="mb-1 block text-xs font-medium text-white/70">
+            ¿Tenés el aviso en texto? Pegalo y autocompletá los campos
+          </label>
+          <textarea
+            className={inputCls}
+            rows={3}
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder={"Puesto: …\nEmpresa: …\nUbicación: …\nRequisitos:\n- …"}
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={autofillFromPaste}
+              disabled={!pasteText.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-300 transition hover:bg-amber-400/20 disabled:opacity-50"
+            >
+              <ClipboardPaste className="size-4" /> Autocompletar
+            </button>
+            {pasteText && (
+              <button
+                type="button"
+                onClick={() => setPasteText("")}
+                className="text-xs text-white/50 transition hover:text-white/80"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -334,6 +464,20 @@ function JobFormModal({
               {JOB_TYPES.map((t) => (
                 <option key={t} value={t} className="bg-neutral-900">
                   {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Rubro</label>
+            <select
+              className={inputCls}
+              value={f.category}
+              onChange={(e) => set("category", e.target.value)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value} className="bg-neutral-900">
+                  {c.label}
                 </option>
               ))}
             </select>

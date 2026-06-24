@@ -12,7 +12,7 @@ import {
   Lock,
   X,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,12 +25,19 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Header } from "@/components/shared/Header";
+import { useSeo } from "@/lib/use-seo";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { type Job } from "./jobs-data";
-import { fetchJobs } from "./jobs-api";
+import { useJobs } from "./use-jobs";
+import { filterJobs } from "./job-filter";
+import { CATEGORIES, isValidCategory } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
+// Los filtros siguen operando en memoria sobre la lista completa.
+const PAGE_SIZE = 20;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades
@@ -57,9 +64,9 @@ function initials(name = ""): string {
 }
 
 const typeStyles: Record<string, string> = {
-  Remoto: "bg-emerald-100 text-emerald-700",
-  Híbrido: "bg-sky-100 text-sky-700",
-  Presencial: "bg-amber-100 text-amber-700",
+  Remoto: "bg-slate-100 text-slate-700",
+  Híbrido: "bg-slate-100 text-slate-700",
+  Presencial: "bg-slate-100 text-slate-700",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,9 +204,9 @@ const JobDetail: React.FC<{
           {job.benefits.map((b, i) => (
             <span
               key={`${b}-${i}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm text-emerald-700"
+              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
             >
-              <CheckCircle2 size={14} /> {b}
+              <CheckCircle2 size={14} className="text-emerald-600" /> {b}
             </span>
           ))}
         </div>
@@ -214,7 +221,7 @@ const DetailList: React.FC<{ title: string; items: string[] }> = ({ title, items
     <ul className="space-y-1.5">
       {items.map((it, i) => (
         <li key={`${it}-${i}`} className="flex gap-2 text-sm text-slate-600">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-amber-500" />
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
           <span>{it}</span>
         </li>
       ))}
@@ -427,31 +434,26 @@ const ApplyModal: React.FC<{
 // Página principal
 // ─────────────────────────────────────────────────────────────────────────────
 const OfertasPage: React.FC = () => {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  useSeo({
+    title: "Ofertas de empleo | Human Power",
+    description:
+      "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
+    path: "/ofertas",
+  });
+
+  // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
+  // y se revalidan en background (suaviza el cold start del backend).
+  const { jobs, loading, error: loadError } = useJobs();
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const rawCat = searchParams.get("categoria") ?? "";
+  const [categoryFilter, setCategoryFilter] = useState(isValidCategory(rawCat) ? rawCat : "");
   const [selectedId, setSelectedId] = useState<string>("");
   const [applyOpen, setApplyOpen] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    fetchJobs()
-      .then((data) => {
-        if (!alive) return;
-        setJobs(data);
-        setLoadError(null);
-      })
-      .catch((e) => alive && setLoadError(e?.message ?? "No se pudieron cargar las ofertas"))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const locations = useMemo(
     () => [...new Set(jobs.map((j) => j.location).filter(Boolean))],
@@ -459,16 +461,21 @@ const OfertasPage: React.FC = () => {
   );
   const types = useMemo(() => [...new Set(jobs.map((j) => j.type).filter(Boolean))], [jobs]);
 
-  const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      return (
-        (job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          job.company.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (locationFilter === "" || job.location === locationFilter) &&
-        (typeFilter === "" || job.type === typeFilter)
-      );
-    });
-  }, [jobs, searchTerm, locationFilter, typeFilter]);
+  const filteredJobs = useMemo(
+    () => filterJobs(jobs, { q: searchTerm, location: locationFilter, type: typeFilter, category: categoryFilter }),
+    [jobs, searchTerm, locationFilter, typeFilter, categoryFilter]
+  );
+
+  // Al cambiar los filtros, la lista se reordena: volvemos a mostrar desde el principio.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchTerm, locationFilter, typeFilter, categoryFilter]);
+
+  // Render incremental: solo las primeras `visibleCount` tarjetas; el resto con "Ver más".
+  const visibleJobs = useMemo(
+    () => filteredJobs.slice(0, visibleCount),
+    [filteredJobs, visibleCount]
+  );
 
   // El puesto seleccionado debe estar dentro de los filtrados; si no, tomamos el primero.
   const selectedJob = useMemo(() => {
@@ -504,7 +511,7 @@ const OfertasPage: React.FC = () => {
           </div>
 
           {/* Filtros */}
-          <div className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 lg:grid-cols-5">
             <div className="relative lg:col-span-2">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <Input
@@ -539,6 +546,18 @@ const OfertasPage: React.FC = () => {
                 </option>
               ))}
             </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            >
+              <option value="">Todos los rubros</option>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {loading ? (
@@ -550,7 +569,7 @@ const OfertasPage: React.FC = () => {
               </div>
               <Skeleton className="hidden h-[420px] w-full rounded-2xl lg:block" />
             </div>
-          ) : loadError ? (
+          ) : loadError && jobs.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/40 py-16 text-center">
               <h3 className="text-lg font-semibold text-slate-800">No pudimos cargar las ofertas</h3>
               <p className="mt-1 text-sm text-slate-500">{loadError}</p>
@@ -586,7 +605,7 @@ const OfertasPage: React.FC = () => {
                   mobileDetail ? "hidden" : "block"
                 }`}
               >
-                {filteredJobs.map((job) => (
+                {visibleJobs.map((job) => (
                   <JobListItem
                     key={job.id}
                     job={job}
@@ -594,6 +613,14 @@ const OfertasPage: React.FC = () => {
                     onSelect={() => handleSelect(job.id)}
                   />
                 ))}
+                {filteredJobs.length > visibleCount && (
+                  <button
+                    onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 transition hover:border-amber-400 hover:text-amber-600"
+                  >
+                    Ver más ({filteredJobs.length - visibleCount} restantes)
+                  </button>
+                )}
               </div>
 
               {/* Detalle */}

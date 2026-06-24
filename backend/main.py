@@ -16,7 +16,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from starlette.responses import Response, RedirectResponse
 
 from slowapi.errors import RateLimitExceeded
@@ -51,6 +51,21 @@ CV_DELIVERY = os.getenv("CV_DELIVERY", "stream").lower()
 
 # Destinatario de las consultas del formulario de contacto público.
 CONTACT_TO = os.getenv("CONTACT_TO", "humanpower.rrhh@gmail.com")
+
+# Rate limits de subida de archivos (anti-abuso del bucket de Storage). Sin esto,
+# cualquiera podría martillar /cv o /apply y llenar el bucket de Supabase. Se
+# aplican por IP del cliente (ver ratelimit.py) y son configurables por env para
+# poder aflojarlos/apretarlos sin tocar código. Formato slowapi: "N/period".
+# Cada endpoint tiene dos cupos (por minuto y por hora) que se aplican a la vez:
+#   /cv                              -> CV_UPLOAD_RATE_LIMIT_*      (anónimo, mayor riesgo)
+#   /apply                           -> APPLY_RATE_LIMIT_*          (requiere login)
+#   /me/profile/cv y /me/profile/photo -> PROFILE_UPLOAD_RATE_LIMIT_* (requieren login)
+CV_UPLOAD_RATE_LIMIT_MIN = os.getenv("CV_UPLOAD_RATE_LIMIT_MIN", "5/minute")
+CV_UPLOAD_RATE_LIMIT_HOUR = os.getenv("CV_UPLOAD_RATE_LIMIT_HOUR", "20/hour")
+APPLY_RATE_LIMIT_MIN = os.getenv("APPLY_RATE_LIMIT_MIN", "10/minute")
+APPLY_RATE_LIMIT_HOUR = os.getenv("APPLY_RATE_LIMIT_HOUR", "40/hour")
+PROFILE_UPLOAD_RATE_LIMIT_MIN = os.getenv("PROFILE_UPLOAD_RATE_LIMIT_MIN", "10/minute")
+PROFILE_UPLOAD_RATE_LIMIT_HOUR = os.getenv("PROFILE_UPLOAD_RATE_LIMIT_HOUR", "40/hour")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -208,12 +223,21 @@ class CandidatesOut(BaseModel):
 # ── Puestos / ofertas ──
 # Salida en camelCase para coincidir con el tipo `Job` del frontend (postedAt,
 # shortDescription, etc.) sin necesidad de una capa de mapeo en React.
+
+# Rubros válidos. Debe coincidir con src/features/jobs/categories.ts (16 values).
+JOB_CATEGORIES = {
+    "it", "calidad", "ingenieria", "mantenimiento", "hoteleria", "aseo-seguridad",
+    "construccion", "call-center", "diseno", "legales", "aduana", "depto-tecnico",
+    "administracion", "comercial", "rrhh", "otros",
+}
+
 class JobOut(BaseModel):
     id: str
     title: str
     company: str
     location: str = ""
     type: str = "Presencial"
+    category: str = "otros"
     seniority: str = ""
     salary: str = ""
     postedAt: str = ""
@@ -230,6 +254,7 @@ class JobUpsert(BaseModel):
     company: str = Field(..., min_length=1, max_length=160)
     location: str = Field("", max_length=160)
     type: str = Field("Presencial", max_length=40)
+    category: str = Field("otros", max_length=60)
     seniority: str = Field("", max_length=80)
     salary: str = Field("", max_length=120)
     postedAt: Optional[str] = None  # ISO date; default = hoy
@@ -240,6 +265,12 @@ class JobUpsert(BaseModel):
     benefits: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     isPublished: bool = True
+
+    @field_validator("category")
+    @classmethod
+    def _valid_category(cls, v: str) -> str:
+        v = (v or "").strip().lower()
+        return v if v in JOB_CATEGORIES else "otros"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Utilidades
@@ -280,7 +311,7 @@ def _json_str_list(raw) -> list[str]:
 def _job_row_to_out(r) -> "JobOut":
     return JobOut(
         id=r["id"], title=r["title"], company=r["company"], location=r["location"],
-        type=r["type"], seniority=r["seniority"], salary=r["salary"],
+        type=r["type"], category=r["category"], seniority=r["seniority"], salary=r["salary"],
         postedAt=str(r["posted_at"]) if r["posted_at"] else "",
         shortDescription=r["short_description"], description=r["description"],
         responsibilities=_json_str_list(r["responsibilities"]),
@@ -410,15 +441,15 @@ def create_job(dto: JobUpsert) -> JobOut:
         job_id = _unique_job_id(conn, _slugify(dto.title))
         cur.execute(
             """
-            INSERT INTO jobs (id, title, company, location, type, seniority, salary,
+            INSERT INTO jobs (id, title, company, location, type, category, seniority, salary,
                               posted_at, short_description, description,
                               responsibilities, requirements, benefits, skills, is_published)
-            VALUES (%s,%s,%s,%s,%s,%s,%s, COALESCE(%s::date, CURRENT_DATE), %s,%s,
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, COALESCE(%s::date, CURRENT_DATE), %s,%s,
                     %s,%s,%s,%s, %s)
             RETURNING *
             """,
             (job_id, dto.title.strip(), dto.company.strip(), dto.location, dto.type,
-             dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
+             dto.category, dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
              json.dumps(dto.responsibilities), json.dumps(dto.requirements),
              json.dumps(dto.benefits), json.dumps(dto.skills), dto.isPublished),
         )
@@ -433,15 +464,15 @@ def update_job(job_id: str, dto: JobUpsert) -> JobOut:
         cur = conn.cursor()
         cur.execute(
             """
-            UPDATE jobs SET title=%s, company=%s, location=%s, type=%s, seniority=%s,
+            UPDATE jobs SET title=%s, company=%s, location=%s, type=%s, category=%s, seniority=%s,
                    salary=%s, posted_at=COALESCE(%s::date, posted_at), short_description=%s,
                    description=%s, responsibilities=%s, requirements=%s, benefits=%s,
                    skills=%s, is_published=%s, updated_at=now()
             WHERE id=%s
             RETURNING *
             """,
-            (dto.title.strip(), dto.company.strip(), dto.location, dto.type, dto.seniority,
-             dto.salary, posted, dto.shortDescription, dto.description,
+            (dto.title.strip(), dto.company.strip(), dto.location, dto.type, dto.category,
+             dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
              json.dumps(dto.responsibilities), json.dumps(dto.requirements),
              json.dumps(dto.benefits), json.dumps(dto.skills), dto.isPublished, job_id),
         )
@@ -520,7 +551,10 @@ async def _store_resume(
 
 
 @app.post("/cv", response_model=UploadCvOut, tags=["default"])
+@limiter.limit(CV_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(CV_UPLOAD_RATE_LIMIT_MIN)
 async def upload_cv(
+    request: Request,
     full_name: str = Form(..., min_length=2, max_length=200),
     email: str = Form(..., max_length=320),
     message: Optional[str] = Form(None, max_length=10_000),
@@ -533,7 +567,10 @@ async def upload_cv(
 
 
 @app.post("/apply", response_model=UploadCvOut, tags=["default"])
+@limiter.limit(APPLY_RATE_LIMIT_HOUR)
+@limiter.limit(APPLY_RATE_LIMIT_MIN)
 async def apply_to_job(
+    request: Request,
     job_id: str = Form(..., max_length=100),
     job_title: str = Form(..., max_length=300),
     message: Optional[str] = Form(None, max_length=10_000),
@@ -693,7 +730,10 @@ def update_my_profile(
     return _profile_row_to_out(current_user, row)
 
 @app.post("/me/profile/cv", response_model=ProfileOut, tags=["profile"])
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_MIN)
 async def upload_my_cv(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ) -> ProfileOut:
@@ -747,7 +787,10 @@ def delete_my_cv(current_user: dict = Depends(get_current_user)) -> ProfileOut:
     return _profile_row_to_out(current_user, row)
 
 @app.post("/me/profile/photo", response_model=ProfileOut, tags=["profile"])
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_MIN)
 async def upload_my_photo(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ) -> ProfileOut:

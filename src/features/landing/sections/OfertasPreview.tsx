@@ -13,8 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/features/auth/AuthContext";
 // Los puestos vienen de la API (GET /jobs): cualquier puesto publicado desde el
 // panel admin aparece automáticamente en este carrusel y en la página de Ofertas.
-import { fetchJobs } from "@/features/jobs/jobs-api";
-import type { Job } from "@/features/jobs/jobs-data";
+// useJobs comparte cache con /ofertas (stale-while-revalidate): si ya se cargaron
+// una vez, el carrusel aparece al instante sin re-pegarle a la API.
+import { useJobs } from "@/features/jobs/use-jobs";
 
 const cardClass =
   "group rounded-3xl border-slate-200/70 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-300/60 h-full";
@@ -30,19 +31,7 @@ export default function OfertasPreview() {
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(true);
   const pausedRef = useRef(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    fetchJobs()
-      .then((data) => alive && setJobs(data))
-      .catch(() => {}) // teaser: si falla, simplemente no mostramos puestos
-      .finally(() => alive && setLoaded(true));
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const { jobs, loading } = useJobs();
 
   const updateState = useCallback(() => {
     const el = trackRef.current;
@@ -172,13 +161,13 @@ export default function OfertasPreview() {
                     </Badge>
                     <CardTitle className="text-lg">{j.title}</CardTitle>
                     <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Building2 size={14} className="text-amber-500" />
+                      <Building2 size={14} className="text-slate-500" />
                       {j.company}
                     </p>
                   </CardHeader>
                   <CardContent className="grid gap-2 text-sm text-muted-foreground">
                     <div className="inline-flex items-center gap-2">
-                      <MapPin size={16} className="text-amber-500" />
+                      <MapPin size={16} className="text-slate-500" />
                       {j.location}
                     </div>
                     <Button variant="outline" className={applyBtn} asChild>
@@ -215,7 +204,7 @@ export default function OfertasPreview() {
         </div>
           </>
         ) : (
-          loaded && (
+          !loading && (
             <p className="mt-8 text-center text-sm text-muted-foreground">
               Pronto publicaremos nuevas búsquedas. Mientras tanto, podés dejarnos tu CV.
             </p>

@@ -2,9 +2,11 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "@/features/landing/LandingPage";
-import OfertasPage from "@/features/jobs/OfertasPage";
 import { RequireAuth, RequireRole, LoadingScreen } from "@/app/guards";
 
+// OfertasPage va lazy: sale del bundle inicial y solo se descarga al entrar a /ofertas.
+// La landing queda eager por ser la entrada de "/".
+const OfertasPage = React.lazy(() => import("@/features/jobs/OfertasPage"));
 const AdminPanel = React.lazy(() => import("@/features/admin/AdminPanel"));
 const AuthPage = React.lazy(() => import("@/features/auth/AuthPage"));
 const ProfilePage = React.lazy(() => import("@/features/profile/ProfilePage"));
@@ -17,7 +19,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/ofertas" element={<OfertasPage />} />
+        <Route
+          path="/ofertas"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <OfertasPage />
+            </React.Suspense>
+          }
+        />
         <Route
           path="/login"
           element={

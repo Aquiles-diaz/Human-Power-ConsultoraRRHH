@@ -3,15 +3,11 @@ import { Button } from "@/components/ui/button";
 export default function CtaBanner() {
   return (
     <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-black to-zinc-900 px-6 py-10 sm:px-12 sm:py-12">
+      <div className="relative overflow-hidden rounded-3xl bg-slate-900 px-6 py-10 sm:px-12 sm:py-12">
         {/* glow de marca */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-amber-500/30 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-10 bottom-0 h-48 w-48 rounded-full bg-orange-500/20 blur-3xl"
+          className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-amber-500/15 blur-3xl"
         />
 
         <div className="relative grid sm:grid-cols-2 gap-6 items-center">

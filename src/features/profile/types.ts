@@ -83,3 +83,10 @@ export const EXPERIENCE_OPTIONS = [
   "5-10 años",
   "Más de 10 años",
 ];
+
+export const LANGUAGES = [
+  "Español", "Inglés", "Portugués", "Italiano", "Francés", "Alemán",
+  "Chino (Mandarín)", "Japonés", "Ruso", "Árabe",
+];
+
+export const LANGUAGE_LEVELS = ["Básico", "Intermedio", "Avanzado", "Nativo"];

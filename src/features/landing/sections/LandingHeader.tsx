@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ChevronRight } from "lucide-react";
 import CargarCvButton from "@/components/shared/CargarCvButton";
 import UserMenu from "@/components/shared/UserMenu";
-import { BrandLogo } from "@/components/shared/BrandLogo";
 
 export default function LandingHeader() {
   const [openNav, setOpenNav] = useState(false);
@@ -19,7 +18,7 @@ export default function LandingHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-black/95 backdrop-blur pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 backdrop-blur pt-[env(safe-area-inset-top)]">
       {/* mobile: wordmark izq + hamburguesa der · desktop: grid 3 columnas (nav · logo centrado · acciones) */}
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 md:grid md:grid-cols-[1fr_auto_1fr]">
         {/* Nav (desktop, izquierda) */}
@@ -38,14 +37,11 @@ export default function LandingHeader() {
           ))}
         </nav>
 
-        {/* Logo: mobile = wordmark de texto · desktop = emblema + wordmark centrado */}
+        {/* Marca: wordmark de texto (sin logo en el navbar; el emblema vive en el hero) */}
         <a href="#home" className="md:justify-self-center" aria-label="Inicio">
-          <span className="font-bold text-white md:hidden">
+          <span className="font-bold text-white">
             <span className="text-lg">Human Power</span>
             <span className="ml-1 text-amber-400">| RRHH</span>
-          </span>
-          <span className="hidden md:inline-flex">
-            <BrandLogo imgClassName="size-11" />
           </span>
         </a>
 
@@ -88,7 +84,7 @@ export default function LandingHeader() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="overflow-hidden border-t border-white/10 bg-gradient-to-b from-black/95 to-black md:hidden"
+            className="overflow-hidden border-t border-white/10 bg-gradient-to-b from-slate-950/95 to-slate-950 md:hidden"
           >
             <nav
               className="mx-auto flex max-w-7xl flex-col gap-1 px-3 py-3"

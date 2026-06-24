@@ -19,15 +19,22 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
+import ProfileCompletion from "./ProfileCompletion";
+import { computeProfileCompletion } from "./completion";
+import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
   AGE_RANGES,
   AVAILABILITY_OPTIONS,
   EDUCATION_LEVELS,
   EXPERIENCE_OPTIONS,
+  LANGUAGES,
+  LANGUAGE_LEVELS,
   PROFESSIONAL_AREAS,
   PROFILE_TEXT_FIELDS,
   type Profile,
 } from "./types";
+import { composeLanguage } from "./profile-langs";
+import { PROVINCES, COUNTRIES, CITIES_BY_PROVINCE } from "./ar-geo";
 
 // Límite de tamaño del CV en el perfil (alineado con el backend: 15MB).
 const PROFILE_CV_MAX_BYTES = 15 * 1024 * 1024;
@@ -53,11 +60,32 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [cvUploading, setCvUploading] = useState(false);
-  const [langInput, setLangInput] = useState("");
+  const [langName, setLangName] = useState("");
+  const [langLevel, setLangLevel] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
+
+  const completion = useMemo(
+    () => computeProfileCompletion(profile, user),
+    [profile, user],
+  );
+
+  async function resendVerification() {
+    try {
+      await requestEmailVerify(profile?.email ?? user?.email ?? "");
+      toast.success("Te reenviamos el email de verificación", {
+        description: "Revisá tu bandeja de entrada (y el spam).",
+      });
+    } catch (e) {
+      toast.error("No se pudo reenviar", { description: getErrorMessage(e) });
+    }
+  }
+
+  function scrollToSection(id: "personal" | "professional") {
+    document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   async function load() {
     setLoading(true);
@@ -84,11 +112,12 @@ export default function ProfilePage() {
   }
 
   function addLanguage() {
-    const v = langInput.trim();
-    if (!v) return;
+    if (!langName) return;
+    const entry = composeLanguage(langName, langLevel);
     const current = form.languages ?? [];
-    if (!current.includes(v)) setField("languages", [...current, v]);
-    setLangInput("");
+    if (!current.includes(entry)) setField("languages", [...current, entry]);
+    setLangName("");
+    setLangLevel("");
   }
 
   function removeLanguage(lang: string) {
@@ -224,7 +253,17 @@ export default function ProfilePage() {
               <Loader2 className="size-7 animate-spin" />
             </div>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+            <>
+              {user?.role !== "admin" && (
+                <ProfileCompletion
+                  result={completion}
+                  onVerifyEmail={resendVerification}
+                  onUploadCv={() => cvInputRef.current?.click()}
+                  onUploadPhoto={() => photoInputRef.current?.click()}
+                  onScrollTo={scrollToSection}
+                />
+              )}
+              <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
               {/* ── Tarjeta avatar (izquierda) ── */}
               <aside className="lg:sticky lg:top-24 lg:self-start">
                 <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -274,8 +313,8 @@ export default function ProfilePage() {
                     <p className="mt-0.5 break-all text-sm text-slate-500">{profile?.email}</p>
 
                     {profile?.has_cv && (
-                      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                        <BadgeCheck size={14} /> CV cargado
+                      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        <BadgeCheck size={14} className="text-emerald-600" /> CV cargado
                       </span>
                     )}
                   </div>
@@ -289,7 +328,7 @@ export default function ProfilePage() {
                   {profile?.has_cv ? (
                     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-600">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700">
                           <FileText size={18} />
                         </span>
                         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
@@ -330,7 +369,7 @@ export default function ProfilePage() {
                       disabled={cvUploading}
                       className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 p-4 text-left transition hover:border-amber-400 hover:bg-amber-50/40 disabled:opacity-60"
                     >
-                      <span className="grid size-10 place-items-center rounded-lg bg-white text-amber-500 shadow-sm">
+                      <span className="grid size-10 place-items-center rounded-lg bg-white text-slate-500 shadow-sm">
                         {cvUploading ? (
                           <Loader2 className="size-5 animate-spin" />
                         ) : (
@@ -355,7 +394,7 @@ export default function ProfilePage() {
                   {/* Video de presentación (opcional) */}
                   <div className="mt-5 border-t border-slate-100 pt-5">
                     <div className="mb-1 flex items-center gap-2">
-                      <span className="grid size-8 place-items-center rounded-lg bg-amber-100 text-amber-600">
+                      <span className="grid size-8 place-items-center rounded-lg bg-slate-100 text-slate-700">
                         <Video size={16} />
                       </span>
                       <label htmlFor="video_url" className="text-sm font-medium text-slate-700">
@@ -371,7 +410,7 @@ export default function ProfilePage() {
                     <div className="relative">
                       <ExternalLink
                         size={16}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-amber-500"
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
                       />
                       <input
                         id="video_url"
@@ -397,20 +436,25 @@ export default function ProfilePage() {
                 </Section>
 
                 {/* Datos personales */}
-                <Section title="Datos personales">
+                <Section title="Datos personales" id="sec-personal">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField label="Titular / Rubro" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
+                    <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
                     <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." onChange={(v) => setField("phone", v)} />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
-                    <TextField label="Ciudad" value={form.city} onChange={(v) => setField("city", v)} />
-                    <TextField label="Provincia (opcional)" value={form.province} onChange={(v) => setField("province", v)} />
-                    <TextField label="País" value={form.country} onChange={(v) => setField("country", v)} />
+                    <SelectField label="País" value={form.country} options={COUNTRIES} onChange={(v) => setField("country", v)} />
+                    <SelectField label="Provincia (opcional)" value={form.province} options={PROVINCES} onChange={(v) => setField("province", v)} />
+                    <TextField
+                      label="Ciudad"
+                      value={form.city}
+                      suggestions={CITIES_BY_PROVINCE[form.province ?? ""] ?? []}
+                      onChange={(v) => setField("city", v)}
+                    />
                   </div>
                 </Section>
 
                 {/* Perfil profesional */}
-                <Section title="Perfil profesional">
+                <Section title="Perfil profesional" id="sec-professional">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <SelectField label="Área profesional" value={form.professional_area} options={PROFESSIONAL_AREAS} onChange={(v) => setField("professional_area", v)} />
                     <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
@@ -422,19 +466,33 @@ export default function ProfilePage() {
                   {/* Idiomas (tags) */}
                   <div className="mt-4">
                     <label className="mb-1 block text-sm font-medium text-slate-700">Idiomas</label>
-                    <div className="flex gap-2">
-                      <input
-                        value={langInput}
-                        onChange={(e) => setLangInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addLanguage();
-                          }
-                        }}
-                        placeholder="Ej: Inglés, Portugués…"
-                        className="h-10 flex-1 rounded-xl border border-slate-200 px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      />
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <select
+                        value={langName}
+                        onChange={(e) => setLangName(e.target.value)}
+                        aria-label="Idioma"
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                      >
+                        <option value="">Idioma…</option>
+                        {LANGUAGES.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={langLevel}
+                        onChange={(e) => setLangLevel(e.target.value)}
+                        aria-label="Nivel"
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                      >
+                        <option value="">Nivel (opcional)…</option>
+                        {LANGUAGE_LEVELS.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </select>
                       <Button type="button" variant="outline" className="rounded-xl" onClick={addLanguage}>
                         Agregar
                       </Button>
@@ -470,7 +528,8 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </main>
@@ -479,9 +538,9 @@ export default function ProfilePage() {
 }
 
 // ── Subcomponentes ──
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section id={id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 scroll-mt-24">
       <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
       {children}
     </section>
@@ -494,13 +553,18 @@ function TextField({
   onChange,
   placeholder,
   type = "text",
+  suggestions,
 }: {
   label: string;
   value?: string | null;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  suggestions?: string[];
 }) {
+  const listId = suggestions
+    ? `dl-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
+    : undefined;
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
@@ -509,9 +573,17 @@ function TextField({
         value={value ?? ""}
         placeholder={placeholder}
         aria-label={label}
+        list={listId}
         onChange={(e) => onChange(e.target.value)}
         className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
       />
+      {suggestions && (
+        <datalist id={listId}>
+          {suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
     </div>
   );
 }
@@ -537,7 +609,7 @@ function SelectField({
         className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
       >
         <option value="">Seleccionar…</option>
-        {options.map((o) => (
+        {(value && !options.includes(value) ? [value, ...options] : options).map((o) => (
           <option key={o} value={o}>
             {o}
           </option>

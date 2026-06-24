@@ -7,7 +7,7 @@ const cardClass =
   "group rounded-3xl border-slate-200/70 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-300/60 h-full";
 
 const iconBadge =
-  "grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-amber-400/20 to-orange-500/20 text-amber-600 transition-transform duration-300 group-hover:scale-110";
+  "grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700 transition-transform duration-300 group-hover:scale-110";
 
 export default function Servicios() {
   return (
