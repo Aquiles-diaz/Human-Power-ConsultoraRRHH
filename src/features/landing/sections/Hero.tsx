@@ -41,7 +41,7 @@ export default function Hero() {
           transition={{ duration: 0.6 }}
           className="flex flex-col items-center"
         >
-          {/* Emblema (mobile) */}
+          {/* Emblema de marca */}
           <img
             src="/logohumap-white.png"
             alt="Human Power RRHH"
@@ -71,7 +71,8 @@ export default function Hero() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscá por rubro o puesto…"
-              className="h-11 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none sm:text-base"
+              aria-label="Buscar por rubro o puesto"
+              className="h-11 flex-1 rounded-lg bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 sm:text-base"
             />
             <Button type="submit" variant="brand" className="rounded-xl px-5 py-5">
               Buscar
@@ -86,7 +87,8 @@ export default function Hero() {
             {HOT_CATEGORIES.map((c) => (
               <button
                 key={c.value}
-                onClick={() => navigate(`/ofertas?categoria=${c.value}`)}
+                type="button"
+                onClick={() => navigate(`/ofertas?categoria=${encodeURIComponent(c.value)}`)}
                 className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-900 transition hover:bg-amber-400"
               >
                 <Flame size={13} /> {c.label}
