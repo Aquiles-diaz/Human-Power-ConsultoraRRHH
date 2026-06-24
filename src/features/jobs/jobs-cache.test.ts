@@ -10,6 +10,7 @@ const sampleJob: Job = {
   company: "Acme",
   location: "Rosario",
   type: "Remoto",
+  category: "IT",
   seniority: "Semi Senior",
   salary: "",
   postedAt: "2026-06-01T00:00:00Z",

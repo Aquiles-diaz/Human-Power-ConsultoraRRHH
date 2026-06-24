@@ -9,6 +9,7 @@ export type JobInput = {
   company: string;
   location: string;
   type: string;
+  category: string;
   seniority: string;
   salary: string;
   postedAt?: string | null;

@@ -10,6 +10,7 @@ export type Job = {
   company: string;
   location: string;
   type: JobType;
+  category: string;
   seniority: string;
   salary: string;
   postedAt: string; // ISO date
