@@ -1,4 +1,3 @@
-// src/features/landing/sections/Areas.tsx
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Flame } from "lucide-react";
@@ -53,7 +52,7 @@ export default function Areas() {
                     c.hot ? "bg-amber-500 text-slate-900" : "bg-amber-100 text-amber-700"
                   }`}
                 >
-                  <Icon size={20} />
+                  <Icon size={20} aria-hidden />
                 </span>
                 <span className="text-xs font-semibold leading-tight text-slate-800">
                   {c.label}
