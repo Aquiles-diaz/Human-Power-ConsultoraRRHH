@@ -52,6 +52,21 @@ CV_DELIVERY = os.getenv("CV_DELIVERY", "stream").lower()
 # Destinatario de las consultas del formulario de contacto público.
 CONTACT_TO = os.getenv("CONTACT_TO", "humanpower.rrhh@gmail.com")
 
+# Rate limits de subida de archivos (anti-abuso del bucket de Storage). Sin esto,
+# cualquiera podría martillar /cv o /apply y llenar el bucket de Supabase. Se
+# aplican por IP del cliente (ver ratelimit.py) y son configurables por env para
+# poder aflojarlos/apretarlos sin tocar código. Formato slowapi: "N/period".
+# Cada endpoint tiene dos cupos (por minuto y por hora) que se aplican a la vez:
+#   /cv                              -> CV_UPLOAD_RATE_LIMIT_*      (anónimo, mayor riesgo)
+#   /apply                           -> APPLY_RATE_LIMIT_*          (requiere login)
+#   /me/profile/cv y /me/profile/photo -> PROFILE_UPLOAD_RATE_LIMIT_* (requieren login)
+CV_UPLOAD_RATE_LIMIT_MIN = os.getenv("CV_UPLOAD_RATE_LIMIT_MIN", "5/minute")
+CV_UPLOAD_RATE_LIMIT_HOUR = os.getenv("CV_UPLOAD_RATE_LIMIT_HOUR", "20/hour")
+APPLY_RATE_LIMIT_MIN = os.getenv("APPLY_RATE_LIMIT_MIN", "10/minute")
+APPLY_RATE_LIMIT_HOUR = os.getenv("APPLY_RATE_LIMIT_HOUR", "40/hour")
+PROFILE_UPLOAD_RATE_LIMIT_MIN = os.getenv("PROFILE_UPLOAD_RATE_LIMIT_MIN", "10/minute")
+PROFILE_UPLOAD_RATE_LIMIT_HOUR = os.getenv("PROFILE_UPLOAD_RATE_LIMIT_HOUR", "40/hour")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -520,7 +535,10 @@ async def _store_resume(
 
 
 @app.post("/cv", response_model=UploadCvOut, tags=["default"])
+@limiter.limit(CV_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(CV_UPLOAD_RATE_LIMIT_MIN)
 async def upload_cv(
+    request: Request,
     full_name: str = Form(..., min_length=2, max_length=200),
     email: str = Form(..., max_length=320),
     message: Optional[str] = Form(None, max_length=10_000),
@@ -533,7 +551,10 @@ async def upload_cv(
 
 
 @app.post("/apply", response_model=UploadCvOut, tags=["default"])
+@limiter.limit(APPLY_RATE_LIMIT_HOUR)
+@limiter.limit(APPLY_RATE_LIMIT_MIN)
 async def apply_to_job(
+    request: Request,
     job_id: str = Form(..., max_length=100),
     job_title: str = Form(..., max_length=300),
     message: Optional[str] = Form(None, max_length=10_000),
@@ -693,7 +714,10 @@ def update_my_profile(
     return _profile_row_to_out(current_user, row)
 
 @app.post("/me/profile/cv", response_model=ProfileOut, tags=["profile"])
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_MIN)
 async def upload_my_cv(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ) -> ProfileOut:
@@ -747,7 +771,10 @@ def delete_my_cv(current_user: dict = Depends(get_current_user)) -> ProfileOut:
     return _profile_row_to_out(current_user, row)
 
 @app.post("/me/profile/photo", response_model=ProfileOut, tags=["profile"])
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_MIN)
 async def upload_my_photo(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ) -> ProfileOut:
