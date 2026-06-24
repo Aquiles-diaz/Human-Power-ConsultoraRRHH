@@ -7,10 +7,15 @@
 ## Objetivo
 
 Mostrarle al candidato (rol `user`) una barra dorada de "perfil completo" que sube
-de porcentaje a medida que completa acciones (verificar email, subir CV, cargar
-foto, llenar datos). Usa psicología de gamificación —hitos con tilde, mensajes de
-beneficio y celebración al 100%— para empujarlo a completar el perfil. Para el rol
-`admin` no se muestra.
+de porcentaje a medida que completa acciones (subir CV, cargar foto, completar
+datos). Usa psicología de gamificación —hitos con tilde, mensajes de beneficio y
+celebración al 100%— para empujarlo a completar el perfil. Para el rol `admin` no se
+muestra.
+
+La verificación de email **no** cuenta para el % (es un logro bonus): pesarla haría
+que el 100% dependa de que llegue el mail (SMTP/spam), algo fuera del control del
+candidato, y además ya existe un nudge aparte (`VerifyEmailBanner`). Se la invita
+suavemente como ⭐ extra, sin bloquear ni nag doble.
 
 ## Decisiones de diseño (acordadas con el usuario)
 
@@ -45,11 +50,10 @@ campos.
 | Hito | Peso | Señal | Tipo |
 |---|---|---|---|
 | Creaste tu cuenta | 10% | siempre `true` (el usuario está logueado) | binario |
-| Email verificado | 20% | `user.email_verified === true` | binario |
-| CV cargado | 25% | `profile.has_cv` | binario |
+| CV cargado | 30% | `profile.has_cv` | binario |
 | Foto de perfil | 10% | `!!profile.photo_url` | binario |
-| Datos personales | 15% | 5 campos × 3%: `headline`, `phone`, `city`, `country`, `age_range` | parcial |
-| Perfil profesional | 20% | 5 campos × 4%: `professional_area`, `education_level`, `experience_years`, `availability`, `salary_expectation` | parcial |
+| Datos personales | 25% | 5 campos × 5%: `headline`, `phone`, `city`, `country`, `age_range` | parcial |
+| Perfil profesional | 25% | 5 campos × 5%: `professional_area`, `education_level`, `experience_years`, `availability`, `salary_expectation` | parcial |
 
 **Total = 100%.**
 
@@ -64,6 +68,8 @@ campos.
 
 Se muestran como badges de "perfil destacado", aparte de la barra:
 
+- Email verificado: `user.email_verified === true`. Invitación suave ("verificá tu
+  email para sumar confianza"); NO mueve la barra.
 - Idiomas cargados: `(profile.languages?.length ?? 0) >= 1`.
 - Video de presentación: `!!profile.video_url` (y válido según la regla actual de
   `ProfilePage`).
@@ -79,23 +85,34 @@ computeProfileCompletion(profile: Profile | null, user: User | null | undefined)
   => {
     percent: number;            // 0..100, redondeado
     complete: boolean;          // percent === 100
-    milestones: Milestone[];    // los 6 hitos, en orden de presentación
+    milestones: Milestone[];    // los 5 hitos que cuentan, en orden de presentación
     nextStep: Milestone | null; // el hito incompleto de mayor peso (null si 100%)
-    bonuses: Bonus[];           // idiomas, video (done/no done)
+    bonuses: Bonus[];           // email, idiomas, video (done/no done) — NO suman al %
   }
 ```
 
-`Milestone`:
+`Milestone` (sólo los que cuentan; email NO está acá):
 ```
 {
-  id: 'account' | 'email' | 'cv' | 'photo' | 'personal' | 'professional';
+  id: 'account' | 'cv' | 'photo' | 'personal' | 'professional';
   label: string;        // "Subí tu CV"
   benefit: string;      // microcopy: "Es lo primero que mira RRHH"
-  weight: number;       // su peso (ej. 25)
+  weight: number;       // su peso (ej. 30)
   done: boolean;        // grupo/hito completo
   partial?: { done: number; total: number }; // solo grupos parciales
-  action: 'verify-email' | 'upload-cv' | 'upload-photo' | 'scroll-personal' | 'scroll-professional' | null;
+  action: 'upload-cv' | 'upload-photo' | 'scroll-personal' | 'scroll-professional' | null;
   // 'account' no tiene action
+}
+```
+
+`Bonus`:
+```
+{
+  id: 'email' | 'languages' | 'video';
+  label: string;        // "Verificá tu email"
+  benefit: string;      // "Sumá confianza para que te contacten"
+  done: boolean;
+  action: 'verify-email' | 'scroll-professional' | null; // email → reenvío; idiomas/video → scroll
 }
 ```
 
@@ -106,12 +123,14 @@ un grupo parcial. Así el sugerido siempre es el que más mueve la aguja. Empate
 el de mayor `weight` y, si persiste, el primero en el orden de la tabla. Si todo está
 completo, `null`.
 
-Microcopy de beneficio por hito (texto definitivo en implementación, borradores):
-- email: "Verificado = más chances de que te contacten."
-- cv: "Es lo primero que mira RRHH."
-- photo: "Un perfil con foto genera más confianza."
-- personal: "Ayuda a RRHH a ubicarte en las búsquedas."
-- professional: "Mostrá tu experiencia para destacar."
+Microcopy de beneficio (texto definitivo en implementación, borradores):
+- cv (hito): "Es lo primero que mira RRHH."
+- photo (hito): "Un perfil con foto genera más confianza."
+- personal (hito): "Ayuda a RRHH a ubicarte en las búsquedas."
+- professional (hito): "Mostrá tu experiencia para destacar."
+- email (bonus): "Verificá tu email para sumar confianza."
+- languages (bonus): "Sumá los idiomas que hablás."
+- video (bonus): "Un video corto te hace destacar."
 
 ### `src/features/profile/ProfileCompletion.tsx` (presentacional)
 
@@ -134,7 +153,9 @@ Render:
   `src/lib/motion.ts`; sin librerías nuevas de confetti).
 - Checklist de hitos: ícono done/parcial/pendiente, label, microcopy de beneficio,
   y CTA por hito (botón/anchor) que dispara la `action`.
-- Badges de logros extra (idiomas, video) si están cumplidos.
+- Badges de logros extra (email verificado, idiomas, video): los cumplidos se ven
+  como ⭐ logrado; los pendientes, como invitación suave con su CTA (el de email
+  dispara `onVerifyEmail`).
 
 ### Integración en `ProfilePage.tsx`
 
@@ -164,12 +185,13 @@ Render:
 
 - Test unitario de `computeProfileCompletion` (Vitest, como
   `WelcomeBanner.test.tsx`):
-  - Perfil vacío + email sin verificar → 10% (solo "cuenta creada"), `nextStep` =
-    el de mayor peso restante.
-  - Email verificado + CV → 10 + 20 + 25 = 55%.
-  - Grupos parciales → aporte proporcional correcto y `partial.done/total`.
-  - Perfil 100% → `complete === true`, `nextStep === null`.
-  - Bonus (idiomas/video) no alteran el `percent`.
+  - Perfil vacío → 10% (solo "cuenta creada"), `nextStep` = CV (mayor peso restante).
+  - CV + foto → 10 + 30 + 10 = 50%.
+  - Grupos parciales → aporte proporcional correcto y `partial.done/total`
+    (ej. datos personales 3/5 = 15% de los 25%).
+  - Perfil 100% → `complete === true`, `nextStep === null` (sin necesidad de
+    verificar email ni cargar idiomas/video).
+  - Bonus (email / idiomas / video) no alteran el `percent`.
 - (Opcional) smoke test de render de `ProfileCompletion` con un `result` mockeado.
 
 ## Fuera de alcance (YAGNI)
