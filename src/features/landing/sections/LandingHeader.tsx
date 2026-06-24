@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ChevronRight } from "lucide-react";
 import CargarCvButton from "@/components/shared/CargarCvButton";
 import UserMenu from "@/components/shared/UserMenu";
-import { BrandLogo } from "@/components/shared/BrandLogo";
 
 export default function LandingHeader() {
   const [openNav, setOpenNav] = useState(false);
@@ -38,14 +37,11 @@ export default function LandingHeader() {
           ))}
         </nav>
 
-        {/* Logo: mobile = wordmark de texto · desktop = emblema + wordmark centrado */}
+        {/* Marca: wordmark de texto (sin logo en el navbar; el emblema vive en el hero) */}
         <a href="#home" className="md:justify-self-center" aria-label="Inicio">
-          <span className="font-bold text-white md:hidden">
+          <span className="font-bold text-white">
             <span className="text-lg">Human Power</span>
             <span className="ml-1 text-amber-400">| RRHH</span>
-          </span>
-          <span className="hidden md:inline-flex">
-            <BrandLogo imgClassName="size-11" />
           </span>
         </a>
 
