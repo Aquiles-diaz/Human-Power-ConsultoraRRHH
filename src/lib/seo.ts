@@ -16,7 +16,7 @@ export function organizationLd() {
     "@type": "Organization",
     name: "Human Power",
     url: SITE_URL,
-    logo: `${SITE_URL}/logohumanp.png`,
+    logo: `${SITE_URL}/logo.png`,
     description: DEFAULT_DESCRIPTION,
     areaServed: "AR",
   };

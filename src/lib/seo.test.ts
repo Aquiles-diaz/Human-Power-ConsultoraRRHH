@@ -8,7 +8,7 @@ describe("organizationLd", () => {
     expect(ld["@type"]).toBe("Organization");
     expect(ld.name).toBe("Human Power");
     expect(ld.url).toBe(SITE_URL);
-    expect(ld.logo).toContain("/logohumanp.png");
+    expect(ld.logo).toContain("/logo.png");
   });
 
   it("es serializable a JSON (apto para <script type=ld+json>)", () => {
