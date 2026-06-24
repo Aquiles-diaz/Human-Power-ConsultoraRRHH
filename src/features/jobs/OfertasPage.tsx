@@ -12,7 +12,7 @@ import {
   Lock,
   X,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { type Job } from "./jobs-data";
 import { useJobs } from "./use-jobs";
+import { filterJobs } from "./job-filter";
+import { CATEGORIES } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
@@ -442,9 +444,11 @@ const OfertasPage: React.FC = () => {
   // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
   // y se revalidan en background (suaviza el cold start del backend).
   const { jobs, loading, error: loadError } = useJobs();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get("categoria") ?? "");
   const [selectedId, setSelectedId] = useState<string>("");
   const [applyOpen, setApplyOpen] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa
@@ -456,21 +460,15 @@ const OfertasPage: React.FC = () => {
   );
   const types = useMemo(() => [...new Set(jobs.map((j) => j.type).filter(Boolean))], [jobs]);
 
-  const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      return (
-        (job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          job.company.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (locationFilter === "" || job.location === locationFilter) &&
-        (typeFilter === "" || job.type === typeFilter)
-      );
-    });
-  }, [jobs, searchTerm, locationFilter, typeFilter]);
+  const filteredJobs = useMemo(
+    () => filterJobs(jobs, { q: searchTerm, location: locationFilter, type: typeFilter, category: categoryFilter }),
+    [jobs, searchTerm, locationFilter, typeFilter, categoryFilter]
+  );
 
   // Al cambiar los filtros, la lista se reordena: volvemos a mostrar desde el principio.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [searchTerm, locationFilter, typeFilter]);
+  }, [searchTerm, locationFilter, typeFilter, categoryFilter]);
 
   // Render incremental: solo las primeras `visibleCount` tarjetas; el resto con "Ver más".
   const visibleJobs = useMemo(
@@ -512,7 +510,7 @@ const OfertasPage: React.FC = () => {
           </div>
 
           {/* Filtros */}
-          <div className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 lg:grid-cols-5">
             <div className="relative lg:col-span-2">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <Input
@@ -544,6 +542,18 @@ const OfertasPage: React.FC = () => {
               {types.map((t) => (
                 <option key={t} value={t}>
                   {t}
+                </option>
+              ))}
+            </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            >
+              <option value="">Todos los rubros</option>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
                 </option>
               ))}
             </select>

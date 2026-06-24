@@ -6,7 +6,7 @@
 // las funciones devuelven null / no-op en vez de romper la vista.
 import type { Job } from "./jobs-data";
 
-const CACHE_KEY = "hp.jobs.v1";
+const CACHE_KEY = "hp.jobs.v2";
 
 type CacheShape = { savedAt: number; jobs: Job[] };
 
