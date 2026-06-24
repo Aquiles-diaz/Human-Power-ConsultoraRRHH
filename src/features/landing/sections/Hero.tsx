@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { Search, Flame, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import CargarCvButton from "@/components/shared/CargarCvButton";
 import { HOT_CATEGORIES } from "@/features/jobs/categories";
 import presentacion from "@/assets/presentacion.mp4";
 
@@ -70,7 +69,7 @@ export default function Hero() {
           <img
             src="/logohumap-white.png"
             alt="Human Power RRHH"
-            className="mb-6 size-28 object-contain drop-shadow-xl md:size-36"
+            className="mb-6 size-32 object-contain drop-shadow-xl md:size-44"
           />
 
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-300 sm:text-xs">
@@ -127,12 +126,8 @@ export default function Hero() {
             </a>
           </div>
 
-          {/* CTAs */}
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <CargarCvButton
-              className="w-full justify-center rounded-2xl px-7 py-6 text-base sm:w-auto"
-              label="Cargar CV + Video ahora"
-            />
+          {/* CTA */}
+          <div className="mt-8 flex justify-center">
             <Button
               variant="outline"
               className="w-full justify-center rounded-2xl border-white/30 bg-white/5 px-7 py-6 text-base text-white hover:bg-white/15 hover:text-white sm:w-auto"
