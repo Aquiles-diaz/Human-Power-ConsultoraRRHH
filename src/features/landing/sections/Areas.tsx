@@ -1,8 +1,19 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { Flame } from "lucide-react";
 import { CATEGORIES } from "@/features/jobs/categories";
-import { fadeUp, staggerContainer } from "@/lib/motion";
+
+// Variantes locales: entrada escalonada un poco más ágil y con un toque de escala,
+// para que la grilla "respire" al aparecer sin volverse lenta con 16 tarjetas.
+const gridVariants: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 16, scale: 0.96 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.35, ease: "easeOut" } },
+};
 
 export default function Areas() {
   return (
@@ -25,7 +36,7 @@ export default function Areas() {
 
       <motion.div
         className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4"
-        variants={staggerContainer}
+        variants={gridVariants}
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.1 }}
@@ -33,28 +44,36 @@ export default function Areas() {
         {CATEGORIES.map((c) => {
           const Icon = c.Icon;
           return (
-            <motion.div key={c.value} variants={fadeUp}>
+            <motion.div
+              key={c.value}
+              variants={cardVariants}
+              whileHover={{ y: -5 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            >
               <Link
                 to={`/ofertas?categoria=${c.value}`}
-                className={`group relative flex h-full flex-col items-center gap-2.5 rounded-2xl border bg-white p-4 text-center transition-all hover:-translate-y-1 hover:shadow-lg ${
-                  c.hot ? "border-amber-300 shadow-sm" : "border-slate-200 hover:border-amber-300"
+                className={`group relative flex h-full flex-col items-center gap-2.5 rounded-2xl border bg-white p-4 text-center transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/10 ${
+                  c.hot
+                    ? "border-amber-300 shadow-sm hover:border-amber-400"
+                    : "border-slate-200 hover:border-amber-300"
                 }`}
               >
                 {c.hot && (
                   <Flame
                     size={14}
-                    className="absolute right-2.5 top-2.5 text-amber-500"
+                    className="absolute right-2.5 top-2.5 text-amber-500 motion-safe:animate-pulse"
                     aria-hidden
                   />
                 )}
                 <span
-                  className={`grid size-11 place-items-center rounded-xl transition-transform group-hover:scale-110 ${
+                  className={`grid size-11 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6 ${
                     c.hot ? "bg-amber-500 text-slate-900" : "bg-amber-100 text-amber-700"
                   }`}
                 >
                   <Icon size={20} aria-hidden />
                 </span>
-                <span className="text-xs font-semibold leading-tight text-slate-800">
+                <span className="text-xs font-semibold leading-tight text-slate-800 transition-colors duration-300 group-hover:text-amber-600">
                   {c.label}
                 </span>
               </Link>
