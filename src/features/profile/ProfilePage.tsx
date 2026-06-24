@@ -31,6 +31,7 @@ import {
   PROFILE_TEXT_FIELDS,
   type Profile,
 } from "./types";
+import { PROVINCES, COUNTRIES, CITIES_BY_PROVINCE } from "./ar-geo";
 
 // Límite de tamaño del CV en el perfil (alineado con el backend: 15MB).
 const PROFILE_CV_MAX_BYTES = 15 * 1024 * 1024;
@@ -436,9 +437,14 @@ export default function ProfilePage() {
                     <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." onChange={(v) => setField("phone", v)} />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
-                    <TextField label="Ciudad" value={form.city} onChange={(v) => setField("city", v)} />
-                    <TextField label="Provincia (opcional)" value={form.province} onChange={(v) => setField("province", v)} />
-                    <TextField label="País" value={form.country} onChange={(v) => setField("country", v)} />
+                    <SelectField label="País" value={form.country} options={COUNTRIES} onChange={(v) => setField("country", v)} />
+                    <SelectField label="Provincia (opcional)" value={form.province} options={PROVINCES} onChange={(v) => setField("province", v)} />
+                    <TextField
+                      label="Ciudad"
+                      value={form.city}
+                      suggestions={CITIES_BY_PROVINCE[form.province ?? ""] ?? []}
+                      onChange={(v) => setField("city", v)}
+                    />
                   </div>
                 </Section>
 
@@ -528,13 +534,18 @@ function TextField({
   onChange,
   placeholder,
   type = "text",
+  suggestions,
 }: {
   label: string;
   value?: string | null;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  suggestions?: string[];
 }) {
+  const listId = suggestions
+    ? `dl-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
+    : undefined;
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
@@ -543,9 +554,17 @@ function TextField({
         value={value ?? ""}
         placeholder={placeholder}
         aria-label={label}
+        list={listId}
         onChange={(e) => onChange(e.target.value)}
         className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
       />
+      {suggestions && (
+        <datalist id={listId}>
+          {suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
     </div>
   );
 }
@@ -571,7 +590,7 @@ function SelectField({
         className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
       >
         <option value="">Seleccionar…</option>
-        {options.map((o) => (
+        {(value && !options.includes(value) ? [value, ...options] : options).map((o) => (
           <option key={o} value={o}>
             {o}
           </option>
