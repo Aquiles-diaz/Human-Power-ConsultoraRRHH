@@ -308,7 +308,7 @@ export default function ProfilePage() {
 
                     {profile?.has_cv && (
                       <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        <BadgeCheck size={14} /> CV cargado
+                        <BadgeCheck size={14} className="text-emerald-600" /> CV cargado
                       </span>
                     )}
                   </div>

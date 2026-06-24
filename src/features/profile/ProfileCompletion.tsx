@@ -117,7 +117,7 @@ export default function ProfileCompletion({
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition",
                 b.done
-                  ? "bg-amber-50 text-amber-700"
+                  ? "bg-emerald-50 text-emerald-700"
                   : "bg-slate-50 text-slate-500 hover:bg-slate-100 disabled:cursor-default disabled:hover:bg-slate-50",
               )}
             >
@@ -151,7 +151,7 @@ function ChecklistRow({
       <span
         className={cn(
           "grid size-5 shrink-0 place-items-center rounded-full text-white",
-          done ? "bg-amber-500" : partial && partial.done > 0 ? "bg-amber-300" : "bg-slate-200",
+          done ? "bg-emerald-500" : partial && partial.done > 0 ? "bg-amber-300" : "bg-slate-200",
         )}
       >
         {done && <Check size={13} />}

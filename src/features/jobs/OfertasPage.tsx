@@ -206,7 +206,7 @@ const JobDetail: React.FC<{
               key={`${b}-${i}`}
               className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
             >
-              <CheckCircle2 size={14} /> {b}
+              <CheckCircle2 size={14} className="text-emerald-600" /> {b}
             </span>
           ))}
         </div>
@@ -221,7 +221,7 @@ const DetailList: React.FC<{ title: string; items: string[] }> = ({ title, items
     <ul className="space-y-1.5">
       {items.map((it, i) => (
         <li key={`${it}-${i}`} className="flex gap-2 text-sm text-slate-600">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-slate-500" />
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
           <span>{it}</span>
         </li>
       ))}
