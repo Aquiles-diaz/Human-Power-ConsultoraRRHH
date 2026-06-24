@@ -5,7 +5,7 @@ export default function LandingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-black text-white/70">
+    <footer className="bg-slate-950 text-white/70">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:justify-between">
           {/* Marca + datos */}
