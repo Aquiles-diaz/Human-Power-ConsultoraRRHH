@@ -432,7 +432,7 @@ export default function ProfilePage() {
                 {/* Datos personales */}
                 <Section title="Datos personales" id="sec-personal">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField label="Titular / Rubro" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
+                    <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
                     <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." onChange={(v) => setField("phone", v)} />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
