@@ -19,6 +19,9 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
+import ProfileCompletion from "./ProfileCompletion";
+import { computeProfileCompletion } from "./completion";
+import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
   AGE_RANGES,
   AVAILABILITY_OPTIONS,
@@ -58,6 +61,26 @@ export default function ProfilePage() {
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
+
+  const completion = useMemo(
+    () => computeProfileCompletion(profile, user),
+    [profile, user],
+  );
+
+  async function resendVerification() {
+    try {
+      await requestEmailVerify(profile?.email ?? user?.email ?? "");
+      toast.success("Te reenviamos el email de verificación", {
+        description: "Revisá tu bandeja de entrada (y el spam).",
+      });
+    } catch (e) {
+      toast.error("No se pudo reenviar", { description: getErrorMessage(e) });
+    }
+  }
+
+  function scrollToSection(id: "personal" | "professional") {
+    document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   async function load() {
     setLoading(true);
@@ -224,7 +247,17 @@ export default function ProfilePage() {
               <Loader2 className="size-7 animate-spin" />
             </div>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+            <>
+              {user?.role !== "admin" && (
+                <ProfileCompletion
+                  result={completion}
+                  onVerifyEmail={resendVerification}
+                  onUploadCv={() => cvInputRef.current?.click()}
+                  onUploadPhoto={() => photoInputRef.current?.click()}
+                  onScrollTo={scrollToSection}
+                />
+              )}
+              <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
               {/* ── Tarjeta avatar (izquierda) ── */}
               <aside className="lg:sticky lg:top-24 lg:self-start">
                 <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -397,7 +430,7 @@ export default function ProfilePage() {
                 </Section>
 
                 {/* Datos personales */}
-                <Section title="Datos personales">
+                <Section title="Datos personales" id="sec-personal">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <TextField label="Titular / Rubro" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
                     <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." onChange={(v) => setField("phone", v)} />
@@ -410,7 +443,7 @@ export default function ProfilePage() {
                 </Section>
 
                 {/* Perfil profesional */}
-                <Section title="Perfil profesional">
+                <Section title="Perfil profesional" id="sec-professional">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <SelectField label="Área profesional" value={form.professional_area} options={PROFESSIONAL_AREAS} onChange={(v) => setField("professional_area", v)} />
                     <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
@@ -470,7 +503,8 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </main>
@@ -479,9 +513,9 @@ export default function ProfilePage() {
 }
 
 // ── Subcomponentes ──
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section id={id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 scroll-mt-24">
       <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
       {children}
     </section>
