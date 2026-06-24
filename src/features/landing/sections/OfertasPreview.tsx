@@ -161,13 +161,13 @@ export default function OfertasPreview() {
                     </Badge>
                     <CardTitle className="text-lg">{j.title}</CardTitle>
                     <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Building2 size={14} className="text-amber-500" />
+                      <Building2 size={14} className="text-slate-500" />
                       {j.company}
                     </p>
                   </CardHeader>
                   <CardContent className="grid gap-2 text-sm text-muted-foreground">
                     <div className="inline-flex items-center gap-2">
-                      <MapPin size={16} className="text-amber-500" />
+                      <MapPin size={16} className="text-slate-500" />
                       {j.location}
                     </div>
                     <Button variant="outline" className={applyBtn} asChild>

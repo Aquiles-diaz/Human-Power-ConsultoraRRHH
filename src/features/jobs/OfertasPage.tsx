@@ -62,9 +62,9 @@ function initials(name = ""): string {
 }
 
 const typeStyles: Record<string, string> = {
-  Remoto: "bg-emerald-100 text-emerald-700",
-  Híbrido: "bg-sky-100 text-sky-700",
-  Presencial: "bg-amber-100 text-amber-700",
+  Remoto: "bg-slate-100 text-slate-700",
+  Híbrido: "bg-slate-100 text-slate-700",
+  Presencial: "bg-slate-100 text-slate-700",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ const JobDetail: React.FC<{
           {job.benefits.map((b, i) => (
             <span
               key={`${b}-${i}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm text-emerald-700"
+              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
             >
               <CheckCircle2 size={14} /> {b}
             </span>
@@ -219,7 +219,7 @@ const DetailList: React.FC<{ title: string; items: string[] }> = ({ title, items
     <ul className="space-y-1.5">
       {items.map((it, i) => (
         <li key={`${it}-${i}`} className="flex gap-2 text-sm text-slate-600">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-amber-500" />
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-slate-500" />
           <span>{it}</span>
         </li>
       ))}

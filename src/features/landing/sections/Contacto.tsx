@@ -76,7 +76,7 @@ export default function Contacto() {
           <div className="mt-8 space-y-4 text-sm sm:text-base">
             <div className="grid gap-3">
               <a className={contactLink} href="mailto:humanpower.rrhh@gmail.com">
-                <Mail size={18} className="text-amber-500" />{" "}
+                <Mail size={18} className="text-slate-500" />{" "}
                 humanpower.rrhh@gmail.com
               </a>
               <a
@@ -85,7 +85,7 @@ export default function Contacto() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Instagram size={18} className="text-amber-500" />{" "}
+                <Instagram size={18} className="text-slate-500" />{" "}
                 @human.power.rrhh
               </a>
             </div>

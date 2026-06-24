@@ -307,7 +307,7 @@ export default function ProfilePage() {
                     <p className="mt-0.5 break-all text-sm text-slate-500">{profile?.email}</p>
 
                     {profile?.has_cv && (
-                      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                         <BadgeCheck size={14} /> CV cargado
                       </span>
                     )}
@@ -322,7 +322,7 @@ export default function ProfilePage() {
                   {profile?.has_cv ? (
                     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-600">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700">
                           <FileText size={18} />
                         </span>
                         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
@@ -363,7 +363,7 @@ export default function ProfilePage() {
                       disabled={cvUploading}
                       className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 p-4 text-left transition hover:border-amber-400 hover:bg-amber-50/40 disabled:opacity-60"
                     >
-                      <span className="grid size-10 place-items-center rounded-lg bg-white text-amber-500 shadow-sm">
+                      <span className="grid size-10 place-items-center rounded-lg bg-white text-slate-500 shadow-sm">
                         {cvUploading ? (
                           <Loader2 className="size-5 animate-spin" />
                         ) : (
@@ -388,7 +388,7 @@ export default function ProfilePage() {
                   {/* Video de presentación (opcional) */}
                   <div className="mt-5 border-t border-slate-100 pt-5">
                     <div className="mb-1 flex items-center gap-2">
-                      <span className="grid size-8 place-items-center rounded-lg bg-amber-100 text-amber-600">
+                      <span className="grid size-8 place-items-center rounded-lg bg-slate-100 text-slate-700">
                         <Video size={16} />
                       </span>
                       <label htmlFor="video_url" className="text-sm font-medium text-slate-700">
@@ -404,7 +404,7 @@ export default function ProfilePage() {
                     <div className="relative">
                       <ExternalLink
                         size={16}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-amber-500"
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
                       />
                       <input
                         id="video_url"

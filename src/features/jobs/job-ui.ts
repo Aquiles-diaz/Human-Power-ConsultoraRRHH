@@ -21,7 +21,7 @@ export function initials(name = ""): string {
 }
 
 export const typeStyles: Record<string, string> = {
-  Remoto: "bg-emerald-100 text-emerald-700",
-  Híbrido: "bg-sky-100 text-sky-700",
-  Presencial: "bg-amber-100 text-amber-700",
+  Remoto: "bg-slate-100 text-slate-700",
+  Híbrido: "bg-slate-100 text-slate-700",
+  Presencial: "bg-slate-100 text-slate-700",
 };
