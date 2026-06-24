@@ -32,7 +32,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { type Job } from "./jobs-data";
 import { useJobs } from "./use-jobs";
 import { filterJobs } from "./job-filter";
-import { CATEGORIES } from "./categories";
+import { CATEGORIES, isValidCategory } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
@@ -448,7 +448,8 @@ const OfertasPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState(searchParams.get("categoria") ?? "");
+  const rawCat = searchParams.get("categoria") ?? "";
+  const [categoryFilter, setCategoryFilter] = useState(isValidCategory(rawCat) ? rawCat : "");
   const [selectedId, setSelectedId] = useState<string>("");
   const [applyOpen, setApplyOpen] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa

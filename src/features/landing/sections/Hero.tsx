@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, Flame, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +11,26 @@ export default function Hero() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
 
+  // El video de fondo pesa ~3.5 MB. Lo sacamos del critical path: se monta recién
+  // cuando el navegador está ocioso (ya pintada la home) y se omite si el usuario
+  // pidió ahorrar datos o reducir movimiento. Hasta entonces, el fondo es el
+  // gradiente slate sólido que ya está debajo del velo.
+  const [stage, setStage] = useState<"idle" | "mount" | "ready">("idle");
+
+  useEffect(() => {
+    const saveData = (navigator as unknown as { connection?: { saveData?: boolean } })
+      .connection?.saveData;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (saveData || reduceMotion) return;
+
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setStage("mount"));
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setStage("mount"), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
     const term = q.trim();
@@ -20,18 +40,23 @@ export default function Hero() {
   return (
     <section
       id="home"
-      className="relative flex min-h-[88vh] items-center justify-center overflow-hidden scroll-mt-16"
+      className="relative flex min-h-[88vh] items-center justify-center overflow-hidden scroll-mt-16 bg-slate-950"
     >
-      {/* Video de fondo */}
-      <video
-        src={presentacion}
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      {/* Velo navy (sin neón) */}
+      {/* Video de fondo (diferido para no bloquear el primer paint) */}
+      {stage !== "idle" && (
+        <video
+          src={presentacion}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onLoadedData={() => setStage("ready")}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+            stage === "ready" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
+      {/* Velo navy (sin neón) — se asienta sobre el bg-slate-950 cuando no hay video */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-900/85 via-slate-900/80 to-slate-950/92" />
 
       <div className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-16 text-center text-white sm:px-6 lg:py-20">

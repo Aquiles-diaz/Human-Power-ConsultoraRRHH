@@ -49,15 +49,6 @@
     @apply bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent;
   }
 
-  /* Tarjeta glassmorphism */
-  .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-xl;
-  }
-
-  /* Resplandor de marca reutilizable */
-  .glow-brand {
-    box-shadow: 0 10px 40px -10px hsl(var(--brand) / 0.45);
-  }
 }
 
 @layer utilities {
