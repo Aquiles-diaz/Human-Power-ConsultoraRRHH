@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Flame, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, User, Building2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { HOT_CATEGORIES } from "@/features/jobs/categories";
 import presentacion from "@/assets/presentacion.mp4";
 
 export default function Hero() {
@@ -81,8 +80,7 @@ export default function Hero() {
           </h1>
 
           <p className="mx-auto mt-4 max-w-prose text-sm leading-relaxed text-white/75 sm:text-base">
-            Encontrá tu próximo trabajo por rubro. Subí tu CV + un video donde te
-            presentás y destacate entre cientos de candidatos.
+            La plataforma donde tu CV se presenta en video.
           </p>
 
           {/* Buscador prominente */}
@@ -94,8 +92,8 @@ export default function Hero() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscá por rubro o puesto…"
-              aria-label="Buscar por rubro o puesto"
+              placeholder="Buscá por especialización…"
+              aria-label="Buscar por especialización"
               className="h-11 flex-1 rounded-lg bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 sm:text-base"
             />
             <Button type="submit" variant="brand" className="rounded-xl px-5 py-5">
@@ -103,27 +101,27 @@ export default function Hero() {
             </Button>
           </form>
 
-          {/* Rubros más calientes */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <span className="text-[11px] uppercase tracking-widest text-white/50">
-              Más buscados:
-            </span>
-            {HOT_CATEGORIES.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => navigate(`/ofertas?categoria=${encodeURIComponent(c.value)}`)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-900 transition hover:bg-amber-400"
-              >
-                <Flame size={13} /> {c.label}
-              </button>
-            ))}
-            <a
-              href="#areas"
-              className="inline-flex items-center rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-            >
-              Ver todas las áreas →
-            </a>
+          {/* Propuesta de valor para ambos públicos */}
+          <div className="mt-6 grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col items-start gap-1.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
+                <User size={16} className="text-amber-400" /> Candidatos
+              </span>
+              <p className="text-xs leading-relaxed text-white/70 sm:text-sm">
+                Destacate entre cientos de CV con tu{" "}
+                <span className="font-semibold text-white">primera impresión</span>.
+              </p>
+            </div>
+            <div className="flex flex-col items-start gap-1.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
+                <Building2 size={16} className="text-amber-400" /> Empresas
+              </span>
+              <p className="text-xs leading-relaxed text-white/70 sm:text-sm">
+                Ahorrá tiempo:{" "}
+                <span className="font-semibold text-white">conocé al candidato</span>{" "}
+                antes de entrevistarlo.
+              </p>
+            </div>
           </div>
 
           {/* CTA */}
@@ -140,7 +138,7 @@ export default function Hero() {
       </div>
 
       <motion.a
-        href="#areas"
+        href="#puestos"
         aria-label="Bajar"
         className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 text-white/60 hover:text-white md:block"
         animate={{ y: [0, 8, 0] }}

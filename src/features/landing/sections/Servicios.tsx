@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Target, UserSearch, ShieldCheck } from "lucide-react";
+import { Target, UserSearch, ShieldCheck, Check, Ban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fadeUp, staggerContainer } from "@/lib/motion";
 
@@ -63,25 +63,46 @@ export default function Servicios() {
               <CardTitle className="mt-3">Búsqueda y selección</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground leading-relaxed">
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Identificación de necesidades y perfil del puesto.</li>
-                <li>Publicación de avisos y hunting/reclutamiento en redes.</li>
-                <li>
-                  Evaluación de CVs, preselección e entrevista con candidato.
-                </li>
-                <li>Presentación de candidatos para evaluación final.</li>
-                <li>
-                  <span className="text-red-500 font-bold">NO</span> cobramos{" "}
-                  <span className="text-amber-600 font-semibold">anticipo</span>.
-                </li>
-                <li>
-                  <span className="text-red-500 font-bold">NO</span> pedimos{" "}
-                  <span className="text-amber-600 font-semibold">
-                    exclusividad
-                  </span>
-                  .
-                </li>
+              <ul className="space-y-2.5">
+                {[
+                  "Identificación de necesidades y perfil del puesto.",
+                  "Publicación de avisos y hunting/reclutamiento en redes.",
+                  "Evaluación de CVs, preselección e entrevista con candidato.",
+                  "Presentación de candidatos para evaluación final.",
+                ].map((paso) => (
+                  <li key={paso} className="flex items-start gap-2.5">
+                    <Check
+                      size={16}
+                      className="mt-0.5 shrink-0 text-amber-500"
+                      strokeWidth={3}
+                    />
+                    <span>{paso}</span>
+                  </li>
+                ))}
               </ul>
+
+              {/* Sello de garantías — el diferenciador de cara al cliente */}
+              <div className="mt-5 space-y-2.5 rounded-2xl bg-slate-900 p-4 shadow-sm">
+                <div className="flex items-center gap-2.5 text-white">
+                  <Ban size={16} className="shrink-0 text-amber-400" />
+                  <span className="text-sm">
+                    <span className="font-extrabold text-amber-400">NO</span>{" "}
+                    cobramos{" "}
+                    <span className="font-semibold text-amber-400">anticipo</span>.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 text-white">
+                  <Ban size={16} className="shrink-0 text-amber-400" />
+                  <span className="text-sm">
+                    <span className="font-extrabold text-amber-400">NO</span>{" "}
+                    pedimos{" "}
+                    <span className="font-semibold text-amber-400">
+                      exclusividad
+                    </span>
+                    .
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

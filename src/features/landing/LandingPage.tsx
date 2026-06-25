@@ -1,6 +1,5 @@
 import LandingHeader from "./sections/LandingHeader";
 import Hero from "./sections/Hero";
-import Areas from "./sections/Areas";
 import Servicios from "./sections/Servicios";
 import OfertasPreview from "./sections/OfertasPreview";
 import CtaBanner from "./sections/CtaBanner";
@@ -17,7 +16,6 @@ export default function LandingPage() {
       <JsonLd data={organizationLd()} />
       <LandingHeader />
       <Hero />
-      <Areas />
       <OfertasPreview />
       <Servicios />
       <CtaBanner />
