@@ -29,6 +29,10 @@ __pycache__/
 *.pyd
 dev.db
 uploads/
+# ── Secretos / variables de entorno (NUNCA versionar credenciales) ──
+.env
+.env.*
+!.env.example
 backend/.env
 backend/.venv/
 backend/venv/
@@ -47,3 +51,5 @@ vite.config.d.ts
 .vercel
 # Mockups del compañero visual de brainstorming
 .superpowers/
+# Docs internos de desarrollo (specs/planes); no van al repo público
+docs/superpowers/

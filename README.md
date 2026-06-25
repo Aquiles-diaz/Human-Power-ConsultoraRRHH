@@ -5,7 +5,7 @@
 [![Vite](https://img.shields.io/badge/Vite-7-646cff?logo=vite&logoColor=fff)](https://vitejs.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.136-009688?logo=fastapi&logoColor=fff)](https://fastapi.tiangolo.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Storage-3ecf8e?logo=supabase&logoColor=fff)](https://supabase.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#-licencia)
+[![Licencia: Propietaria](https://img.shields.io/badge/Licencia-Todos%20los%20derechos%20reservados-red.svg)](#-licencia)
 
 > **Human Power | RRHH** es una plataforma de reclutamiento para **Rosario, Argentina**: los candidatos cargan su **CV + video de presentación** y completan su perfil, y la consultora gestiona **ofertas de trabajo, postulaciones y candidatos** desde un panel de administración.
 
@@ -15,7 +15,7 @@ Este repositorio es **full-stack**: incluye el **frontend** (React + TypeScript 
 
 ## ✨ Demo
 
-- **Producción:** _pendiente — se completará al desplegar en Vercel._
+- **Producción:** [human-power-rrhh.vercel.app](https://human-power-rrhh.vercel.app)
 
 ### 🖼️ Capturas
 
@@ -195,4 +195,4 @@ Buenas prácticas y modelo de amenazas en [`SECURITY.md`](SECURITY.md). En resum
 
 ## 📄 Licencia
 
-MIT.
+**Propietario — Todos los derechos reservados.** Este repositorio se publica con fines de referencia/portfolio; **no es código abierto**. No está permitido reutilizar, copiar, modificar ni redistribuir el código sin autorización previa y por escrito. Ver [`LICENSE`](LICENSE).
