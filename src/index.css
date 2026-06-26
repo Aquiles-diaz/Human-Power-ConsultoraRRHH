@@ -46,8 +46,17 @@
 @layer components {
   /* Texto con gradiente de marca */
   .text-gradient-brand {
-    @apply bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-amber-400 to-amber-500 bg-clip-text text-transparent;
   }
+  .t-display { @apply text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl; }
+  .t-h1 { @apply text-2xl font-bold tracking-tight sm:text-3xl; }
+  .t-h2 { @apply text-3xl font-bold tracking-tight sm:text-4xl; }
+  .t-h3 { @apply text-lg font-semibold leading-tight tracking-tight; }
+  .t-eyebrow { @apply text-xs font-semibold uppercase tracking-widest text-amber-500; }
+  .t-label { @apply text-xs font-medium uppercase tracking-wide text-slate-500; }
+  .t-body { @apply text-sm leading-relaxed text-slate-700 sm:text-base; }
+  .t-muted { @apply text-sm text-muted-foreground; }
+  .t-stat { @apply text-3xl font-extrabold leading-none; }
 
 }
 
