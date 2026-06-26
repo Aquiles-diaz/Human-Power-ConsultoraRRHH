@@ -53,3 +53,5 @@ vite.config.d.ts
 .superpowers/
 # Docs internos de desarrollo (specs/planes); no van al repo público
 docs/superpowers/
+# Reportes de QA/seguridad: listan hallazgos; NO publicar en repo público
+docs/QA-predeploy-*.md

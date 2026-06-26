@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Download,
@@ -66,6 +66,7 @@ export default function CandidatesView() {
   const [onlyCv, setOnlyCv] = useState(false);
   const [active, setActive] = useState<Profile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const detailReqId = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,15 +95,19 @@ export default function CandidatesView() {
   }, [load]);
 
   async function openDetail(userId: number) {
+    const reqId = ++detailReqId.current;
     setLoadingDetail(true);
     try {
       const res = await authFetch(`/admin/candidates/${userId}`, authHeaders);
       if (!res.ok) throw new Error(await parseApiError(res));
-      setActive(await res.json());
+      const data = await res.json();
+      if (reqId !== detailReqId.current) return; // llegó una selección más nueva: descartar
+      setActive(data);
     } catch (e) {
+      if (reqId !== detailReqId.current) return;
       toast.error("No se pudo abrir el candidato", { description: getErrorMessage(e) });
     } finally {
-      setLoadingDetail(false);
+      if (reqId === detailReqId.current) setLoadingDetail(false);
     }
   }
 
@@ -218,7 +223,7 @@ export default function CandidatesView() {
                 {c.photo_url ? (
                   <img
                     src={`${API}${c.photo_url}`}
-                    alt=""
+                    alt={`Foto de ${c.name} ${c.last_name ?? ""}`}
                     className="size-12 rounded-full object-cover"
                   />
                 ) : (
@@ -274,7 +279,7 @@ export default function CandidatesView() {
                 {active.photo_url ? (
                   <img
                     src={`${API}${active.photo_url}`}
-                    alt=""
+                    alt={`Foto de ${active.name} ${active.last_name ?? ""}`}
                     className="size-16 rounded-2xl object-cover"
                   />
                 ) : (

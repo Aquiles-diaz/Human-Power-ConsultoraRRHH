@@ -13,6 +13,21 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Separamos las libs pesadas en chunks propios: se descargan en paralelo
+        // y, como cambian poco, quedan cacheadas entre deploys (no se reinvalidan
+        // al tocar código de la app). recharts solo lo usa el panel admin (lazy),
+        // así que su chunk no entra en la carga del landing.
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          motion: ["framer-motion"],
+          charts: ["recharts"],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

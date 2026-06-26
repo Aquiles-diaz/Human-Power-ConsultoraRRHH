@@ -1,8 +1,5 @@
 import type { Profile } from "./types";
 
-// Solo lo que necesitamos del usuario autenticado (evita acoplar al tipo User completo).
-export type CompletionUser = { role?: string; email_verified?: boolean } | null | undefined;
-
 export type MilestoneId = "account" | "cv" | "photo" | "personal" | "professional";
 export type MilestoneAction =
   | "upload-cv"
@@ -56,7 +53,6 @@ function filled(v: unknown): boolean {
 
 export function computeProfileCompletion(
   profile: Profile | null,
-  user: CompletionUser,
 ): ProfileCompletion {
   const p = profile;
   const personalDone = PERSONAL_FIELDS.filter((f) => filled(p?.[f])).length;
@@ -103,8 +99,9 @@ export function computeProfileCompletion(
       .filter((m) => !m.done)
       .sort((a, b) => remaining(b) - remaining(a) || b.weight - a.weight)[0] ?? null;
 
+  // "Verificá tu email" se quitó por ahora (operamos sin verificación de mail).
+  // La infra de verify-email (página/API/banner) queda dormida para re-activar.
   const bonuses: Bonus[] = [
-    { id: "email", label: "Verificá tu email", benefit: "Sumá confianza para que te contacten.", done: user?.email_verified === true, action: "verify-email" },
     { id: "languages", label: "Agregá tus idiomas", benefit: "Sumá los idiomas que hablás.", done: (p?.languages?.length ?? 0) >= 1, action: "scroll-professional" },
     { id: "video", label: "Subí un video de presentación", benefit: "Un video corto te hace destacar.", done: filled(p?.video_url), action: null },
   ];

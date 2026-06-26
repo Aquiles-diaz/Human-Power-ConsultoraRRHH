@@ -2,7 +2,6 @@ import React from "react";
 import { Toaster } from "sonner";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "@/features/auth/AuthContext";
-import VerifyEmailBanner from "@/features/auth/VerifyEmailBanner";
 import ErrorBoundary from "./ErrorBoundary";
 
 // Si no hay Client ID de Google, no envolvemos con su provider (login Google off).
@@ -26,7 +25,6 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const tree = (
     <ErrorBoundary>
       <AuthProvider>
-        <VerifyEmailBanner />
         {children}
         <Toaster richColors closeButton position="top-center" />
       </AuthProvider>

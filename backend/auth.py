@@ -48,8 +48,8 @@ class UserOut(BaseModel):
     email_verified: bool = False
 
 class RegisterDTO(BaseModel):
-    name: str
-    last_name: str | None = ""
+    name: str = Field(..., min_length=1, max_length=80)
+    last_name: str | None = Field("", max_length=80)
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=72)
 
@@ -319,7 +319,8 @@ def verify_email_request(request: Request, dto: EmailVerifyRequestDTO):
 
 
 @router.post("/verify-email/confirm", response_model=MessageOut)
-def verify_email_confirm(dto: EmailVerifyConfirmDTO):
+@limiter.limit("5/minute")
+def verify_email_confirm(request: Request, dto: EmailVerifyConfirmDTO):
     payload = decode_purpose_token(dto.token, "verify")
     set_email_verified(payload["sub"])
     return {"message": "Email verificado correctamente."}

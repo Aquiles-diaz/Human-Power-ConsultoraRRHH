@@ -12,8 +12,12 @@ type AuthFieldProps = Omit<React.ComponentProps<typeof Input>, "id"> & {
 
 /**
  * Campo de formulario de auth: label + input con ícono a la izquierda y, si es
- * de tipo password, un botón para mostrar/ocultar. Usa el componente Input
- * canónico con variant="dark" (superficie glass oscura del AuthPage).
+ * de tipo password, un botón para mostrar/ocultar. Usa el Input canónico en su
+ * variant por defecto (light), porque LoginForm/RegisterForm se renderizan en
+ * DOS superficies: el modal claro (AuthSection) y la página /login oscura. En
+ * /login, AuthPage fuerza el look glass oscuro vía CSS descendiente
+ * ([&_input]:bg-white/5 ...), así que acá NO debemos hardcodear dark (rompía el
+ * modal: texto blanco sobre fondo blanco).
  */
 export default function AuthField({
   id,
@@ -40,7 +44,6 @@ export default function AuthField({
         <Input
           id={id}
           type={inputType}
-          variant="dark"
           className={cn("pl-10", isPassword && "pr-10", className)}
           {...props}
         />

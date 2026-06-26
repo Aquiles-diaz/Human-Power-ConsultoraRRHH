@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Search, ChevronDown, User, Building2, ArrowRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useProfileCompletion } from "@/features/profile/use-profile-completion";
 import presentacion from "@/assets/presentacion.mp4";
 
 // Cards de propuesta de valor (solo desktop, dentro del hero): glass "invisible"
@@ -13,6 +14,9 @@ const valueCard =
 export default function Hero() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
+  // Si el usuario está logueado (no admin), traemos su completitud para el anillo.
+  const completion = useProfileCompletion();
+  const prefersReducedMotion = useReducedMotion();
 
   // El video de fondo pesa ~3.5 MB. Lo sacamos del critical path: se monta recién
   // cuando el navegador está ocioso (ya pintada la home) y se omite si el usuario
@@ -64,6 +68,60 @@ export default function Hero() {
       {/* Viñeta central: oscurece el centro para que el logo y el headline resalten
           sobre la zona más cargada del video, sin aplanar los bordes */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.45)_0%,_transparent_62%)]" />
+
+      {/* Botón de progreso del perfil (solo logueado): anillo con el % → /perfil.
+          fixed justo debajo del navbar (top-20, header h-16) y a la derecha;
+          te sigue por toda la página sin chocar con el FAB del chat (abajo). */}
+      {completion && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+          className="fixed top-20 right-4 z-40 sm:right-6"
+        >
+          {/* Latido "lub-dub": insiste para que completen el perfil. Va en un
+              motion.div anidado para no pisar la animación de entrada (arriba)
+              ni el hover del anillo (abajo). Respeta prefers-reduced-motion. */}
+          <motion.div
+            animate={prefersReducedMotion ? undefined : { scale: [1, 1.12, 1, 1.08, 1] }}
+            transition={
+              prefersReducedMotion
+                ? undefined
+                : {
+                    duration: 1.1,
+                    times: [0, 0.12, 0.26, 0.4, 0.56],
+                    repeat: Infinity,
+                    repeatDelay: 1.6,
+                    ease: "easeInOut",
+                    delay: 1,
+                  }
+            }
+          >
+          <Link
+            to="/perfil"
+            aria-label={`Tu perfil está al ${completion.percent}%. Completalo.`}
+            title="Completá tu perfil"
+            className="group flex flex-col items-center gap-1"
+          >
+            <span
+              className="grid size-16 place-items-center rounded-full p-[3px] shadow-lg shadow-black/40 transition group-hover:scale-105 sm:size-20"
+              style={{
+                background: `conic-gradient(#fbbf24 ${completion.percent * 3.6}deg, rgba(255,255,255,0.18) ${completion.percent * 3.6}deg)`,
+              }}
+            >
+              <span className="grid size-full place-items-center rounded-full bg-slate-900/85 backdrop-blur">
+                <span className="text-base font-extrabold tabular-nums text-white sm:text-lg">
+                  {completion.percent}%
+                </span>
+              </span>
+            </span>
+            <span className="hidden rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur sm:block">
+              Mi perfil
+            </span>
+          </Link>
+          </motion.div>
+        </motion.div>
+      )}
 
       <div className="relative mx-auto flex w-full max-w-3xl flex-col items-center px-4 py-12 text-center text-white sm:px-6 sm:py-16 lg:py-20">
         {/* Marca */}
@@ -159,8 +217,10 @@ export default function Hero() {
       >
         <motion.span
           className="block"
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 1.6, repeat: Infinity }}
+          animate={prefersReducedMotion ? undefined : { y: [0, 8, 0] }}
+          transition={
+            prefersReducedMotion ? undefined : { duration: 1.6, repeat: Infinity }
+          }
         >
           <ChevronDown size={26} />
         </motion.span>

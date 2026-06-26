@@ -32,6 +32,7 @@ import { useSeo } from "@/lib/use-seo";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { validateCvFile } from "@/features/landing/data";
 import { type Job } from "./jobs-data";
 import { useJobs } from "./use-jobs";
 import { filterJobs } from "./job-filter";
@@ -384,8 +385,8 @@ const ApplyModal: React.FC<{
                     )}
                   </span>
                   {file && (
-                    <span
-                      role="button"
+                    <button
+                      type="button"
                       onClick={(ev) => {
                         ev.preventDefault();
                         setFile(null);
@@ -393,13 +394,26 @@ const ApplyModal: React.FC<{
                       className="text-slate-400 hover:text-rose-500"
                     >
                       <X size={16} />
-                    </span>
+                    </button>
                   )}
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx"
                     className="hidden"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      const selected = e.target.files?.[0];
+                      if (!selected) {
+                        setFile(null);
+                        return;
+                      }
+                      const validationError = validateCvFile(selected);
+                      if (validationError) {
+                        toast.error(validationError);
+                        e.target.value = "";
+                        return;
+                      }
+                      setFile(selected);
+                    }}
                   />
                 </label>
               </div>
@@ -411,6 +425,7 @@ const ApplyModal: React.FC<{
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={10000}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Contanos por qué sos ideal para este puesto…"

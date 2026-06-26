@@ -6,8 +6,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ShieldAlert, LogOut } from "lucide-react";
 import { getErrorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useSeo } from "@/lib/use-seo";
 
 export default function AuthPage() {
+  useSeo({ title: "Ingresar · Human Power" });
+
   const { login, loading, isAuthenticated, user, logout } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();

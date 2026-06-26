@@ -460,6 +460,7 @@ function JobFormModal({
               value={f.location}
               onChange={(e) => set("location", e.target.value)}
               placeholder="Rosario, Santa Fe"
+              maxLength={160}
             />
           </div>
           <div>
@@ -497,6 +498,7 @@ function JobFormModal({
               value={f.seniority}
               onChange={(e) => set("seniority", e.target.value)}
               placeholder="Junior / Semi Senior / Senior"
+              maxLength={80}
             />
           </div>
           <div>
@@ -506,6 +508,7 @@ function JobFormModal({
               value={f.salary}
               onChange={(e) => set("salary", e.target.value)}
               placeholder="$700.000 - $950.000 ARS"
+              maxLength={120}
             />
           </div>
         </div>
@@ -529,6 +532,7 @@ function JobFormModal({
             value={f.description}
             onChange={(e) => set("description", e.target.value)}
             placeholder="Detalle del puesto, la empresa y la búsqueda."
+            maxLength={8000}
           />
         </div>
 
@@ -540,6 +544,7 @@ function JobFormModal({
               rows={4}
               value={respText}
               onChange={(e) => setRespText(e.target.value)}
+              maxLength={8000}
             />
           </div>
           <div>
@@ -549,6 +554,7 @@ function JobFormModal({
               rows={4}
               value={reqText}
               onChange={(e) => setReqText(e.target.value)}
+              maxLength={8000}
             />
           </div>
           <div>
@@ -558,6 +564,7 @@ function JobFormModal({
               rows={3}
               value={benText}
               onChange={(e) => setBenText(e.target.value)}
+              maxLength={8000}
             />
           </div>
           <div>
@@ -568,6 +575,7 @@ function JobFormModal({
               value={skillsText}
               onChange={(e) => setSkillsText(e.target.value)}
               placeholder="Excel, Tango Gestión, Impuestos"
+              maxLength={8000}
             />
           </div>
         </div>

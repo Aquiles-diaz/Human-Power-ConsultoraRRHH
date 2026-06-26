@@ -18,7 +18,7 @@ export default function ProfileCompletion({
   onUploadPhoto,
   onScrollTo,
 }: Props) {
-  const { complete, milestones, nextStep, bonuses } = result;
+  const { percent, complete, milestones, nextStep, bonuses } = result;
 
   // Pendientes resaltados arriba; completados desenfatizados en grid. Si solo queda
   // un paso, el copy celebra ("¡Casi listo!") en vez de exhibir el número (evita la
@@ -49,19 +49,42 @@ export default function ProfileCompletion({
       aria-label="Progreso de tu perfil"
       className="mb-6 overflow-hidden rounded-3xl bg-white p-5 sm:p-6"
     >
-      {/* Encabezado motivacional. El % y la barra viven en la mini-barra sticky. */}
-      <header className="mb-5">
-        <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
-          {complete ? "¡Perfil completo! 🎉" : almostThere ? "¡Casi listo!" : "Completá tu perfil"}
-        </h2>
-        {!complete && (
-          <p className="mt-1 text-sm text-slate-500">
-            {almostThere
-              ? "Solo falta un paso para destacar."
-              : "Cuanto más completo, más aparecés en las búsquedas."}
-          </p>
-        )}
+      {/* Encabezado: mensaje motivacional a la izquierda, KPI grande a la derecha */}
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
+            {complete ? "¡Perfil completo! 🎉" : almostThere ? "¡Casi listo!" : "Completá tu perfil"}
+          </h2>
+          {!complete && (
+            <p className="mt-1 text-sm text-slate-500">
+              {almostThere
+                ? "Solo falta un paso para destacar."
+                : "Cuanto más completo, más aparecés en las búsquedas."}
+            </p>
+          )}
+        </div>
+        <span
+          className={cn(
+            "shrink-0 text-4xl font-extrabold leading-none tabular-nums sm:text-5xl",
+            complete || almostThere ? "text-amber-500" : "text-slate-800",
+          )}
+        >
+          {percent}%
+        </span>
       </header>
+
+      <div
+        className="h-3 w-full overflow-hidden rounded-full bg-slate-100"
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div
+          className="h-full rounded-full bg-amber-500 transition-[width] duration-700 ease-out"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
 
       {complete && (
         <motion.p

@@ -74,6 +74,7 @@ export default function ResetPasswordPage() {
               className="pl-9"
               type="password"
               required
+              maxLength={72}
               value={pw}
               onChange={(e) => setPw(e.target.value)}
               placeholder="Mínimo 8 caracteres"
@@ -91,6 +92,7 @@ export default function ResetPasswordPage() {
               className="pl-9"
               type="password"
               required
+              maxLength={72}
               value={pw2}
               onChange={(e) => setPw2(e.target.value)}
               placeholder="Repetí la contraseña"

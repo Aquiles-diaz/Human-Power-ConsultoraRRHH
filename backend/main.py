@@ -109,6 +109,16 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# Cabeceras de seguridad básicas en todas las respuestas. No agregamos
+# Content-Security-Policy a propósito: podría romper el OAuth de Google / fuentes.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 # Las fotos de perfil se sirven vía la ruta GET /uploads/{key} (más abajo),
 # que las streamea desde el bucket privado de Supabase.
 
@@ -164,20 +174,20 @@ PROFILE_TEXT_FIELDS = [
 ]
 
 class ProfileUpdate(BaseModel):
-    phone: Optional[str] = None
-    birthdate: Optional[str] = None
-    age_range: Optional[str] = None
-    city: Optional[str] = None
-    province: Optional[str] = None
-    country: Optional[str] = None
-    professional_area: Optional[str] = None
-    education_level: Optional[str] = None
+    phone: Optional[str] = Field(None, max_length=40)
+    birthdate: Optional[str] = Field(None, max_length=40)
+    age_range: Optional[str] = Field(None, max_length=40)
+    city: Optional[str] = Field(None, max_length=120)
+    province: Optional[str] = Field(None, max_length=120)
+    country: Optional[str] = Field(None, max_length=120)
+    professional_area: Optional[str] = Field(None, max_length=200)
+    education_level: Optional[str] = Field(None, max_length=120)
     languages: Optional[list[str]] = None
-    experience_years: Optional[str] = None
-    availability: Optional[str] = None
-    salary_expectation: Optional[str] = None
-    headline: Optional[str] = None
-    video_url: Optional[str] = None
+    experience_years: Optional[str] = Field(None, max_length=40)
+    availability: Optional[str] = Field(None, max_length=200)
+    salary_expectation: Optional[str] = Field(None, max_length=120)
+    headline: Optional[str] = Field(None, max_length=200)
+    video_url: Optional[str] = Field(None, max_length=2000)
 
 class ProfileOut(BaseModel):
     user_id: int
@@ -409,7 +419,7 @@ def list_jobs() -> list[JobOut]:
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT * FROM jobs WHERE is_published = true ORDER BY posted_at DESC, created_at DESC"
+            "SELECT * FROM jobs WHERE is_published = true ORDER BY posted_at DESC, created_at DESC LIMIT 500"
         )
         rows = cur.fetchall()
     return [_job_row_to_out(r) for r in rows]
@@ -429,7 +439,7 @@ def list_jobs_admin() -> list[JobOut]:
     """TODOS los puestos (publicados o no) para gestionarlos desde el panel."""
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM jobs ORDER BY posted_at DESC, created_at DESC")
+        cur.execute("SELECT * FROM jobs ORDER BY posted_at DESC, created_at DESC LIMIT 500")
         rows = cur.fetchall()
     return [_job_row_to_out(r) for r in rows]
 
@@ -556,7 +566,7 @@ async def _store_resume(
 async def upload_cv(
     request: Request,
     full_name: str = Form(..., min_length=2, max_length=200),
-    email: str = Form(..., max_length=320),
+    email: EmailStr = Form(...),
     message: Optional[str] = Form(None, max_length=10_000),
     file: UploadFile = File(...),
 ) -> UploadCvOut:
@@ -716,7 +726,7 @@ def update_my_profile(
             values.append(json.dumps(val or []))
         elif key in PROFILE_TEXT_FIELDS:
             sets.append(f"{key} = %s")  # key viene de un allowlist fijo, no del input
-            values.append(val)
+            values.append(val.strip() if isinstance(val, str) else val)
     with get_db() as conn:
         _ensure_profile(conn, current_user["id"])
         if sets:
@@ -895,7 +905,7 @@ def list_candidates(
         params.append(f"%{education.lower()}%")
     if only_with_cv:
         sql += " AND p.cv_filename IS NOT NULL"
-    sql += " ORDER BY u.id DESC"
+    sql += " ORDER BY u.id DESC LIMIT 500"
 
     with get_db() as conn:
         rows = conn.execute(sql, params).fetchall()

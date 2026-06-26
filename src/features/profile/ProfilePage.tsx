@@ -19,7 +19,6 @@ import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
-import ProfileProgressBar from "./ProfileProgressBar";
 import { computeProfileCompletion } from "./completion";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
@@ -62,6 +61,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<Partial<Profile>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [cvUploading, setCvUploading] = useState(false);
@@ -73,8 +73,8 @@ export default function ProfilePage() {
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
 
   const completion = useMemo(
-    () => computeProfileCompletion(profile, user),
-    [profile, user],
+    () => computeProfileCompletion(profile),
+    [profile],
   );
 
   async function resendVerification() {
@@ -94,6 +94,7 @@ export default function ProfilePage() {
 
   async function load() {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await authFetch(`/me/profile`, authHeaders);
       if (!res.ok) throw new Error(await parseApiError(res));
@@ -101,6 +102,7 @@ export default function ProfilePage() {
       setProfile(data);
       setForm(data);
     } catch (e) {
+      setLoadError(true);
       toast.error("No se pudo cargar tu perfil", { description: getErrorMessage(e) });
     } finally {
       setLoading(false);
@@ -141,7 +143,10 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { languages: form.languages ?? [] };
-      for (const f of PROFILE_TEXT_FIELDS) payload[f] = form[f] ?? null;
+      for (const f of PROFILE_TEXT_FIELDS) {
+        const v = form[f];
+        payload[f] = typeof v === "string" ? v.trim() : (v ?? null);
+      }
 
       const res = await authFetch(`/me/profile`, authHeaders, {
         method: "PUT",
@@ -248,6 +253,14 @@ export default function ProfilePage() {
           {loading ? (
             <div className="grid place-items-center py-24 text-slate-400">
               <Loader2 className="size-7 animate-spin" />
+            </div>
+          ) : loadError && !profile ? (
+            <div className="mx-auto mt-12 max-w-md rounded-xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm">
+              <p className="text-sm font-medium text-slate-700">No pudimos cargar tu perfil</p>
+              <p className="mt-1 text-[13px] text-slate-500">Revisá tu conexión e intentá de nuevo.</p>
+              <Button variant="outline" className="mt-4 rounded-lg" onClick={load}>
+                Reintentar
+              </Button>
             </div>
           ) : (
             <>
@@ -435,7 +448,7 @@ export default function ProfilePage() {
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
-                    <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." onChange={(v) => setField("phone", v)} />
+                    <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." maxLength={40} onChange={(v) => setField("phone", v)} />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
                     <SelectField label="País" value={form.country} options={COUNTRIES} onChange={(v) => setField("country", v)} />
@@ -445,6 +458,7 @@ export default function ProfilePage() {
                         label="Ciudad"
                         value={form.city}
                         suggestions={CITIES_BY_PROVINCE[form.province ?? ""] ?? []}
+                        maxLength={120}
                         onChange={(v) => setField("city", v)}
                       />
                     </div>
@@ -580,6 +594,7 @@ function TextField({
   placeholder,
   type = "text",
   suggestions,
+  maxLength = 500,
 }: {
   label: string;
   value?: string | null;
@@ -587,6 +602,7 @@ function TextField({
   placeholder?: string;
   type?: string;
   suggestions?: string[];
+  maxLength?: number;
 }) {
   const id = React.useId();
   const listId = suggestions
@@ -601,6 +617,7 @@ function TextField({
         value={value ?? ""}
         placeholder={placeholder}
         list={listId}
+        maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         className={INPUT_CLS}
       />

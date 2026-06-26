@@ -1,6 +1,6 @@
 // src/App.tsx
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import LandingPage from "@/features/landing/LandingPage";
 import { RequireAuth, RequireRole, LoadingScreen } from "@/app/guards";
 
@@ -13,10 +13,22 @@ const ProfilePage = React.lazy(() => import("@/features/profile/ProfilePage"));
 const ForgotPasswordPage = React.lazy(() => import("@/features/auth/ForgotPasswordPage"));
 const ResetPasswordPage = React.lazy(() => import("@/features/auth/ResetPasswordPage"));
 const VerifyEmailPage = React.lazy(() => import("@/features/auth/VerifyEmailPage"));
+const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
+
+// Cada vez que cambia la ruta, vuelve el scroll al tope: sin esto las páginas
+// nuevas heredan la posición de scroll de la anterior.
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
@@ -81,7 +93,14 @@ export default function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <NotFound />
+            </React.Suspense>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

@@ -62,6 +62,7 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
           value={values.name}
           onChange={handleChange}
           autoComplete="given-name"
+          maxLength={80}
           required
         />
         <AuthField
@@ -74,6 +75,7 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
           value={values.last_name}
           onChange={handleChange}
           autoComplete="family-name"
+          maxLength={80}
           required
         />
       </div>

@@ -4,10 +4,12 @@ import { Mail, Loader2, CheckCircle2 } from "lucide-react";
 import AuthShell from "./AuthShell";
 import { requestPasswordReset } from "./auth-api";
 import { getErrorMessage } from "@/lib/utils";
+import { useSeo } from "@/lib/use-seo";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function ForgotPasswordPage() {
+  useSeo({ title: "Recuperar contraseña · Human Power" });
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
@@ -51,14 +53,16 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm text-white/80">Email</label>
+            <label htmlFor="email" className="mb-1 block text-sm text-white/80">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
               <Input
+                id="email"
                 variant="dark"
                 className="pl-9"
                 type="email"
                 required
+                maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@email.com"
