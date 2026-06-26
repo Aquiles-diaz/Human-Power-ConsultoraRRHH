@@ -19,7 +19,7 @@ export default function FaqChatWidget() {
   const fabRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wasOpen = useRef(false);
 
   // Foco al panel al abrir; al cerrar (sólo si estaba abierto, no en el mount
