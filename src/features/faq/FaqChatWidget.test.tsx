@@ -85,7 +85,7 @@ describe("FaqChatWidget — hilo de preguntas", () => {
     // la respuesta todavía no
     expect(screen.queryByText(faq.a)).not.toBeInTheDocument();
 
-    act(() => vi.advanceTimersByTime(400));
+    act(() => vi.advanceTimersByTime(1800));
 
     expect(screen.getByText(faq.a)).toBeInTheDocument();
     expect(screen.queryByText(/escribiendo/i)).not.toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("FaqChatWidget — hilo de preguntas", () => {
     openWidget();
 
     fireEvent.click(screen.getByRole("button", { name: faq.q }));
-    act(() => vi.advanceTimersByTime(400));
+    act(() => vi.advanceTimersByTime(1800));
     expect(screen.getByText(faq.a)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /reiniciar/i }));

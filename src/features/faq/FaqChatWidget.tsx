@@ -7,7 +7,7 @@ import { FAQS, CONTACT_EMAIL } from "./faq-data";
 type Turn = { role: "bot" | "user"; text: string };
 
 const GREETING = "¡Hola! 👋 ¿En qué te ayudo? Elegí una pregunta de abajo.";
-const TYPING_MS = 400;
+const TYPING_MS = 1800;
 const MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Consulta desde la web")}`;
 
 export default function FaqChatWidget() {
