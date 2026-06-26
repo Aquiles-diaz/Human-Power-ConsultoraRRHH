@@ -16,6 +16,7 @@ import {
   Wallet,
   CalendarDays,
   Video,
+  ExternalLink,
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/Modal";
+import VideoPreview from "./VideoPreview";
+import { isAllowedVideoUrl, getVideoEmbed } from "@/lib/video-embeds";
 import {
   EDUCATION_LEVELS,
   PROFESSIONAL_AREAS,
@@ -321,19 +324,36 @@ export default function CandidatesView() {
                 ) : (
                   <span className="text-sm text-white/60">Este candidato todavía no subió su CV.</span>
                 )}
-                {active.video_url && (
-                  <Button asChild variant="subtle">
-                    <a href={active.video_url} target="_blank" rel="noreferrer">
-                      <Video className="size-4" /> Ver video
-                    </a>
-                  </Button>
-                )}
                 <Button asChild variant="subtle">
                   <a href={`mailto:${active.email}`}>
                     <Mail className="size-4" /> Escribir
                   </a>
                 </Button>
               </div>
+
+              {active.video_url && isAllowedVideoUrl(active.video_url) && (
+                <div className="mt-5">
+                  <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-white/80">
+                    <Video className="size-4" /> Video de presentación
+                  </p>
+                  {getVideoEmbed(active.video_url) ? (
+                    <VideoPreview url={active.video_url} />
+                  ) : (
+                    <p className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                      Este link no se puede incrustar acá (puede ser un link corto o
+                      privado). Abrilo en una pestaña con el botón de abajo.
+                    </p>
+                  )}
+                  <a
+                    href={active.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-amber-400 hover:text-amber-300"
+                  >
+                    <ExternalLink className="size-4" /> Abrir en pestaña nueva
+                  </a>
+                </div>
+              )}
 
               <p className="mt-4 text-center text-xs text-white/50">
                 Vista de solo lectura · únicamente el candidato edita su información.

@@ -17,8 +17,10 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { isAllowedVideoUrl } from "@/lib/video-embeds";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
+import ChangePasswordDialog from "./ChangePasswordDialog";
 import { computeProfileCompletion } from "./completion";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
@@ -43,12 +45,6 @@ const PROFILE_CV_MAX_BYTES = 15 * 1024 * 1024;
 const INPUT_CLS =
   "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 placeholder:text-slate-400 transition focus:border-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-400/40 disabled:cursor-not-allowed disabled:opacity-60";
 
-// Valida que la URL sea de TikTok o YouTube y esté bien formada (con protocolo y
-// el dominio real al final, para no aceptar cosas como "tiktok.com.evil.com").
-function isValidVideoUrl(url: string): boolean {
-  return /^https?:\/\/([a-z0-9-]+\.)*(tiktok\.com|youtube\.com|youtu\.be)\//i.test(url.trim());
-}
-
 function initials(name?: string | null, last?: string | null) {
   const n = (name ?? "").trim();
   const a = n[0] ?? "";
@@ -71,6 +67,7 @@ export default function ProfilePage() {
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
+  const [pwOpen, setPwOpen] = useState(false);
 
   const completion = useMemo(
     () => computeProfileCompletion(profile),
@@ -134,9 +131,9 @@ export default function ProfilePage() {
   async function saveProfile() {
     const video = (form.video_url ?? "").trim();
     // El video es opcional, pero si pegan un link tiene que ser válido.
-    if (video && !isValidVideoUrl(video)) {
+    if (video && !isAllowedVideoUrl(video)) {
       toast.error("Link de video inválido", {
-        description: "Tiene que ser una URL de TikTok o YouTube.",
+        description: "Tiene que ser un link de TikTok, Instagram, YouTube o Vimeo.",
       });
       return;
     }
@@ -419,15 +416,19 @@ export default function ProfilePage() {
                         inputMode="url"
                         value={form.video_url ?? ""}
                         onChange={(e) => setField("video_url", e.target.value)}
-                        placeholder="https://www.tiktok.com/@usuario/video/…"
+                        placeholder="Link de TikTok, Instagram, YouTube o Vimeo"
                         className={`${INPUT_CLS} pl-9`}
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-slate-500">
-                      Opcional: pegá el link de tu video en TikTok o YouTube (idealmente de menos de 1
-                      minuto) y lo veremos con gusto.
+                      Opcional: pegá el link de tu video en TikTok, Instagram, YouTube o Vimeo
+                      (idealmente de menos de 1 minuto).
                     </p>
-                    {form.video_url && isValidVideoUrl(form.video_url) && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      Importante: el video tiene que estar <strong>público o “no listado”</strong> (no
+                      privado), si no, el equipo de RRHH no va a poder verlo.
+                    </p>
+                    {form.video_url && isAllowedVideoUrl(form.video_url) && (
                       <a
                         href={form.video_url}
                         target="_blank"
@@ -539,6 +540,22 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </Row>
+
+                {/* Seguridad */}
+                <Row
+                  id="sec-security"
+                  title="Seguridad"
+                  desc="Cambiá la contraseña de tu cuenta."
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-lg"
+                    onClick={() => setPwOpen(true)}
+                  >
+                    Cambiar contraseña
+                  </Button>
+                </Row>
               </div>
 
               {/* ── Barra fija de guardado ── */}
@@ -553,6 +570,12 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </div>
+
+              <ChangePasswordDialog
+                open={pwOpen}
+                onOpenChange={setPwOpen}
+                authHeaders={authHeaders}
+              />
             </>
           )}
         </div>

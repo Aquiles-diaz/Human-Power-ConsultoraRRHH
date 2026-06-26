@@ -1,15 +1,22 @@
-import { getVideoFromMessage } from "./video-embeds";
+import { getVideoEmbed, getVideoFromMessage } from "@/lib/video-embeds";
 
-// Previsualiza el video referenciado en el mensaje de un candidato.
+// Previsualiza un video, ya sea:
+//   * el `video_url` que cargó el postulante en su perfil (prop `url`), o
+//   * el primer link que dejó en su mensaje (prop `message`).
 // Soporta YouTube, TikTok, Instagram, Vimeo, Drive, Streamable o un .mp4/.webm directo.
+//
+// En modo `url`, si el link no es embebible (ej. link corto de TikTok) devuelve
+// null: el componente que lo usa muestra su propio fallback (abrir en pestaña).
 //
 // Sugerencia CSP (Content-Security-Policy) para iframes:
 // frame-src https://www.youtube.com https://player.vimeo.com https://www.tiktok.com
 //   https://www.instagram.com https://drive.google.com https://streamable.com;
-export default function VideoPreview({ message }: { message: string }) {
-  const v = getVideoFromMessage(message);
+export default function VideoPreview({ message, url }: { message?: string; url?: string }) {
+  const v = url !== undefined ? getVideoEmbed(url) : getVideoFromMessage(message ?? "");
 
   if (!v) {
+    // En modo `url` no mostramos el cartel de "sin video": el caller resuelve el fallback.
+    if (url !== undefined) return null;
     return (
       <div className="rounded-2xl border bg-muted/50 p-4 text-sm text-muted-foreground">
         No hay video. Si el mensaje incluye un link a YouTube, TikTok, Instagram, Vimeo,
@@ -20,8 +27,8 @@ export default function VideoPreview({ message }: { message: string }) {
 
   if (v.type === "file") {
     return (
-      <div className="rounded-2xl overflow-hidden border">
-        <video src={v.src} controls className="w-full h-auto" />
+      <div className="aspect-video rounded-2xl overflow-hidden border bg-black">
+        <video src={v.src} controls className="h-full w-full object-contain" />
       </div>
     );
   }
@@ -31,7 +38,7 @@ export default function VideoPreview({ message }: { message: string }) {
     <div className="aspect-video rounded-2xl overflow-hidden border">
       <iframe
         src={v.src}
-        title="Video"
+        title={`Video de ${v.type}`}
         className="w-full h-full"
         loading="lazy"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

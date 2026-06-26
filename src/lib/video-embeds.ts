@@ -1,6 +1,10 @@
 // Detección y normalización de enlaces de video a URLs embebibles.
-// Se usa en el panel admin para previsualizar el video que el candidato
-// deja en el mensaje (YouTube, TikTok, Instagram, Vimeo, Drive, Streamable o archivo).
+// Se usa en dos lados:
+//   * panel admin: previsualizar el video del candidato (campo `video_url` del
+//     perfil, o el primer link que dejó en el mensaje).
+//   * perfil del postulante: validar que el link pegado sea de una plataforma
+//     soportada (`isAllowedVideoUrl`).
+// Vive en `lib/` (y no en `features/admin`) porque lo comparten ambas features.
 
 export type Provider =
   | "youtube"
@@ -13,14 +17,27 @@ export type Provider =
 
 export type VideoInfo = { type: Provider; src: string } | null;
 
+// Plataformas que el postulante puede pegar como link de video. El patrón exige
+// el dominio real al final (con o sin subdominio) para no aceptar suplantaciones
+// como "tiktok.com.evil.com".
+const ALLOWED_VIDEO_HOST =
+  /^https?:\/\/([a-z0-9-]+\.)*(tiktok\.com|youtube\.com|youtu\.be|instagram\.com|vimeo\.com)\//i;
+
+/** True si la URL es de una plataforma de video soportada y está bien formada. */
+export function isAllowedVideoUrl(url: string): boolean {
+  return ALLOWED_VIDEO_HOST.test(url.trim());
+}
+
 /** Quita signos de puntuación comunes al final de una URL pegada en texto. */
 function stripTrailingPunctuation(url: string) {
   return url.replace(/[)\].,;:]+$/g, "");
 }
 
-/** Busca el primer enlace HTTP/HTTPS en el texto. */
+/** Busca el primer enlace HTTP/HTTPS en el texto. Corta en espacios (no en ")",
+ * para no romper paths con paréntesis); la puntuación final la limpia
+ * stripTrailingPunctuation. */
 function extractFirstURL(text = ""): string | null {
-  const match = text.match(/https?:\/\/[^\s)]+/i);
+  const match = text.match(/https?:\/\/[^\s]+/i);
   return match ? stripTrailingPunctuation(match[0]) : null;
 }
 
@@ -34,7 +51,7 @@ function toYouTubeEmbed(url: string): string | null {
       if (shorts?.[1]) return `https://www.youtube.com/embed/${shorts[1]}`;
     }
     if (u.hostname === "youtu.be") {
-      const id = u.pathname.replace("/", "");
+      const id = u.pathname.match(/^\/([^/?#]+)/)?.[1];
       if (id) return `https://www.youtube.com/embed/${id}`;
     }
   } catch {
@@ -110,29 +127,39 @@ function toStreamableEmbed(url: string): string | null {
   return null;
 }
 
-export function getVideoFromMessage(message = ""): VideoInfo {
-  const url = extractFirstURL(message);
-  if (!url) return null;
+/**
+ * Convierte una URL de video ya limpia (ej. el `video_url` del perfil) a su
+ * forma embebible. Devuelve null si no es de una plataforma reconocida.
+ */
+export function getVideoEmbed(url: string): VideoInfo {
+  const clean = stripTrailingPunctuation((url ?? "").trim());
+  if (!clean) return null;
 
-  const yt = toYouTubeEmbed(url);
+  const yt = toYouTubeEmbed(clean);
   if (yt) return { type: "youtube", src: yt };
 
-  const tk = toTikTokEmbed(url);
+  const tk = toTikTokEmbed(clean);
   if (tk) return { type: "tiktok", src: tk };
 
-  const ig = toInstagramEmbed(url);
+  const ig = toInstagramEmbed(clean);
   if (ig) return { type: "instagram", src: ig };
 
-  const vm = toVimeoEmbed(url);
+  const vm = toVimeoEmbed(clean);
   if (vm) return { type: "vimeo", src: vm };
 
-  const gd = toDriveEmbed(url);
+  const gd = toDriveEmbed(clean);
   if (gd) return { type: "drive", src: gd };
 
-  const st = toStreamableEmbed(url);
+  const st = toStreamableEmbed(clean);
   if (st) return { type: "streamable", src: st };
 
-  if (/\.(mp4|webm|ogg)(\?|$)/i.test(url)) return { type: "file", src: url };
+  if (/\.(mp4|webm|ogg)(\?|$)/i.test(clean)) return { type: "file", src: clean };
 
   return null;
+}
+
+/** Busca el primer link del mensaje del candidato y lo convierte a embed. */
+export function getVideoFromMessage(message = ""): VideoInfo {
+  const url = extractFirstURL(message);
+  return url ? getVideoEmbed(url) : null;
 }
