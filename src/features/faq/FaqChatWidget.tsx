@@ -48,11 +48,21 @@ export default function FaqChatWidget() {
   // Limpia timer pendiente al desmontar.
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  // Implementado en Task 3.
-  function ask(_faqId: string) {}
+  function ask(faqId: string) {
+    const faq = FAQS.find((f) => f.id === faqId);
+    if (!faq) return;
+    setThread((t) => [...t, { role: "user", text: faq.q }]);
+    setTyping(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      setTyping(false);
+      setThread((t) => [...t, { role: "bot", text: faq.a }]);
+    }, TYPING_MS);
+  }
 
-  // Implementado en Task 3.
   function reset() {
+    clearTimeout(timer.current);
+    setTyping(false);
     setThread([{ role: "bot", text: GREETING }]);
   }
 
