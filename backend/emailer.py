@@ -107,6 +107,28 @@ def send_password_reset(to: str, token: str) -> None:
     )
 
 
+def send_password_changed(to: str) -> None:
+    """Aviso de seguridad tras un cambio de contraseña exitoso. Si NO fue el dueño
+    de la cuenta, lo dirige a recuperar/restablecer la contraseña de inmediato."""
+    recuperar = f"{FRONTEND_URL}/recuperar"
+    send_email(
+        to,
+        "Tu contraseña fue cambiada — HumanPower",
+        _branded_html(
+            "Tu contraseña fue cambiada",
+            "Te avisamos que la contraseña de tu cuenta de HumanPower se acaba de "
+            "cambiar. Si fuiste vos, no tenés que hacer nada.",
+            "No fui yo: recuperar mi cuenta",
+            recuperar,
+            "Si NO reconocés este cambio, restablecé tu contraseña ahora mismo desde el botón.",
+        ),
+        text_body=(
+            "Tu contraseña de HumanPower fue cambiada. Si no fuiste vos, "
+            f"recuperá tu cuenta ahora: {recuperar}"
+        ),
+    )
+
+
 def send_email_verification(to: str, token: str) -> None:
     link = email_verify_link(token)
     send_email(

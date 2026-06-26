@@ -81,6 +81,10 @@ class EmailVerifyConfirmDTO(BaseModel):
 class MessageOut(BaseModel):
     message: str
 
+class ChangePasswordDTO(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8, max_length=72)
+
 # --- Funciones de Base de Datos ---
 def get_user_by_email(email: str) -> dict | None:
     with get_conn() as con:
@@ -277,6 +281,27 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
 def get_me(current_user: dict = Depends(get_current_user)):
     """Endpoint protegido que devuelve los datos del usuario autenticado."""
     return current_user
+
+
+@router.post("/me/password", response_model=MessageOut)
+@limiter.limit("5/minute")
+def change_password(request: Request, dto: ChangePasswordDTO,
+                    current_user: dict = Depends(get_current_user)):
+    """Cambia la contraseña del usuario autenticado. Exige la contraseña actual
+    (es la prueba de identidad: el usuario ya está logueado, no se usa email)."""
+    if not pwd_context.verify(dto.current_password, current_user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+    if dto.new_password == dto.current_password:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe ser distinta a la actual")
+    # Cambiar el hash invalida los links de reset viejos (cambia el fingerprint).
+    update_password(current_user["email"], dto.new_password)
+    # Aviso de seguridad; best-effort, no bloquea el cambio si el email falla.
+    try:
+        emailer.send_password_changed(current_user["email"])
+    except Exception as e:
+        log.warning("No se pudo enviar el aviso de cambio de contraseña a %s: %s",
+                    current_user["email"], e)
+    return {"message": "Contraseña actualizada."}
 
 
 # --- Reset de contraseña ---
