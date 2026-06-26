@@ -20,16 +20,24 @@ export default function FaqChatWidget() {
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
+  const wasOpen = useRef(false);
 
-  // Esc cierra; al abrir, foco al panel.
+  // Foco al panel al abrir; al cerrar (sólo si estaba abierto, no en el mount
+  // inicial) devolver el foco al FAB. Esc cierra.
   useEffect(() => {
-    if (!open) return;
-    panelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    if (open) {
+      panelRef.current?.focus();
+      wasOpen.current = true;
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setOpen(false);
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }
+    if (wasOpen.current) {
+      fabRef.current?.focus();
+      wasOpen.current = false;
+    }
   }, [open]);
 
   // Auto-scroll al final del hilo.

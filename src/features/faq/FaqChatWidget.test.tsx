@@ -38,6 +38,18 @@ describe("FaqChatWidget — apertura/cierre", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("al cerrar con Escape devuelve el foco al FAB", () => {
+    render(<FaqChatWidget />);
+    const fab = screen.getByRole("button", { name: /abrir ayuda/i });
+    fireEvent.click(fab);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // cerrado: el aria-label vuelve a "Abrir ayuda" (mismo botón) y tiene el foco
+    expect(screen.getByRole("button", { name: /abrir ayuda/i })).toHaveFocus();
+  });
+
   it("cierra con el botón ✕", () => {
     render(<FaqChatWidget />);
     fireEvent.click(screen.getByRole("button", { name: /abrir ayuda/i }));
