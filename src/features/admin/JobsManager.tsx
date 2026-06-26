@@ -13,6 +13,10 @@ import {
 } from "@/features/jobs/jobs-api";
 import { parseAviso } from "./parse-aviso";
 import { CATEGORIES } from "@/features/jobs/categories";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 const JOB_TYPES = ["Presencial", "Remoto", "Híbrido"] as const;
 
@@ -75,8 +79,6 @@ const fromLines = (s: string) =>
 const fromCommas = (s: string) =>
   s.split(",").map((x) => x.trim()).filter(Boolean);
 
-const inputCls =
-  "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20";
 const labelCls = "block text-xs font-medium text-white/70 mb-1";
 
 export default function JobsManager() {
@@ -122,27 +124,24 @@ export default function JobsManager() {
       {/* Encabezado */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-white">Puestos</h2>
+          <h2 className="t-h3 text-white">Puestos</h2>
           <p className="text-sm text-white/50">
             Creá y gestioná las ofertas que aparecen en la página pública.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 transition hover:bg-white/10"
-          >
+          <Button variant="subtle" onClick={load}>
             <RefreshCw className="size-4" /> Actualizar
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="brand"
             onClick={() => {
               setEditing(null);
               setCreating(true);
             }}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2 text-sm font-semibold text-black transition hover:brightness-105"
           >
             <Plus className="size-4" /> Nuevo puesto
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -196,21 +195,23 @@ export default function JobsManager() {
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button
+                <Button
+                  variant="subtle"
+                  size="sm"
                   onClick={() => {
                     setCreating(false);
                     setEditing(j);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10"
                 >
                   <Pencil className="size-3.5" /> Editar
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={() => handleDelete(j)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-500/20"
                 >
                   <Trash2 className="size-3.5" /> Eliminar
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -365,7 +366,7 @@ function JobFormModal({
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="t-h3 text-white">
               {jobId ? "Editar puesto" : "Nuevo puesto"}
             </h3>
             {!jobId && (
@@ -382,13 +383,16 @@ function JobFormModal({
               </p>
             )}
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onCancel}
-            className="rounded-lg p-1.5 shrink-0 text-white/50 transition hover:bg-white/10 hover:text-white"
+            aria-label="Cerrar"
+            className="shrink-0 text-white/60 hover:bg-white/10 hover:text-white"
           >
             <X className="size-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Pegar y autocompletar: el cliente manda el aviso por texto/WhatsApp y se carga acá */}
@@ -396,30 +400,34 @@ function JobFormModal({
           <label className="mb-1 block text-xs font-medium text-white/70">
             ¿Tenés el aviso en texto? Pegalo y autocompletá los campos
           </label>
-          <textarea
-            className={inputCls}
+          <Textarea
+            variant="dark"
             rows={3}
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
             placeholder={"Puesto: …\nEmpresa: …\nUbicación: …\nRequisitos:\n- …"}
           />
           <div className="mt-2 flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="subtle"
+              size="sm"
               onClick={autofillFromPaste}
               disabled={!pasteText.trim()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-300 transition hover:bg-amber-400/20 disabled:opacity-50"
+              className="border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"
             >
               <ClipboardPaste className="size-4" /> Autocompletar
-            </button>
+            </Button>
             {pasteText && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setPasteText("")}
-                className="text-xs text-white/50 transition hover:text-white/80"
+                className="text-white/60 hover:bg-white/10 hover:text-white"
               >
                 Limpiar
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -427,8 +435,8 @@ function JobFormModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Título *</label>
-            <input
-              className={inputCls}
+            <Input
+              variant="dark"
               value={f.title}
               onChange={(e) => set("title", e.target.value)}
               placeholder="Analista Contable Jr."
@@ -437,8 +445,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Empresa *</label>
-            <input
-              className={inputCls}
+            <Input
+              variant="dark"
               value={f.company}
               onChange={(e) => set("company", e.target.value)}
               placeholder="Nombre de la empresa"
@@ -447,8 +455,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Ubicación</label>
-            <input
-              className={inputCls}
+            <Input
+              variant="dark"
               value={f.location}
               onChange={(e) => set("location", e.target.value)}
               placeholder="Rosario, Santa Fe"
@@ -456,8 +464,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Modalidad</label>
-            <select
-              className={inputCls}
+            <Select
+              variant="dark"
               value={f.type}
               onChange={(e) => set("type", e.target.value)}
             >
@@ -466,12 +474,12 @@ function JobFormModal({
                   {t}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className={labelCls}>Rubro</label>
-            <select
-              className={inputCls}
+            <Select
+              variant="dark"
               value={f.category}
               onChange={(e) => set("category", e.target.value)}
             >
@@ -480,12 +488,12 @@ function JobFormModal({
                   {c.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className={labelCls}>Seniority</label>
-            <input
-              className={inputCls}
+            <Input
+              variant="dark"
               value={f.seniority}
               onChange={(e) => set("seniority", e.target.value)}
               placeholder="Junior / Semi Senior / Senior"
@@ -493,8 +501,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Salario</label>
-            <input
-              className={inputCls}
+            <Input
+              variant="dark"
               value={f.salary}
               onChange={(e) => set("salary", e.target.value)}
               placeholder="$700.000 - $950.000 ARS"
@@ -504,8 +512,8 @@ function JobFormModal({
 
         <div>
           <label className={labelCls}>Descripción corta (para el listado)</label>
-          <input
-            className={inputCls}
+          <Input
+            variant="dark"
             value={f.shortDescription}
             onChange={(e) => set("shortDescription", e.target.value)}
             placeholder="Una línea que resuma la búsqueda."
@@ -515,8 +523,8 @@ function JobFormModal({
 
         <div>
           <label className={labelCls}>Descripción completa</label>
-          <textarea
-            className={inputCls}
+          <Textarea
+            variant="dark"
             rows={5}
             value={f.description}
             onChange={(e) => set("description", e.target.value)}
@@ -527,8 +535,8 @@ function JobFormModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Responsabilidades (una por línea)</label>
-            <textarea
-              className={inputCls}
+            <Textarea
+              variant="dark"
               rows={4}
               value={respText}
               onChange={(e) => setRespText(e.target.value)}
@@ -536,8 +544,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Requisitos (uno por línea)</label>
-            <textarea
-              className={inputCls}
+            <Textarea
+              variant="dark"
               rows={4}
               value={reqText}
               onChange={(e) => setReqText(e.target.value)}
@@ -545,8 +553,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Beneficios (uno por línea)</label>
-            <textarea
-              className={inputCls}
+            <Textarea
+              variant="dark"
               rows={3}
               value={benText}
               onChange={(e) => setBenText(e.target.value)}
@@ -554,8 +562,8 @@ function JobFormModal({
           </div>
           <div>
             <label className={labelCls}>Skills (separados por coma)</label>
-            <textarea
-              className={inputCls}
+            <Textarea
+              variant="dark"
               rows={3}
               value={skillsText}
               onChange={(e) => setSkillsText(e.target.value)}
@@ -575,18 +583,10 @@ function JobFormModal({
         </label>
 
         <div className="flex items-center justify-end gap-2 border-t border-white/10 pt-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-          >
+          <Button type="button" variant="subtle" onClick={onCancel}>
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2 text-sm font-semibold text-black transition hover:brightness-105 disabled:opacity-60"
-          >
+          </Button>
+          <Button type="submit" variant="brand" disabled={saving}>
             {saving ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Guardando…
@@ -600,7 +600,7 @@ function JobFormModal({
                 <Plus className="size-4" /> Crear puesto
               </>
             )}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

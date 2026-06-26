@@ -8,11 +8,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
 
 const AuthSection = React.lazy(() => import("@/features/auth/AuthSection"));
 const authFallback = (
-  <div className="p-4 text-center text-sm text-slate-500">Cargando…</div>
+  <div className="p-4 text-center text-sm text-muted-foreground">Cargando…</div>
 );
 
 function initials(
@@ -53,14 +54,14 @@ export default function UserMenu() {
             type="button"
             aria-label="Entrar o registrarse"
             title="Entrar o registrarse"
-            className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/5 text-white/80 transition-colors hover:border-amber-400/40 hover:bg-white/10 hover:text-white"
+            className="grid size-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/80 transition-colors hover:border-amber-400/40 hover:bg-white/10 hover:text-white"
           >
             <LogIn size={18} />
           </button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-semibold">Acceso a tu cuenta</DialogTitle>
+            <DialogTitle className="t-h3">Acceso a tu cuenta</DialogTitle>
           </DialogHeader>
           <Suspense fallback={authFallback}>
             <AuthSection />
@@ -77,7 +78,7 @@ export default function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 pl-1 pr-2.5 text-white/90 transition-colors hover:border-amber-400/40 hover:bg-white/10"
+        className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-2.5 text-white/90 transition-colors hover:border-amber-400/40 hover:bg-white/10"
       >
         <span className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-xs font-bold text-black">
           {initials(user?.name, user?.last_name, user?.email)}
@@ -89,41 +90,46 @@ export default function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-slate-700 shadow-xl">
+        <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-foreground shadow-lg">
           <div className="border-b border-slate-100 px-4 py-3">
-            <p className="truncate text-sm font-semibold capitalize text-slate-900">
+            <p className="truncate text-sm font-semibold capitalize text-foreground">
               {user?.name} {user?.last_name}
             </p>
-            <p className="truncate text-xs text-slate-500">{user?.email}</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
           </div>
 
-          <Link
-            to="/perfil"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 px-4 py-2.5 text-sm transition hover:bg-amber-50 hover:text-amber-700"
+          <Button
+            asChild
+            variant="ghost"
+            className="h-auto w-full justify-start gap-2.5 rounded-none px-4 py-2.5 text-sm font-normal hover:bg-amber-50 hover:text-amber-700"
           >
-            <User size={16} /> Mi perfil
-          </Link>
+            <Link to="/perfil" onClick={() => setOpen(false)}>
+              <User size={16} /> Mi perfil
+            </Link>
+          </Button>
 
           {user?.role === "admin" && (
-            <Link
-              to="/admin"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm transition hover:bg-amber-50 hover:text-amber-700"
+            <Button
+              asChild
+              variant="ghost"
+              className="h-auto w-full justify-start gap-2.5 rounded-none px-4 py-2.5 text-sm font-normal hover:bg-amber-50 hover:text-amber-700"
             >
-              <ShieldCheck size={16} /> Panel admin
-            </Link>
+              <Link to="/admin" onClick={() => setOpen(false)}>
+                <ShieldCheck size={16} /> Panel admin
+              </Link>
+            </Button>
           )}
 
-          <button
+          <Button
+            variant="ghost"
             onClick={() => {
               setOpen(false);
               logout();
             }}
-            className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
+            className="h-auto w-full justify-start gap-2.5 rounded-none border-t border-slate-100 px-4 py-2.5 text-sm font-normal text-red-600 hover:bg-red-50 hover:text-red-600"
           >
             <LogOut size={16} /> Cerrar sesión
-          </button>
+          </Button>
         </div>
       )}
     </div>

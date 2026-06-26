@@ -28,13 +28,13 @@ export function KpiCard({
       className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07]"
       style={{ borderTop: `3px solid ${color}` }}
     >
-      <div className="text-3xl font-extrabold leading-none" style={{ color }}>
+      <div className="t-stat" style={{ color }}>
         {nf.format(value)}
       </div>
-      <div className="mt-1.5 text-xs text-white/50">{label}</div>
-      {sub && <div className="mt-1 text-[11px] text-white/40">{sub}</div>}
+      <div className="mt-1.5 t-label text-white/50">{label}</div>
+      {sub && <div className="mt-1 text-[11px] text-white/60">{sub}</div>}
       {delta != null && (
-        <div className={`mt-1 text-[11px] font-medium ${delta >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+        <div className={`mt-1 text-[11px] font-medium ${delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
           {delta >= 0 ? "▲" : "▼"} {Math.abs(delta)}% vs período anterior
         </div>
       )}

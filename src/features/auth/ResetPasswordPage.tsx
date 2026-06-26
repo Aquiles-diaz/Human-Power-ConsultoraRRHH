@@ -2,10 +2,12 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import AuthShell, { authInputCls } from "./AuthShell";
+import AuthShell from "./AuthShell";
 import PasswordStrength from "./PasswordStrength";
 import { confirmPasswordReset } from "./auth-api";
 import { getErrorMessage } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -67,8 +69,9 @@ export default function ResetPasswordPage() {
           <label className="mb-1 block text-sm text-white/80">Nueva contraseña</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
-            <input
-              className={`${authInputCls} pl-9`}
+            <Input
+              variant="dark"
+              className="pl-9"
               type="password"
               required
               value={pw}
@@ -83,8 +86,9 @@ export default function ResetPasswordPage() {
           <label className="mb-1 block text-sm text-white/80">Repetir contraseña</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
-            <input
-              className={`${authInputCls} pl-9`}
+            <Input
+              variant="dark"
+              className="pl-9"
               type="password"
               required
               value={pw2}
@@ -95,11 +99,7 @@ export default function ResetPasswordPage() {
           </div>
         </div>
         {error && <p className="text-sm text-red-300">{error}</p>}
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 py-2.5 text-sm font-semibold text-black transition hover:brightness-105 disabled:opacity-60"
-        >
+        <Button type="submit" variant="brand" disabled={saving} className="w-full">
           {saving ? (
             <>
               <Loader2 className="size-4 animate-spin" /> Guardando…
@@ -107,7 +107,7 @@ export default function ResetPasswordPage() {
           ) : (
             "Guardar nueva contraseña"
           )}
-        </button>
+        </Button>
       </form>
     </AuthShell>
   );

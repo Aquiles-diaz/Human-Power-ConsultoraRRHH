@@ -18,10 +18,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useJobs } from "@/features/jobs/use-jobs";
 
 const cardClass =
-  "group rounded-3xl border-slate-200/70 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-300/60 h-full";
-
-const applyBtn =
-  "rounded-2xl mt-2 w-full border-amber-300 text-amber-700 transition-colors group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-500";
+  "group flex h-full flex-col rounded-3xl border-slate-200/70 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-300/60";
 
 export default function OfertasPreview() {
   const { user } = useAuth();
@@ -103,11 +100,11 @@ export default function OfertasPreview() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">
+            <p className="t-eyebrow">
               Vacantes
             </p>
-            <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              Ofertas laborales
+            <h2 className="mt-2 t-h2">
+              Ofertas destacadas
             </h2>
             <p className="mt-2 text-sm text-muted-foreground sm:text-base">
               Conocé las búsquedas que tenemos abiertas.
@@ -138,7 +135,7 @@ export default function OfertasPreview() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.15 }}
           transition={{ duration: 0.5 }}
-          className="relative mt-8"
+          className="relative mt-12"
           onMouseEnter={pause}
           onMouseLeave={resume}
           onPointerDown={pause}
@@ -165,12 +162,12 @@ export default function OfertasPreview() {
                       {j.company}
                     </p>
                   </CardHeader>
-                  <CardContent className="grid gap-2 text-sm text-muted-foreground">
+                  <CardContent className="flex flex-1 flex-col gap-2 text-sm text-muted-foreground">
                     <div className="inline-flex items-center gap-2">
                       <MapPin size={16} className="text-slate-500" />
                       {j.location}
                     </div>
-                    <Button variant="outline" className={applyBtn} asChild>
+                    <Button variant="brand" className="mt-auto w-full rounded-2xl" asChild>
                       <a href="/ofertas">Postularme</a>
                     </Button>
                   </CardContent>

@@ -16,22 +16,22 @@ export default function Servicios() {
       className="scroll-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24"
     >
       <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">
-          Servicios en RRHH
+        <p className="t-eyebrow">
+          Servicios en Recursos Humanos
         </p>
-        <h2 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight max-w-2xl mx-auto">
+        <h2 className="t-h2 mt-3 leading-tight max-w-2xl mx-auto">
           Asesoría de punta a punta para tu organización
         </h2>
       </div>
 
       <motion.div
-        className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+        className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
         variants={staggerContainer}
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.15 }}
       >
-        <motion.div variants={fadeUp}>
+        <motion.div variants={fadeUp} className="h-full">
           <Card className={cardClass}>
             <CardHeader>
               <span className={iconBadge}>
@@ -44,17 +44,20 @@ export default function Servicios() {
                 Nos enfocamos en ser tu socio estratégico para potenciar el
                 capital humano de tu organización a través de:
               </p>
-              <ul className="list-disc pl-5 mt-3 space-y-1 text-sm text-muted-foreground">
-                <li>Identificación precisa de necesidades.</li>
-                <li>Creación de herramientas a medida.</li>
-                <li>Asesoramiento para una delegación efectiva.</li>
-                <li>Aumento de la rentabilidad y productividad.</li>
-              </ul>
+              <CheckList
+                className="mt-3"
+                items={[
+                  "Identificación precisa de necesidades.",
+                  "Creación de herramientas a medida.",
+                  "Asesoramiento para una delegación efectiva.",
+                  "Aumento de la rentabilidad y productividad.",
+                ]}
+              />
             </CardContent>
           </Card>
         </motion.div>
 
-        <motion.div variants={fadeUp}>
+        <motion.div variants={fadeUp} className="h-full">
           <Card className={cardClass}>
             <CardHeader>
               <span className={iconBadge}>
@@ -62,41 +65,32 @@ export default function Servicios() {
               </span>
               <CardTitle className="mt-3">Búsqueda y selección</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground leading-relaxed">
-              <ul className="space-y-2.5">
-                {[
+            <CardContent>
+              <CheckList
+                items={[
                   "Identificación de necesidades y perfil del puesto.",
                   "Publicación de avisos y hunting/reclutamiento en redes.",
                   "Evaluación de CVs, preselección e entrevista con candidato.",
                   "Presentación de candidatos para evaluación final.",
-                ].map((paso) => (
-                  <li key={paso} className="flex items-start gap-2.5">
-                    <Check
-                      size={16}
-                      className="mt-0.5 shrink-0 text-amber-500"
-                      strokeWidth={3}
-                    />
-                    <span>{paso}</span>
-                  </li>
-                ))}
-              </ul>
+                ]}
+              />
 
-              {/* Sello de garantías — el diferenciador de cara al cliente */}
-              <div className="mt-5 space-y-2.5 rounded-2xl bg-slate-900 p-4 shadow-sm">
-                <div className="flex items-center gap-2.5 text-white">
-                  <Ban size={16} className="shrink-0 text-amber-400" />
+              {/* Sello de garantías — liviano (ámbar tenue) para no desbalancear la fila */}
+              <div className="mt-5 space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <Ban size={16} className="shrink-0 text-amber-500" />
                   <span className="text-sm">
-                    <span className="font-extrabold text-amber-400">NO</span>{" "}
+                    <span className="font-extrabold text-amber-600">NO</span>{" "}
                     cobramos{" "}
-                    <span className="font-semibold text-amber-400">anticipo</span>.
+                    <span className="font-semibold text-amber-600">anticipo</span>.
                   </span>
                 </div>
-                <div className="flex items-center gap-2.5 text-white">
-                  <Ban size={16} className="shrink-0 text-amber-400" />
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <Ban size={16} className="shrink-0 text-amber-500" />
                   <span className="text-sm">
-                    <span className="font-extrabold text-amber-400">NO</span>{" "}
+                    <span className="font-extrabold text-amber-600">NO</span>{" "}
                     pedimos{" "}
-                    <span className="font-semibold text-amber-400">
+                    <span className="font-semibold text-amber-600">
                       exclusividad
                     </span>
                     .
@@ -107,7 +101,7 @@ export default function Servicios() {
           </Card>
         </motion.div>
 
-        <motion.div variants={fadeUp}>
+        <motion.div variants={fadeUp} className="h-full">
           <Card className={cardClass}>
             <CardHeader>
               <span className={iconBadge}>
@@ -119,17 +113,42 @@ export default function Servicios() {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Ofrecemos una consultoría 360° que abarca:
               </p>
-              <ul className="list-disc pl-5 mt-3 space-y-1 text-sm text-muted-foreground">
-                <li>Liquidación de nóminas.</li>
-                <li>Temas de HR "Hard": Legales y administrativos.</li>
-                <li>Temas de HR "Soft": Cultura y desarrollo.</li>
-                <li>Gestión de desvinculaciones con foco humano.</li>
-                <li>Negociación de acuerdos bajo marco legal.</li>
-              </ul>
+              <CheckList
+                className="mt-3"
+                items={[
+                  "Liquidación de nóminas.",
+                  'Temas de HR "Hard": Legales y administrativos.',
+                  'Temas de HR "Soft": Cultura y desarrollo.',
+                  "Gestión de desvinculaciones con foco humano.",
+                  "Negociación de acuerdos bajo marco legal.",
+                ]}
+              />
             </CardContent>
           </Card>
         </motion.div>
       </motion.div>
     </section>
+  );
+}
+
+// Lista de ítems con check ámbar — estilo compartido por las tres cards de servicios.
+function CheckList({
+  items,
+  className = "",
+}: {
+  items: string[];
+  className?: string;
+}) {
+  return (
+    <ul
+      className={`space-y-2.5 text-sm leading-relaxed text-muted-foreground ${className}`.trim()}
+    >
+      {items.map((item) => (
+        <li key={item} className="flex items-start gap-2.5">
+          <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-amber-500" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

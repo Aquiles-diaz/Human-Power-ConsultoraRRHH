@@ -22,6 +22,9 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PAGE_SHELL } from "@/components/shared/PageContainer";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import CandidatesView from "./CandidatesView";
@@ -216,7 +219,7 @@ export default function AdminPanel() {
 
       {/* Topbar sticky glass */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-neutral-950/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className={`${PAGE_SHELL} flex items-center justify-between gap-3 py-3`}>
           <div className="flex items-center gap-3">
             <span
               className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-black shadow-lg shadow-amber-500/30"
@@ -225,8 +228,8 @@ export default function AdminPanel() {
               <Inbox className="size-5" />
             </span>
             <div className="leading-tight">
-              <h1 className="text-base font-bold sm:text-lg">Panel de CVs</h1>
-              <p className="text-xs text-white/40">Human Power · RRHH</p>
+              <h1 className="t-h1 text-white">Panel de CVs</h1>
+              <p className="text-xs text-white/60">Human Power · RRHH</p>
             </div>
           </div>
 
@@ -239,22 +242,23 @@ export default function AdminPanel() {
                 {user?.email ?? "—"}
               </span>
             </div>
-            <button
+            <Button
+              variant="subtle"
               onClick={() => {
                 logout();
                 navigate("/login", { replace: true });
               }}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 transition-colors hover:border-red-400/40 hover:bg-red-500/10 hover:text-white"
+              className="text-white/70 hover:border-red-400/40 hover:bg-red-500/10 hover:text-white"
               title="Cerrar sesión"
             >
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Salir</span>
-            </button>
+            </Button>
           </div>
         </div>
       </header>
 
-      <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className={`${PAGE_SHELL} relative py-6`}>
         {/* Stat cards (el Resumen trae sus propios KPIs, no duplicamos) */}
         {tab !== "resumen" && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -282,7 +286,7 @@ export default function AdminPanel() {
         )}
 
         {/* Selector de vista */}
-        <div className="mb-4 inline-flex flex-wrap rounded-xl border border-white/10 bg-white/[0.04] p-1">
+        <div className="mb-4 inline-flex flex-wrap rounded-xl border border-white/10 bg-white/5 p-1">
           <TabButton
             active={tab === "resumen"}
             onClick={() => setTab("resumen")}
@@ -323,34 +327,37 @@ export default function AdminPanel() {
 
         {/* Controles (no aplican a Candidatos ni a Puestos, que tienen su propia UI) */}
         {tab !== "candidates" && tab !== "jobs" && (
-        <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm sm:flex-row sm:items-center">
+        <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center">
           {/* Búsqueda */}
           <label className="relative flex-1" aria-label="Buscar">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
-            <input
+            <Search className="absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-white/60" />
+            <Input
+              variant="dark"
               placeholder="Buscar por nombre, email, archivo…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-amber-400/50 focus:bg-white/10"
+              className="pl-9"
             />
           </label>
 
           {/* Filtros por fecha */}
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="date"
+              variant="dark"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-amber-400/50 [color-scheme:dark] sm:w-auto"
+              className="sm:w-auto"
               aria-label="Desde"
               placeholder={ymd()}
             />
-            <span className="text-white/30">→</span>
-            <input
+            <span className="text-white/60">→</span>
+            <Input
               type="date"
+              variant="dark"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-amber-400/50 [color-scheme:dark] sm:w-auto"
+              className="sm:w-auto"
               aria-label="Hasta"
               placeholder={ymd()}
             />
@@ -358,25 +365,21 @@ export default function AdminPanel() {
 
           <div className="flex gap-2">
             {hasFilters && (
-              <button
-                onClick={clearFilters}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white/70 transition hover:bg-white/10"
-                title="Limpiar filtros"
-              >
+              <Button variant="subtle" onClick={clearFilters} title="Limpiar filtros">
                 <X className="size-4" />
                 <span className="hidden sm:inline">Limpiar</span>
-              </button>
+              </Button>
             )}
-            <button
+            <Button
+              variant="brand"
               onClick={loadData}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-semibold text-black shadow-lg shadow-amber-500/20 transition hover:brightness-105 disabled:opacity-60"
               title="Actualizar"
               disabled={loading}
               aria-busy={loading}
             >
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
               <span>Actualizar</span>
-            </button>
+            </Button>
           </div>
         </div>
         )}
@@ -404,44 +407,44 @@ export default function AdminPanel() {
               return (
                 <div
                   key={group.id}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm"
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm"
                 >
                   <button
                     onClick={() => toggleJob(group.id)}
-                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[0.04]"
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/5"
                   >
                     <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/15 text-amber-300">
                       <Briefcase className="size-5" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-white">{group.title}</p>
-                      <p className="truncate text-xs text-white/40">{group.id}</p>
+                      <p className="truncate text-xs text-white/60">{group.id}</p>
                     </div>
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                         group.applicants.length
                           ? "bg-amber-500/20 text-amber-200"
-                          : "bg-white/5 text-white/40"
+                          : "bg-white/5 text-white/60"
                       }`}
                     >
                       <Users className="size-3.5" />
                       {group.applicants.length}
                     </span>
                     <ChevronDown
-                      className={`size-4 shrink-0 text-white/40 transition-transform ${
+                      className={`size-4 shrink-0 text-white/60 transition-transform ${
                         open ? "rotate-180" : ""
                       }`}
                     />
                   </button>
 
                   {open && (
-                    <div className="border-t border-white/5 px-3 pb-3 pt-1">
+                    <div className="border-t border-white/10 px-3 pb-3 pt-1">
                       {group.applicants.length === 0 ? (
-                        <p className="px-2 py-4 text-center text-sm text-white/30">
+                        <p className="px-2 py-4 text-center text-sm text-white/60">
                           Todavía nadie se postuló a este puesto.
                         </p>
                       ) : (
-                        <ul className="divide-y divide-white/5">
+                        <ul className="divide-y divide-white/10">
                           {group.applicants.map((cv) => (
                             <ApplicantRow
                               key={cv.id}
@@ -470,7 +473,7 @@ export default function AdminPanel() {
           {filtered.map((cv) => (
             <div
               key={cv.id}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm"
+              className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
             >
               <div className="flex items-start gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-500/20 text-sm font-bold text-amber-300">
@@ -478,8 +481,8 @@ export default function AdminPanel() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="truncate text-base font-semibold capitalize">{cv.full_name}</h3>
-                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/40">
+                    <h3 className="t-h3 truncate capitalize text-white">{cv.full_name}</h3>
+                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
                       #{cv.id}
                     </span>
                   </div>
@@ -490,13 +493,13 @@ export default function AdminPanel() {
                     <Mail className="size-3.5" />
                     {cv.email}
                   </a>
-                  <p className="mt-1 text-xs text-white/40">{formatDate(cv.created_at)}</p>
+                  <p className="mt-1 text-xs text-white/60">{formatDate(cv.created_at)}</p>
                 </div>
               </div>
 
               <div className="mt-3 space-y-1 text-sm text-white/60">
                 <p className="truncate">
-                  <span className="text-white/40">Archivo:</span> {cv.original_name}
+                  <span className="text-white/60">Archivo:</span> {cv.original_name}
                 </p>
                 {cv.message && (
                   <p className="text-white/50" title={cv.message}>
@@ -506,33 +509,38 @@ export default function AdminPanel() {
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
+                <Button
+                  variant="brand"
+                  size="sm"
                   onClick={() => downloadCv(cv.id, cv.original_name)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-amber-500/90 px-3 py-1.5 text-sm font-medium text-black hover:bg-amber-400"
                 >
                   <Download className="size-4" />
                   Descargar
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="subtle"
+                  size="sm"
                   onClick={() => setActive(cv)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
                   title="Ver detalle"
                 >
                   <ExternalLink className="size-4" />
                   Ver
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => deleteCv(cv.id)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-sm text-red-200 hover:bg-red-500/20 disabled:opacity-60"
                   title="Eliminar"
+                  aria-label="Eliminar"
                   disabled={deleting === cv.id}
+                  className="border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
                 >
                   {deleting === cv.id ? (
                     <RefreshCw className="size-4 animate-spin" />
                   ) : (
                     <Trash2 className="size-4" />
                   )}
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -541,10 +549,10 @@ export default function AdminPanel() {
 
         {/* Tabla en desktop */}
         {tab === "all" && (
-        <div className="hidden overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm md:block">
+        <div className="hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm md:block">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/40">
+              <tr className="t-label border-b border-white/10 text-left text-white/50">
                 <th className="px-4 py-3 font-semibold">Candidato</th>
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Archivo</th>
@@ -556,7 +564,7 @@ export default function AdminPanel() {
               {filtered.map((cv) => (
                 <tr
                   key={cv.id}
-                  className="border-b border-white/5 transition-colors last:border-0 hover:bg-white/[0.04]"
+                  className="border-b border-white/10 transition-colors last:border-0 hover:bg-white/5"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -565,7 +573,7 @@ export default function AdminPanel() {
                       </span>
                       <div className="min-w-0">
                         <p className="truncate font-medium capitalize text-white">{cv.full_name}</p>
-                        <p className="text-xs text-white/30">#{cv.id}</p>
+                        <p className="text-xs text-white/60">#{cv.id}</p>
                       </div>
                     </div>
                   </td>
@@ -588,32 +596,39 @@ export default function AdminPanel() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1.5">
-                      <button
+                      <Button
+                        variant="brand"
+                        size="icon"
                         onClick={() => downloadCv(cv.id, cv.original_name)}
-                        className="grid size-9 place-items-center rounded-lg bg-amber-500/90 text-black transition hover:bg-amber-400"
                         title="Descargar"
+                        aria-label="Descargar"
                       >
                         <Download className="size-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="subtle"
+                        size="icon"
                         onClick={() => setActive(cv)}
-                        className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/10"
                         title="Ver detalle"
+                        aria-label="Ver detalle"
                       >
                         <ExternalLink className="size-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => deleteCv(cv.id)}
-                        className="grid size-9 place-items-center rounded-lg border border-red-400/30 bg-red-500/10 text-red-200 transition hover:bg-red-500/20 disabled:opacity-60"
                         title="Eliminar"
+                        aria-label="Eliminar"
                         disabled={deleting === cv.id}
+                        className="border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
                       >
                         {deleting === cv.id ? (
                           <RefreshCw className="size-4 animate-spin" />
                         ) : (
                           <Trash2 className="size-4" />
                         )}
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -650,17 +665,18 @@ export default function AdminPanel() {
                   {initials(active.full_name)}
                 </span>
                 <div>
-                  <h2 className="text-lg font-semibold capitalize text-white">{active.full_name}</h2>
-                  <p className="text-xs text-white/40">Candidato #{active.id}</p>
+                  <h2 className="t-h3 capitalize text-white">{active.full_name}</h2>
+                  <p className="text-xs text-white/60">Candidato #{active.id}</p>
                 </div>
               </div>
-              <button
-                className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+              <Button
+                variant="subtle"
+                size="icon"
                 onClick={() => setActive(null)}
                 aria-label="Cerrar"
               >
                 <X className="size-4" />
-              </button>
+              </Button>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
@@ -673,7 +689,7 @@ export default function AdminPanel() {
                 <Field label="Archivo">{active.original_name}</Field>
                 <Field label="Fecha">{formatDate(active.created_at)}</Field>
                 <div>
-                  <p className="mb-1 text-xs uppercase tracking-wide text-white/40">Mensaje</p>
+                  <p className="mb-1 t-label text-white/50">Mensaje</p>
                   <div className="whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
                     {active.message || "—"}
                   </div>
@@ -682,7 +698,7 @@ export default function AdminPanel() {
 
               {/* Video preview */}
               <div>
-                <p className="mb-2 inline-flex items-center gap-2 text-xs uppercase tracking-wide text-white/40">
+                <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
                   <Video className="size-4" /> Video
                 </p>
                 <div className="overflow-hidden rounded-xl border border-white/10">
@@ -692,24 +708,24 @@ export default function AdminPanel() {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <button
+              <Button
+                variant="brand"
                 onClick={() => downloadCv(active.id, active.original_name)}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-semibold text-black shadow-lg shadow-amber-500/20 hover:brightness-105"
               >
                 <Download className="size-4" />
                 Descargar CV
-              </button>
-              <a
-                href={`mailto:${active.email}`}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/80 hover:bg-white/10"
-              >
-                <Mail className="size-4" />
-                Escribir
-              </a>
-              <button
+              </Button>
+              <Button asChild variant="subtle">
+                <a href={`mailto:${active.email}`}>
+                  <Mail className="size-4" />
+                  Escribir
+                </a>
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => deleteCv(active.id)}
-                className="ml-auto inline-flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-200 hover:bg-red-500/20 disabled:opacity-60"
                 disabled={deleting === active.id}
+                className="ml-auto border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
               >
                 {deleting === active.id ? (
                   <RefreshCw className="size-4 animate-spin" />
@@ -717,7 +733,7 @@ export default function AdminPanel() {
                   <Trash2 className="size-4" />
                 )}
                 Eliminar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -740,14 +756,14 @@ function StatCard({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm ${className}`}
+      className={`flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm ${className}`}
     >
       <span className="grid size-11 place-items-center rounded-xl bg-amber-500/15 text-amber-300">
         {icon}
       </span>
       <div className="leading-tight">
-        <p className="text-2xl font-bold text-white">{value}</p>
-        <p className="text-xs text-white/40">{label}</p>
+        <p className="t-stat text-white">{value}</p>
+        <p className="text-xs text-white/60">{label}</p>
       </div>
     </div>
   );
@@ -807,32 +823,39 @@ function ApplicantRow({
           {cv.email}
         </a>
       </div>
-      <span className="hidden whitespace-nowrap text-xs text-white/40 sm:inline">
+      <span className="hidden whitespace-nowrap text-xs text-white/60 sm:inline">
         {formatDate(cv.created_at)}
       </span>
       <div className="flex items-center gap-1.5">
-        <button
+        <Button
+          variant="brand"
+          size="icon"
           onClick={onDownload}
-          className="grid size-8 place-items-center rounded-lg bg-amber-500/90 text-black transition hover:bg-amber-400"
           title="Descargar CV"
+          aria-label="Descargar CV"
         >
           <Download className="size-4" />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="subtle"
+          size="icon"
           onClick={onView}
-          className="grid size-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/10"
           title="Ver detalle"
+          aria-label="Ver detalle"
         >
           <ExternalLink className="size-4" />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onDelete}
-          className="grid size-8 place-items-center rounded-lg border border-red-400/30 bg-red-500/10 text-red-200 transition hover:bg-red-500/20 disabled:opacity-60"
           title="Eliminar"
+          aria-label="Eliminar"
           disabled={deleting}
+          className="border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
         >
           {deleting ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-        </button>
+        </Button>
       </div>
     </li>
   );
@@ -841,7 +864,7 @@ function ApplicantRow({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-0.5 text-xs uppercase tracking-wide text-white/40">{label}</p>
+      <p className="mb-0.5 t-label text-white/50">{label}</p>
       <p className="break-all text-white/80">{children}</p>
     </div>
   );
@@ -850,12 +873,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <span className="grid size-14 place-items-center rounded-2xl bg-white/5 text-white/30">
+      <span className="grid size-14 place-items-center rounded-2xl bg-white/5 text-white/60">
         <Inbox className="size-7" />
       </span>
       <div>
         <p className="font-medium text-white/70">Sin resultados</p>
-        <p className="text-sm text-white/40">No hay CVs que coincidan con los filtros.</p>
+        <p className="text-sm text-white/60">No hay CVs que coincidan con los filtros.</p>
       </div>
     </div>
   );

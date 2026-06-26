@@ -21,15 +21,15 @@ export default function AuthShell({
       <div className="relative w-full max-w-md">
         <Link
           to="/"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-white/60 transition-colors hover:text-white"
         >
           <ArrowLeft className="size-4" /> Volver al inicio
         </Link>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-xl sm:p-8">
           <div className="mb-6 text-center">
-            <h1 className="text-xl font-bold text-white">{title}</h1>
-            {subtitle && <p className="mt-1 text-sm text-white/50">{subtitle}</p>}
+            <h1 className="t-h1 text-white">{title}</h1>
+            {subtitle && <p className="mt-1 t-muted text-white/60">{subtitle}</p>}
           </div>
           {children}
         </div>

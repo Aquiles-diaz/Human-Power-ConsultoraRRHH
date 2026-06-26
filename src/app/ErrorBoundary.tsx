@@ -1,5 +1,7 @@
 import React from "react";
 
+import { Button } from "@/components/ui/button";
+
 type State = { error: Error | null };
 
 /**
@@ -27,7 +29,7 @@ export default class ErrorBoundary extends React.Component<
     return (
       <div className="grid min-h-screen place-items-center bg-neutral-950 p-6 text-white">
         <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center">
-          <h1 className="text-xl font-bold">Algo salió mal</h1>
+          <h1 className="t-h1 text-white">Algo salió mal</h1>
           <p className="mt-2 text-sm text-white/60">
             Ocurrió un error inesperado al mostrar esta página.
           </p>
@@ -39,20 +41,20 @@ export default class ErrorBoundary extends React.Component<
             </pre>
           )}
           <div className="mt-5 flex justify-center gap-2">
-            <button
+            <Button
+              variant="subtle"
               onClick={() => this.setState({ error: null })}
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
             >
               Reintentar
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="brand"
               onClick={() => {
                 window.location.href = "/";
               }}
-              className="rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2 text-sm font-semibold text-black hover:brightness-105"
             >
               Volver al inicio
-            </button>
+            </Button>
           </div>
         </div>
       </div>

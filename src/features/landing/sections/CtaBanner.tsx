@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 
 export default function CtaBanner() {
   return (
-    <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
       <div className="relative overflow-hidden rounded-3xl bg-slate-900 px-6 py-10 sm:px-12 sm:py-12">
         {/* glow de marca */}
         <div
@@ -12,9 +12,9 @@ export default function CtaBanner() {
 
         <div className="relative grid sm:grid-cols-2 gap-6 items-center">
           <div>
-            <h3 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <h2 className="t-h2 text-white">
               ¿Buscás cubrir una posición clave?
-            </h3>
+            </h2>
             <p className="mt-2 text-white/70 text-sm sm:text-base max-w-md">
               Contanos tu necesidad y te presentamos una terna en tiempo récord.
             </p>

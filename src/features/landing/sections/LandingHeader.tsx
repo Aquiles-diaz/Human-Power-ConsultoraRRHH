@@ -110,6 +110,9 @@ export default function LandingHeader() {
                   />
                 </motion.a>
               ))}
+
+              {/* CTA principal del candidato — en mobile el header no lo muestra arriba */}
+              <CargarCvButton className="mt-2 w-full justify-center rounded-xl py-5 text-[15px]" />
             </nav>
           </motion.div>
         )}

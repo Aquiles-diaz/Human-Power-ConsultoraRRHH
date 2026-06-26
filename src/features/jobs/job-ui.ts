@@ -20,8 +20,11 @@ export function initials(name = ""): string {
     .toUpperCase();
 }
 
+// Fuente única del badge de modalidad. Las tres modalidades conocidas usan el
+// mismo azul; cualquier modalidad fuera de estas debe caer al mismo fallback azul
+// (bg-blue-50 text-blue-700) para mantener la consistencia.
 export const typeStyles: Record<string, string> = {
-  Remoto: "bg-slate-100 text-slate-700",
-  Híbrido: "bg-slate-100 text-slate-700",
-  Presencial: "bg-slate-100 text-slate-700",
+  Remoto: "bg-blue-50 text-blue-700",
+  Híbrido: "bg-blue-50 text-blue-700",
+  Presencial: "bg-blue-50 text-blue-700",
 };

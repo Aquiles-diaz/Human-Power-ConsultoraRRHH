@@ -64,10 +64,10 @@ export default function Contacto() {
         viewport={{ once: true, amount: 0.2 }}
       >
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">
+          <p className="t-eyebrow">
             Contacto
           </p>
-          <h2 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight">
+          <h2 className="mt-2 t-h2">
             ¿Sos empresa? <span className="text-gradient-brand">Hablemos.</span>
           </h2>
           <p className="mt-3 text-muted-foreground text-sm sm:text-base">
@@ -128,7 +128,7 @@ export default function Contacto() {
               <Button
                 type="submit"
                 variant="brand"
-                className="rounded-2xl w-full"
+                className="w-full"
                 disabled={sending}
               >
                 {sending ? "Enviando…" : "Enviar consulta"}

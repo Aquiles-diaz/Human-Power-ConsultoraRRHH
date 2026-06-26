@@ -12,9 +12,8 @@ type AuthFieldProps = Omit<React.ComponentProps<typeof Input>, "id"> & {
 
 /**
  * Campo de formulario de auth: label + input con ícono a la izquierda y, si es
- * de tipo password, un botón para mostrar/ocultar. Usa el componente Input base
- * (bg-transparent) para que los overrides de tema del AuthPage oscuro sigan
- * aplicando sin conflictos.
+ * de tipo password, un botón para mostrar/ocultar. Usa el componente Input
+ * canónico con variant="dark" (superficie glass oscura del AuthPage).
  */
 export default function AuthField({
   id,
@@ -41,11 +40,8 @@ export default function AuthField({
         <Input
           id={id}
           type={inputType}
-          className={cn(
-            "h-11 rounded-xl pl-10 transition-shadow focus-visible:ring-2 focus-visible:ring-amber-400/60",
-            isPassword && "pr-10",
-            className
-          )}
+          variant="dark"
+          className={cn("pl-10", isPassword && "pr-10", className)}
           {...props}
         />
         {isPassword && (

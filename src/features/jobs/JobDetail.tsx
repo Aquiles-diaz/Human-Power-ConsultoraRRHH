@@ -32,12 +32,14 @@ export const JobDetail: React.FC<{
     {/* Encabezado del detalle */}
     <div className="border-b border-slate-100 p-5 sm:p-6">
       {onBack && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onBack}
-          className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 lg:hidden"
+          className="mb-3 text-slate-500 lg:hidden"
         >
           <ChevronLeft size={16} /> Volver
-        </button>
+        </Button>
       )}
       <div className="flex items-start gap-4">
         <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-slate-900 text-base font-bold text-white">
@@ -97,7 +99,7 @@ export const JobDetail: React.FC<{
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
           Descripción del puesto
         </h3>
-        <p className="text-sm leading-relaxed text-slate-600">{job.description}</p>
+        <p className="t-body">{job.description}</p>
       </section>
 
       <DetailList title="Responsabilidades" items={job.responsibilities} />

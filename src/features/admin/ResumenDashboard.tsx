@@ -5,6 +5,7 @@ import { resolveRange, cvsInRange, type Range, type StatCv } from "./admin-stats
 import { RangeFilter } from "./RangeFilter";
 import { KpiCard } from "./KpiCard";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
 import { COLORS, nf } from "./dashboard-theme";
 import { MonthlyApplications, CandidatesByArea, TopJobs, SpontaneousVsLinked } from "./charts";
 
@@ -13,7 +14,7 @@ type CvRow = StatCv & { full_name?: string; email?: string };
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/40">{title}</h3>
+      <h3 className="mb-3 t-label text-white/50">{title}</h3>
       {children}
     </div>
   );
@@ -21,16 +22,16 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function CvList({ rows }: { rows: CvRow[] }) {
   if (rows.length === 0)
-    return <p className="py-6 text-center text-sm text-white/40">No hay postulaciones en este período.</p>;
+    return <p className="py-6 text-center t-muted text-white/60">No hay postulaciones en este período.</p>;
   return (
-    <ul className="divide-y divide-white/5">
+    <ul className="divide-y divide-white/10">
       {rows.map((r, i) => (
         <li key={i} className="flex items-center justify-between gap-3 py-2.5 text-sm">
           <div className="min-w-0">
             <p className="truncate font-medium capitalize text-white">{r.full_name || "—"}</p>
-            <p className="truncate text-xs text-white/40">{r.email}</p>
+            <p className="truncate text-xs text-white/60">{r.email}</p>
           </div>
-          <span className="shrink-0 text-xs text-white/40">{(r.created_at || "").slice(0, 10)}</span>
+          <span className="shrink-0 text-xs text-white/60">{(r.created_at || "").slice(0, 10)}</span>
         </li>
       ))}
     </ul>
@@ -64,7 +65,7 @@ export default function ResumenDashboard({
 
   if (loading && !stats) {
     return (
-      <div className="grid place-items-center py-24 text-white/30">
+      <div className="grid place-items-center py-24 text-white/60">
         <Loader2 className="size-6 animate-spin" />
       </div>
     );
@@ -73,12 +74,9 @@ export default function ResumenDashboard({
     return (
       <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-6 text-center">
         <p className="text-sm text-red-200">{error}</p>
-        <button
-          onClick={reload}
-          className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-black"
-        >
+        <Button onClick={reload} variant="brand" className="mt-3">
           <RefreshCw className="size-4" /> Reintentar
-        </button>
+        </Button>
       </div>
     );
   }
@@ -134,19 +132,19 @@ export default function ResumenDashboard({
           {stats.byArea.length ? (
             <CandidatesByArea data={stats.byArea} />
           ) : (
-            <p className="py-8 text-center text-sm text-white/30">Todavía no hay candidatos.</p>
+            <p className="py-8 text-center t-muted text-white/60">Todavía no hay candidatos.</p>
           )}
         </Panel>
         <Panel title="Top puestos por postulaciones">
           {stats.topJobs.length ? (
             <TopJobs data={stats.topJobs} onBar={openJob} />
           ) : (
-            <p className="py-8 text-center text-sm text-white/30">Sin postulaciones en este período.</p>
+            <p className="py-8 text-center t-muted text-white/60">Sin postulaciones en este período.</p>
           )}
         </Panel>
         <Panel title="Espontáneas vs por puesto">
           <SpontaneousVsLinked data={stats.spontaneousVsLinked} />
-          <p className="mt-2 text-center text-xs text-white/40">
+          <p className="mt-2 text-center text-xs text-white/60">
             {nf.format(stats.spontaneousVsLinked.linked)} por puesto · {nf.format(stats.spontaneousVsLinked.spontaneous)} espontáneas
           </p>
         </Panel>

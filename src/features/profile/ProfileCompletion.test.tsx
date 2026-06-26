@@ -24,11 +24,13 @@ function renderWith(profile: Profile, email_verified = false) {
 }
 
 describe("ProfileCompletion", () => {
-  it("muestra el porcentaje, la barra y el próximo paso", () => {
+  it("muestra el porcentaje, la barra y los pasos pendientes", () => {
     renderWith(makeProfile());
-    expect(screen.getByText(/Tu perfil está al 10%/)).toBeInTheDocument();
+    // El KPI grande muestra el porcentaje; el título pasó a ser motivacional.
+    expect(screen.getByText("10%")).toBeInTheDocument();
+    expect(screen.getByText("Completá tu perfil")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
-    // "Subí tu CV" aparece en el próximo paso y en el checklist.
+    // "Subí tu CV" aparece como paso pendiente accionable.
     expect(screen.getAllByText(/Subí tu CV/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Logros extra/)).toBeInTheDocument();
   });

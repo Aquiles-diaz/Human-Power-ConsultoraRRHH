@@ -12,10 +12,10 @@ export default function GoogleAuthButton() {
 
   return (
     <div className="mt-4">
-      <div className="mb-3 flex items-center gap-3 text-xs text-zinc-400">
-        <span className="h-px flex-1 bg-zinc-400/30" />
+      <div className="mb-3 flex items-center gap-3 text-xs text-white/60">
+        <span className="h-px flex-1 bg-white/10" />
         o
-        <span className="h-px flex-1 bg-zinc-400/30" />
+        <span className="h-px flex-1 bg-white/10" />
       </div>
       <div className="flex justify-center">
         <GoogleLogin

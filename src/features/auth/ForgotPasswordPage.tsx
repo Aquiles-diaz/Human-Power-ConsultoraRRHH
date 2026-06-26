@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Mail, Loader2, CheckCircle2 } from "lucide-react";
-import AuthShell, { authInputCls } from "./AuthShell";
+import AuthShell from "./AuthShell";
 import { requestPasswordReset } from "./auth-api";
 import { getErrorMessage } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -52,8 +54,9 @@ export default function ForgotPasswordPage() {
             <label className="mb-1 block text-sm text-white/80">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
-              <input
-                className={`${authInputCls} pl-9`}
+              <Input
+                variant="dark"
+                className="pl-9"
                 type="email"
                 required
                 value={email}
@@ -64,11 +67,7 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
           {error && <p className="text-sm text-red-300">{error}</p>}
-          <button
-            type="submit"
-            disabled={sending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 py-2.5 text-sm font-semibold text-black transition hover:brightness-105 disabled:opacity-60"
-          >
+          <Button type="submit" variant="brand" disabled={sending} className="w-full">
             {sending ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Enviando…
@@ -76,8 +75,8 @@ export default function ForgotPasswordPage() {
             ) : (
               "Enviarme el enlace"
             )}
-          </button>
-          <Link to="/login" className="block text-center text-sm text-white/50 transition hover:text-white">
+          </Button>
+          <Link to="/login" className="block text-center text-sm text-white/60 transition hover:text-white">
             Volver
           </Link>
         </form>

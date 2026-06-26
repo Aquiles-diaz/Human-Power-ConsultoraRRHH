@@ -11,7 +11,7 @@ export default function VideoPreview({ message }: { message: string }) {
 
   if (!v) {
     return (
-      <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
+      <div className="rounded-2xl border bg-muted/50 p-4 text-sm text-muted-foreground">
         No hay video. Si el mensaje incluye un link a YouTube, TikTok, Instagram, Vimeo,
         Drive, Streamable o un .mp4/.webm, lo mostramos acá.
       </div>
@@ -20,7 +20,7 @@ export default function VideoPreview({ message }: { message: string }) {
 
   if (v.type === "file") {
     return (
-      <div className="rounded-xl overflow-hidden border">
+      <div className="rounded-2xl overflow-hidden border">
         <video src={v.src} controls className="w-full h-auto" />
       </div>
     );
@@ -28,7 +28,7 @@ export default function VideoPreview({ message }: { message: string }) {
 
   // Proveedores por iframe
   return (
-    <div className="aspect-video rounded-xl overflow-hidden border">
+    <div className="aspect-video rounded-2xl overflow-hidden border">
       <iframe
         src={v.src}
         title="Video"

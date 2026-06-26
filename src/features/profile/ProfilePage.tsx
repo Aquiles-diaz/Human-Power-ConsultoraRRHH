@@ -8,9 +8,8 @@ import {
   FileText,
   Loader2,
   X,
-  BadgeCheck,
-  Video,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/shared/Header";
@@ -20,6 +19,7 @@ import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
+import ProfileProgressBar from "./ProfileProgressBar";
 import { computeProfileCompletion } from "./completion";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
@@ -38,6 +38,11 @@ import { PROVINCES, COUNTRIES, CITIES_BY_PROVINCE } from "./ar-geo";
 
 // Límite de tamaño del CV en el perfil (alineado con el backend: 15MB).
 const PROFILE_CV_MAX_BYTES = 15 * 1024 * 1024;
+
+// Clase compartida por todos los inputs/selects del formulario para mantener
+// un estilo consistente (altura por padding, foco neutro slate, sin drift).
+const INPUT_CLS =
+  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 placeholder:text-slate-400 transition focus:border-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-400/40 disabled:cursor-not-allowed disabled:opacity-60";
 
 // Valida que la URL sea de TikTok o YouTube y esté bien formada (con protocolo y
 // el dominio real al final, para no aceptar cosas como "tiktok.com.evil.com").
@@ -238,145 +243,138 @@ export default function ProfilePage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-slate-50 py-8 sm:py-10">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Mi perfil</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Completá tus datos y subí tu CV. Solo vos editás tu información; el equipo de RRHH la
-              ve para considerarte en las búsquedas.
-            </p>
-          </div>
-
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-4xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
           {loading ? (
             <div className="grid place-items-center py-24 text-slate-400">
               <Loader2 className="size-7 animate-spin" />
             </div>
           ) : (
             <>
-              {user?.role !== "admin" && (
-                <ProfileCompletion
-                  result={completion}
-                  onVerifyEmail={resendVerification}
-                  onUploadCv={() => cvInputRef.current?.click()}
-                  onUploadPhoto={() => photoInputRef.current?.click()}
-                  onScrollTo={scrollToSection}
-                />
-              )}
-              <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-              {/* ── Tarjeta avatar (izquierda) ── */}
-              <aside className="lg:sticky lg:top-24 lg:self-start">
-                <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                  <div className="h-20 bg-gradient-to-r from-amber-400 to-amber-500" />
-                  <div className="-mt-12 flex flex-col items-center px-6 pb-6 text-center">
-                    <div className="relative">
-                      {profile?.photo_url ? (
-                        <img
-                          src={`${API}${profile.photo_url}`}
-                          alt="Foto de perfil"
-                          className="size-24 rounded-full border-4 border-white object-cover shadow"
-                        />
-                      ) : (
-                        <div className="grid size-24 place-items-center rounded-full border-4 border-white bg-slate-900 text-2xl font-bold text-white shadow">
-                          {initials(form.name ?? "", form.last_name ?? "")}
-                        </div>
-                      )}
-                      <button
-                        onClick={() => photoInputRef.current?.click()}
-                        disabled={photoUploading}
-                        className="absolute bottom-0 right-0 grid size-8 place-items-center rounded-full bg-amber-500 text-black shadow-md transition hover:bg-amber-400 disabled:opacity-60"
-                        title="Cambiar foto"
-                      >
-                        {photoUploading ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Camera size={15} />
-                        )}
-                      </button>
-                      <input
-                        ref={photoInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={onPhotoChange}
-                      />
+              {/* ── Encabezado unificado: avatar + identidad ── */}
+              <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+                {/* avatar con cámara al pasar el mouse */}
+                <div className="group relative shrink-0">
+                  {profile?.photo_url ? (
+                    <img
+                      src={`${API}${profile.photo_url}`}
+                      alt="Foto de perfil"
+                      className="size-20 rounded-full border border-slate-200 object-cover"
+                    />
+                  ) : (
+                    <div className="grid size-20 place-items-center rounded-full bg-slate-900 text-xl font-bold text-white">
+                      {initials(form.name ?? "", form.last_name ?? "")}
                     </div>
-
-                    <h2 className="mt-3 text-lg font-bold capitalize text-slate-900">
-                      {displayName}
-                    </h2>
-                    {form.headline && (
-                      <p className="text-sm font-medium uppercase tracking-wide text-amber-600">
-                        {form.headline}
-                      </p>
-                    )}
-                    <p className="mt-0.5 break-all text-sm text-slate-500">{profile?.email}</p>
-
-                    {profile?.has_cv && (
-                      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        <BadgeCheck size={14} className="text-emerald-600" /> CV cargado
-                      </span>
-                    )}
-                  </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={photoUploading}
+                    title="Cambiar foto"
+                    aria-label="Cambiar foto"
+                    className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full bg-amber-500 text-black shadow-sm ring-2 ring-slate-50 transition hover:bg-amber-600 disabled:opacity-60"
+                  >
+                    {photoUploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera size={13} />}
+                  </button>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={onPhotoChange}
+                  />
                 </div>
-              </aside>
 
-              {/* ── Formulario (derecha) ── */}
-              <div className="space-y-6">
-                {/* CV */}
-                <Section title="Currículum (CV)">
+                {/* identidad */}
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate text-xl font-bold capitalize text-slate-900 sm:text-2xl">
+                    {displayName}
+                  </h1>
+                  {form.headline && (
+                    <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                      {form.headline}
+                    </p>
+                  )}
+                  <p className="mt-1 truncate text-sm text-slate-500">{profile?.email}</p>
+                  {profile?.has_cv && (
+                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                      <span className="size-1.5 rounded-full bg-emerald-500" /> CV cargado
+                    </span>
+                  )}
+                </div>
+              </header>
+
+              <p className="mt-3 text-sm text-slate-500">
+                Completá tus datos y subí tu CV. Solo vos editás tu información; el equipo de RRHH la
+                ve para considerarte en las búsquedas.
+              </p>
+
+              {user?.role !== "admin" && (
+                <div className="mt-8">
+                  <ProfileCompletion
+                    result={completion}
+                    onVerifyEmail={resendVerification}
+                    onUploadCv={() => cvInputRef.current?.click()}
+                    onUploadPhoto={() => photoInputRef.current?.click()}
+                    onScrollTo={scrollToSection}
+                  />
+                </div>
+              )}
+
+              {/* ── Flujo de configuración (filas) ── */}
+              <div>
+                {/* CV + video */}
+                <Row title="Currículum y video" desc="Tu CV y un video opcional de presentación.">
                   {profile?.has_cv ? (
-                    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700">
-                          <FileText size={18} />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
-                          {profile.cv_original_name}
-                        </span>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <Button variant="outline" size="sm" className="rounded-lg" onClick={downloadCv}>
-                          <Download size={15} /> Descargar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg"
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-slate-100 text-slate-500">
+                        <FileText size={17} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-700">
+                        {profile.cv_original_name}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={downloadCv}
+                          title="Descargar"
+                          aria-label="Descargar CV"
+                          className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <Download size={16} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => cvInputRef.current?.click()}
                           disabled={cvUploading}
+                          title="Reemplazar"
+                          aria-label="Reemplazar CV"
+                          className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-60"
                         >
-                          {cvUploading ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <UploadCloud size={15} />
-                          )}{" "}
-                          Reemplazar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700"
+                          {cvUploading ? <Loader2 className="size-4 animate-spin" /> : <UploadCloud size={16} />}
+                        </button>
+                        <button
+                          type="button"
                           onClick={deleteCv}
+                          title="Eliminar"
+                          aria-label="Eliminar CV"
+                          className="grid size-8 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                         >
-                          <Trash2 size={15} />
-                        </Button>
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => cvInputRef.current?.click()}
                       disabled={cvUploading}
-                      className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 p-4 text-left transition hover:border-amber-400 hover:bg-amber-50/40 disabled:opacity-60"
+                      className="flex w-full items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-amber-400 hover:bg-amber-50/40 disabled:opacity-60"
                     >
-                      <span className="grid size-10 place-items-center rounded-lg bg-white text-slate-500 shadow-sm">
-                        {cvUploading ? (
-                          <Loader2 className="size-5 animate-spin" />
-                        ) : (
-                          <UploadCloud size={18} />
-                        )}
+                      <span className="grid size-9 place-items-center rounded-md bg-slate-100 text-slate-500">
+                        {cvUploading ? <Loader2 className="size-4 animate-spin" /> : <UploadCloud size={17} />}
                       </span>
-                      <span className="text-sm text-slate-500">
+                      <span className="text-[13px] text-slate-500">
                         {cvUploading
                           ? "Subiendo tu CV…"
                           : "Subí tu CV en PDF, DOC o DOCX (máx 15MB)"}
@@ -392,25 +390,15 @@ export default function ProfilePage() {
                   />
 
                   {/* Video de presentación (opcional) */}
-                  <div className="mt-5 border-t border-slate-100 pt-5">
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="grid size-8 place-items-center rounded-lg bg-slate-100 text-slate-700">
-                        <Video size={16} />
-                      </span>
-                      <label htmlFor="video_url" className="text-sm font-medium text-slate-700">
-                        Video de presentación{" "}
-                        <span className="font-normal text-slate-400">(opcional)</span>
-                      </label>
-                    </div>
-                    <p className="mb-2 text-sm text-slate-500">
-                      Opcional: puedes subir el link de tu video presentándote en{" "}
-                      <strong>TikTok</strong> o <strong>YouTube</strong>, y lo veremos con mucho
-                      gusto. Idealmente de menos de 1 minuto.
-                    </p>
+                  <div className="mt-6">
+                    <label htmlFor="video_url" className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                      Video de presentación{" "}
+                      <span className="font-normal text-slate-500">(opcional)</span>
+                    </label>
                     <div className="relative">
                       <ExternalLink
-                        size={16}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                       />
                       <input
                         id="video_url"
@@ -419,43 +407,57 @@ export default function ProfilePage() {
                         value={form.video_url ?? ""}
                         onChange={(e) => setField("video_url", e.target.value)}
                         placeholder="https://www.tiktok.com/@usuario/video/…"
-                        className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                        className={`${INPUT_CLS} pl-9`}
                       />
                     </div>
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      Opcional: pegá el link de tu video en TikTok o YouTube (idealmente de menos de 1
+                      minuto) y lo veremos con gusto.
+                    </p>
                     {form.video_url && isValidVideoUrl(form.video_url) && (
                       <a
                         href={form.video_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 hover:text-amber-700"
+                        className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-amber-700 hover:text-amber-800"
                       >
                         <ExternalLink size={14} /> Ver video cargado
                       </a>
                     )}
                   </div>
-                </Section>
+                </Row>
 
                 {/* Datos personales */}
-                <Section title="Datos personales" id="sec-personal">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                <Row
+                  id="sec-personal"
+                  title="Datos personales"
+                  desc="Información básica de contacto y ubicación."
+                >
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
                     <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." onChange={(v) => setField("phone", v)} />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
                     <SelectField label="País" value={form.country} options={COUNTRIES} onChange={(v) => setField("country", v)} />
                     <SelectField label="Provincia (opcional)" value={form.province} options={PROVINCES} onChange={(v) => setField("province", v)} />
-                    <TextField
-                      label="Ciudad"
-                      value={form.city}
-                      suggestions={CITIES_BY_PROVINCE[form.province ?? ""] ?? []}
-                      onChange={(v) => setField("city", v)}
-                    />
+                    <div className="sm:col-span-2">
+                      <TextField
+                        label="Ciudad"
+                        value={form.city}
+                        suggestions={CITIES_BY_PROVINCE[form.province ?? ""] ?? []}
+                        onChange={(v) => setField("city", v)}
+                      />
+                    </div>
                   </div>
-                </Section>
+                </Row>
 
                 {/* Perfil profesional */}
-                <Section title="Perfil profesional" id="sec-professional">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                <Row
+                  id="sec-professional"
+                  title="Perfil profesional"
+                  desc="Tu experiencia, formación e idiomas."
+                >
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <SelectField label="Área profesional" value={form.professional_area} options={PROFESSIONAL_AREAS} onChange={(v) => setField("professional_area", v)} />
                     <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
                     <SelectField label="Experiencia" value={form.experience_years} options={EXPERIENCE_OPTIONS} onChange={(v) => setField("experience_years", v)} />
@@ -464,70 +466,78 @@ export default function ProfilePage() {
                   </div>
 
                   {/* Idiomas (tags) */}
-                  <div className="mt-4">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Idiomas</label>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <select
-                        value={langName}
-                        onChange={(e) => setLangName(e.target.value)}
-                        aria-label="Idioma"
-                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      >
-                        <option value="">Idioma…</option>
-                        {LANGUAGES.map((l) => (
-                          <option key={l} value={l}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={langLevel}
-                        onChange={(e) => setLangLevel(e.target.value)}
-                        aria-label="Nivel"
-                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      >
-                        <option value="">Nivel (opcional)…</option>
-                        {LANGUAGE_LEVELS.map((l) => (
-                          <option key={l} value={l}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
-                      <Button type="button" variant="outline" className="rounded-xl" onClick={addLanguage}>
+                  <div className="mt-6">
+                    <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Idiomas</label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="flex-1">
+                        <select
+                          value={langName}
+                          onChange={(e) => setLangName(e.target.value)}
+                          aria-label="Idioma"
+                          className={INPUT_CLS}
+                        >
+                          <option value="">Idioma…</option>
+                          {LANGUAGES.map((l) => (
+                            <option key={l} value={l}>
+                              {l}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <select
+                          value={langLevel}
+                          onChange={(e) => setLangLevel(e.target.value)}
+                          aria-label="Nivel"
+                          className={INPUT_CLS}
+                        >
+                          <option value="">Nivel (opcional)…</option>
+                          {LANGUAGE_LEVELS.map((l) => (
+                            <option key={l} value={l}>
+                              {l}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Button type="button" variant="outline" className="rounded-lg sm:w-auto" onClick={addLanguage}>
                         Agregar
                       </Button>
                     </div>
                     {(form.languages ?? []).length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         {(form.languages ?? []).map((lang) => (
                           <span
                             key={lang}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+                            className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-[13px] text-slate-700"
                           >
                             {lang}
-                            <button onClick={() => removeLanguage(lang)} className="text-slate-400 hover:text-red-500">
-                              <X size={14} />
+                            <button
+                              type="button"
+                              onClick={() => removeLanguage(lang)}
+                              aria-label={`Quitar ${lang}`}
+                              className="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-red-500"
+                            >
+                              <X size={13} />
                             </button>
                           </span>
                         ))}
                       </div>
                     )}
                   </div>
-                </Section>
+                </Row>
+              </div>
 
-                {/* Guardar */}
-                <div className="flex justify-end">
-                  <Button
-                    variant="brand"
-                    className="w-full rounded-xl px-8 sm:w-auto"
-                    onClick={saveProfile}
-                    disabled={saving}
-                  >
+              {/* ── Barra fija de guardado ── */}
+              <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+                <div className="mx-auto flex max-w-4xl items-center justify-end gap-3 px-4 py-3 sm:px-6">
+                  <span className="mr-auto hidden text-[13px] text-slate-500 sm:block">
+                    Los cambios se guardan solo al presionar Guardar.
+                  </span>
+                  <Button variant="brand" className="w-full rounded-lg sm:w-auto" onClick={saveProfile} disabled={saving}>
                     {saving ? <Loader2 className="size-4 animate-spin" /> : <Save size={16} />}
                     {saving ? "Guardando…" : "Guardar cambios"}
                   </Button>
                 </div>
-              </div>
               </div>
             </>
           )}
@@ -538,11 +548,27 @@ export default function ProfilePage() {
 }
 
 // ── Subcomponentes ──
-function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
+function Row({
+  id,
+  title,
+  desc,
+  children,
+}: {
+  id?: string;
+  title: string;
+  desc: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section id={id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 scroll-mt-24">
-      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
-      {children}
+    <section
+      id={id}
+      className="grid scroll-mt-24 grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 py-8 md:grid-cols-3"
+    >
+      <div className="md:pr-6">
+        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-500">{desc}</p>
+      </div>
+      <div className="md:col-span-2">{children}</div>
     </section>
   );
 }
@@ -562,20 +588,21 @@ function TextField({
   type?: string;
   suggestions?: string[];
 }) {
+  const id = React.useId();
   const listId = suggestions
     ? `dl-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
     : undefined;
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
+      <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-slate-700">{label}</label>
       <input
+        id={id}
         type={type}
         value={value ?? ""}
         placeholder={placeholder}
-        aria-label={label}
         list={listId}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+        className={INPUT_CLS}
       />
       {suggestions && (
         <datalist id={listId}>
@@ -599,22 +626,29 @@ function SelectField({
   options: string[];
   onChange: (v: string) => void;
 }) {
+  const id = React.useId();
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
-      <select
-        value={value ?? ""}
-        aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-      >
-        <option value="">Seleccionar…</option>
-        {(value && !options.includes(value) ? [value, ...options] : options).map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
+      <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-slate-700">{label}</label>
+      <div className="relative">
+        <select
+          id={id}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${INPUT_CLS} appearance-none pr-9`}
+        >
+          <option value="">Seleccionar…</option>
+          {(value && !options.includes(value) ? [value, ...options] : options).map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={15}
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+      </div>
     </div>
   );
 }

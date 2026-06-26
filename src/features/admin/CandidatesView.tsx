@@ -22,6 +22,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Modal } from "@/components/ui/Modal";
 import {
   EDUCATION_LEVELS,
   PROFESSIONAL_AREAS,
@@ -125,44 +129,37 @@ export default function CandidatesView() {
       {/* Filtros */}
       <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm lg:flex-row lg:items-center">
         <label className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
-          <input
+          <Search className="absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-white/40" />
+          <Input
+            variant="dark"
             placeholder="Buscar por nombre o email…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-amber-400/50"
+            className="w-full pl-9"
           />
         </label>
 
-        <select
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50 [&>option]:text-black"
-        >
+        <Select variant="dark" value={area} onChange={(e) => setArea(e.target.value)}>
           <option value="">Todas las áreas</option>
           {PROFESSIONAL_AREAS.map((a) => (
             <option key={a} value={a}>
               {a}
             </option>
           ))}
-        </select>
+        </Select>
 
-        <select
-          value={education}
-          onChange={(e) => setEducation(e.target.value)}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50 [&>option]:text-black"
-        >
+        <Select variant="dark" value={education} onChange={(e) => setEducation(e.target.value)}>
           <option value="">Toda la educación</option>
           {EDUCATION_LEVELS.map((e) => (
             <option key={e} value={e}>
               {e}
             </option>
           ))}
-        </select>
+        </Select>
 
         <button
           onClick={() => setOnlyCv((v) => !v)}
-          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition ${
+          className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm transition ${
             onlyCv
               ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
               : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
@@ -172,44 +169,41 @@ export default function CandidatesView() {
         </button>
 
         {hasFilters && (
-          <button
+          <Button
+            variant="subtle"
             onClick={() => {
               setQ("");
               setArea("");
               setEducation("");
               setOnlyCv(false);
             }}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white/70 transition hover:bg-white/10"
           >
             <X className="size-4" /> Limpiar
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Listado */}
       {loading ? (
-        <div className="grid place-items-center py-20 text-white/30">
+        <div className="grid place-items-center py-20 text-white/40">
           <Loader2 className="size-6 animate-spin" />
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-400/30 bg-red-500/10 py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 py-16 text-center">
           <p className="font-medium text-red-200">No se pudieron cargar los candidatos</p>
           <p className="text-sm text-red-200/70">{error}</p>
-          <button
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-black"
-          >
+          <Button variant="brand" onClick={load}>
             <RefreshCw className="size-4" /> Reintentar
-          </button>
+          </Button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] py-16 text-center">
-          <span className="grid size-14 place-items-center rounded-2xl bg-white/5 text-white/30">
+          <span className="grid size-14 place-items-center rounded-2xl bg-white/5 text-white/60">
             <Filter className="size-7" />
           </span>
           <div>
-            <p className="font-medium text-white/70">Sin candidatos</p>
-            <p className="text-sm text-white/40">No hay perfiles que coincidan con los filtros.</p>
+            <p className="font-medium text-white">Sin candidatos</p>
+            <p className="text-sm text-white/60">No hay perfiles que coincidan con los filtros.</p>
           </div>
         </div>
       ) : (
@@ -241,7 +235,7 @@ export default function CandidatesView() {
                       {c.headline}
                     </p>
                   )}
-                  <p className="truncate text-xs text-white/40">{c.email}</p>
+                  <p className="truncate text-xs text-white/60">{c.email}</p>
                 </div>
               </div>
 
@@ -254,7 +248,7 @@ export default function CandidatesView() {
                     <FileText className="size-3" /> CV
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-white/30">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-white/60">
                     Sin CV
                   </span>
                 )}
@@ -266,104 +260,82 @@ export default function CandidatesView() {
 
       {/* Detalle (solo lectura) */}
       {(active || loadingDetail) && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() => setActive(null)}
+        <Modal
+          title={active ? `${active.name} ${active.last_name ?? ""}`.trim() : "Candidato"}
+          onClose={() => setActive(null)}
         >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-neutral-900/95 p-6 shadow-2xl backdrop-blur-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {loadingDetail || !active ? (
-              <div className="grid place-items-center py-16 text-white/30">
-                <Loader2 className="size-6 animate-spin" />
-              </div>
-            ) : (
-              <>
-                <div className="mb-5 flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-4">
-                    {active.photo_url ? (
-                      <img
-                        src={`${API}${active.photo_url}`}
-                        alt=""
-                        className="size-16 rounded-2xl object-cover"
-                      />
-                    ) : (
-                      <span className="grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-lg font-bold text-black">
-                        {initials(active.name, active.last_name ?? "")}
-                      </span>
-                    )}
-                    <div>
-                      <h2 className="text-xl font-bold capitalize text-white">
-                        {active.name} {active.last_name}
-                      </h2>
-                      {active.headline && (
-                        <p className="text-sm font-medium uppercase tracking-wide text-amber-300">
-                          {active.headline}
-                        </p>
-                      )}
-                      <a href={`mailto:${active.email}`} className="text-sm text-white/50 hover:text-white">
-                        {active.email}
-                      </a>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActive(null)}
-                    className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Info icon={<Phone className="size-4" />} label="Teléfono" value={active.phone} />
-                  <Info icon={<CalendarDays className="size-4" />} label="Edad" value={active.age_range} />
-                  <Info icon={<MapPin className="size-4" />} label="Ubicación" value={[active.city, active.province, active.country].filter(Boolean).join(", ")} />
-                  <Info icon={<Briefcase className="size-4" />} label="Área profesional" value={active.professional_area} />
-                  <Info icon={<GraduationCap className="size-4" />} label="Educación" value={active.education_level} />
-                  <Info icon={<Clock className="size-4" />} label="Experiencia" value={active.experience_years} />
-                  <Info icon={<CalendarDays className="size-4" />} label="Disponibilidad" value={active.availability} />
-                  <Info icon={<Wallet className="size-4" />} label="Pretensión salarial" value={active.salary_expectation} />
-                  <Info icon={<Languages className="size-4" />} label="Idiomas" value={(active.languages ?? []).join(", ")} />
-                  <Info icon={<CalendarDays className="size-4" />} label="Nacimiento" value={active.birthdate} />
-                </div>
-
-                <div className="mt-5 flex items-center gap-2">
-                  {active.has_cv ? (
-                    <button
-                      onClick={() => downloadCv(active.user_id, active.cv_original_name)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-105"
-                    >
-                      <Download className="size-4" /> Descargar CV
-                    </button>
-                  ) : (
-                    <span className="text-sm text-white/40">Este candidato todavía no subió su CV.</span>
+          {loadingDetail || !active ? (
+            <div className="grid place-items-center py-16 text-white/40">
+              <Loader2 className="size-6 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="mb-5 flex items-center gap-4">
+                {active.photo_url ? (
+                  <img
+                    src={`${API}${active.photo_url}`}
+                    alt=""
+                    className="size-16 rounded-2xl object-cover"
+                  />
+                ) : (
+                  <span className="grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-lg font-bold text-black">
+                    {initials(active.name, active.last_name ?? "")}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  {active.headline && (
+                    <p className="t-eyebrow text-amber-300">{active.headline}</p>
                   )}
-                  {active.video_url && (
-                    <a
-                      href={active.video_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/80 hover:bg-white/10"
-                    >
-                      <Video className="size-4" /> Ver video
-                    </a>
-                  )}
-                  <a
-                    href={`mailto:${active.email}`}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/80 hover:bg-white/10"
-                  >
-                    <Mail className="size-4" /> Escribir
+                  <a href={`mailto:${active.email}`} className="text-sm text-white/60 hover:text-white">
+                    {active.email}
                   </a>
                 </div>
+              </div>
 
-                <p className="mt-4 text-center text-xs text-white/30">
-                  Vista de solo lectura · únicamente el candidato edita su información.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Info icon={<Phone className="size-4" />} label="Teléfono" value={active.phone} />
+                <Info icon={<CalendarDays className="size-4" />} label="Edad" value={active.age_range} />
+                <Info icon={<MapPin className="size-4" />} label="Ubicación" value={[active.city, active.province, active.country].filter(Boolean).join(", ")} />
+                <Info icon={<Briefcase className="size-4" />} label="Área profesional" value={active.professional_area} />
+                <Info icon={<GraduationCap className="size-4" />} label="Educación" value={active.education_level} />
+                <Info icon={<Clock className="size-4" />} label="Experiencia" value={active.experience_years} />
+                <Info icon={<CalendarDays className="size-4" />} label="Disponibilidad" value={active.availability} />
+                <Info icon={<Wallet className="size-4" />} label="Pretensión salarial" value={active.salary_expectation} />
+                <Info icon={<Languages className="size-4" />} label="Idiomas" value={(active.languages ?? []).join(", ")} />
+                <Info icon={<CalendarDays className="size-4" />} label="Nacimiento" value={active.birthdate} />
+              </div>
+
+              <div className="mt-5 flex items-center gap-2">
+                {active.has_cv ? (
+                  <Button
+                    variant="brand"
+                    onClick={() => downloadCv(active.user_id, active.cv_original_name)}
+                  >
+                    <Download className="size-4" /> Descargar CV
+                  </Button>
+                ) : (
+                  <span className="text-sm text-white/60">Este candidato todavía no subió su CV.</span>
+                )}
+                {active.video_url && (
+                  <Button asChild variant="subtle">
+                    <a href={active.video_url} target="_blank" rel="noreferrer">
+                      <Video className="size-4" /> Ver video
+                    </a>
+                  </Button>
+                )}
+                <Button asChild variant="subtle">
+                  <a href={`mailto:${active.email}`}>
+                    <Mail className="size-4" /> Escribir
+                  </a>
+                </Button>
+              </div>
+
+              <p className="mt-4 text-center text-xs text-white/50">
+                Vista de solo lectura · únicamente el candidato edita su información.
+              </p>
+            </>
+          )}
+        </Modal>
       )}
     </div>
   );
@@ -381,7 +353,7 @@ function Chip({ icon, children }: { icon: React.ReactNode; children: React.React
 function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string | null }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <p className="mb-0.5 inline-flex items-center gap-1.5 text-xs uppercase tracking-wide text-white/40">
+      <p className="mb-0.5 inline-flex items-center gap-1.5 t-label text-white/50">
         {icon} {label}
       </p>
       <p className="text-sm text-white/80">{value?.trim() ? value : "—"}</p>

@@ -5,6 +5,7 @@ import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
 import GoogleAuthButton from "./GoogleAuthButton";
 import { useAuth } from "./AuthContext";
+import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/utils";
 
 const LAST_LOGIN_KEY = "hp_last_login";
@@ -143,13 +144,14 @@ export default function AuthSection() {
 
           <p className="mt-5 text-center text-sm text-muted-foreground">
             {mode === "login" ? "¿No tenés cuenta?" : "¿Ya tenés cuenta?"}{" "}
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={() => switchMode(mode === "login" ? "register" : "login")}
-              className="font-semibold text-amber-600 hover:text-amber-700 hover:underline"
+              className="h-auto p-0 font-semibold text-amber-600 hover:text-amber-700"
             >
               {mode === "login" ? "Registrate" : "Iniciá sesión"}
-            </button>
+            </Button>
           </p>
         </>
       ) : (
@@ -160,15 +162,15 @@ export default function AuthSection() {
               {initials}
             </span>
             <div className="min-w-0">
-              <p className="text-lg font-semibold text-slate-900">
+              <p className="t-h3 text-foreground">
                 ¡Hola {firstName ?? user?.email}! 👋
               </p>
-              <p className="truncate text-sm text-slate-500">{user?.email}</p>
+              <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
             </div>
           </div>
 
           {(fmt(lastLogin) || fmt(lastLogout)) && (
-            <div className="space-y-1 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
+            <div className="space-y-1 rounded-xl bg-slate-50 p-3 text-xs text-muted-foreground">
               {fmt(lastLogin) && <p>Último inicio: {fmt(lastLogin)}</p>}
               {fmt(lastLogout) && <p>Último cierre: {fmt(lastLogout)}</p>}
             </div>
@@ -176,22 +178,18 @@ export default function AuthSection() {
 
           <div className="flex flex-col gap-2">
             {user?.role === "admin" && (
-              <a
-                href="/admin"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-semibold text-black shadow transition hover:brightness-105"
-              >
-                <ShieldCheck className="size-4" />
-                Ir al panel admin
-                <ArrowRight className="size-4" />
-              </a>
+              <Button variant="brand" asChild>
+                <a href="/admin">
+                  <ShieldCheck className="size-4" />
+                  Ir al panel admin
+                  <ArrowRight className="size-4" />
+                </a>
+              </Button>
             )}
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
+            <Button variant="outline" onClick={handleLogout}>
               <LogOut className="size-4" />
               Cerrar sesión
-            </button>
+            </Button>
           </div>
         </div>
       )}

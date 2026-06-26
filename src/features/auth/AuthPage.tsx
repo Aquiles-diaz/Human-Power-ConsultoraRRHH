@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ShieldAlert, LogOut } from "lucide-react";
 import { getErrorMessage } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export default function AuthPage() {
   const { login, loading, isAuthenticated, user, logout } = useAuth();
@@ -42,7 +43,7 @@ export default function AuthPage() {
         {/* Volver */}
         <Link
           to="/"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-white/60 transition-colors hover:text-white"
         >
           <ArrowLeft className="size-4" /> Volver al inicio
         </Link>
@@ -50,8 +51,8 @@ export default function AuthPage() {
         {/* Tarjeta glass */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-xl sm:p-8">
           <div className="mb-6 text-center">
-            <h1 className="text-xl font-bold text-white">Human Power | RRHH</h1>
-            <p className="mt-1 text-sm text-white/50">
+            <h1 className="t-h3 text-white">Human Power | RRHH</h1>
+            <p className="mt-1 t-muted text-white/60">
               {needsAdmin ? "Acceso al panel de administración" : "Acceso a tu cuenta"}
             </p>
           </div>
@@ -63,23 +64,24 @@ export default function AuthPage() {
                 <ShieldAlert className="size-7" />
               </span>
               <div>
-                <p className="font-semibold text-white">Esta cuenta no es de administrador</p>
-                <p className="mt-1 text-sm text-white/50">
+                <p className="t-h3 text-white">Esta cuenta no es de administrador</p>
+                <p className="mt-1 t-muted text-white/60">
                   Ingresaste como <span className="text-white/80">{user?.email}</span>. El panel de
                   clientes requiere una cuenta de administrador.
                 </p>
               </div>
-              <button
+              <Button
+                variant="brand"
                 onClick={() => {
                   logout();
                   setError(null);
                 }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 py-2.5 text-sm font-semibold text-black transition hover:brightness-105"
+                className="w-full"
               >
                 <LogOut className="size-4" />
                 Ingresar con otra cuenta
-              </button>
-              <Link to="/" className="block text-sm text-white/50 transition hover:text-white">
+              </Button>
+              <Link to="/" className="block text-sm text-white/60 transition hover:text-white">
                 Volver al inicio
               </Link>
             </div>

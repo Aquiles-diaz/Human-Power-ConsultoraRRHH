@@ -8,15 +8,18 @@ import {
   BadgeCheck,
   ChevronLeft,
   CheckCircle2,
+  Gift,
   UploadCloud,
   Lock,
   X,
+  Filter,
 } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +37,7 @@ import { useJobs } from "./use-jobs";
 import { filterJobs } from "./job-filter";
 import { CATEGORIES, isValidCategory } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
+import { timeAgo, initials, typeStyles } from "./job-ui";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
 // Los filtros siguen operando en memoria sobre la lista completa.
@@ -42,32 +46,7 @@ const PAGE_SIZE = 20;
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades
 // ─────────────────────────────────────────────────────────────────────────────
-function timeAgo(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const days = Math.round((Date.now() - then) / 86_400_000);
-  if (days <= 0) return "Hoy";
-  if (days === 1) return "Hace 1 día";
-  if (days < 7) return `Hace ${days} días`;
-  const weeks = Math.round(days / 7);
-  return weeks === 1 ? "Hace 1 semana" : `Hace ${weeks} semanas`;
-}
-
-function initials(name = ""): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-}
-
-const typeStyles: Record<string, string> = {
-  Remoto: "bg-slate-100 text-slate-700",
-  Híbrido: "bg-slate-100 text-slate-700",
-  Presencial: "bg-slate-100 text-slate-700",
-};
+// timeAgo, initials y typeStyles viven en job-ui.ts (única fuente; compartidos con JobListItem/JobDetail).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tarjeta de la lista (columna izquierda)
@@ -79,10 +58,12 @@ const JobListItem: React.FC<{
 }> = ({ job, active, onSelect }) => (
   <button
     onClick={onSelect}
-    className={`w-full text-left rounded-2xl border p-4 transition-all ${
+    className={`w-full cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-md ${
+      // El resaltado ámbar (activo) solo en desktop: ahí se ve el detalle al lado.
+      // En mobile el detalle es otra pantalla, así que todas las tarjetas se ven iguales.
       active
-        ? "border-amber-400 bg-amber-50/60 shadow-sm"
-        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+        ? "lg:border-l-4 lg:border-l-amber-500 lg:bg-amber-50 lg:shadow-sm lg:hover:border-l-amber-500 lg:hover:bg-amber-50"
+        : ""
     }`}
   >
     <div className="flex items-start gap-3">
@@ -99,12 +80,16 @@ const JobListItem: React.FC<{
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              typeStyles[job.type] ?? "bg-slate-100 text-slate-600"
+              typeStyles[job.type] ?? "bg-blue-50 text-blue-700"
             }`}
           >
             {job.type}
           </span>
-          <span className="text-[11px] text-slate-400">{timeAgo(job.postedAt)}</span>
+          {timeAgo(job.postedAt) && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+              {timeAgo(job.postedAt)}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -122,112 +107,141 @@ const JobDetail: React.FC<{
   <div className="flex h-full flex-col">
     {/* Encabezado del detalle */}
     <div className="border-b border-slate-100 p-5 sm:p-6">
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 lg:hidden"
-        >
-          <ChevronLeft size={16} /> Volver
-        </button>
-      )}
-      <div className="flex items-start gap-4">
-        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-slate-900 text-base font-bold text-white">
-          {initials(job.company)}
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{job.title}</h2>
-          <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-slate-600">
-            <Building2 size={15} /> {job.company}
-          </p>
+      {/* Columna de lectura: limita el ancho del texto para una medida cómoda */}
+      <div className="mx-auto max-w-3xl">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 lg:hidden"
+          >
+            <ChevronLeft size={16} /> Volver
+          </button>
+        )}
+        <div className="flex items-start gap-4">
+          <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-slate-900 text-base font-bold text-white">
+            {initials(job.company)}
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{job.title}</h2>
+            <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-slate-600">
+              <Building2 size={15} /> {job.company}
+            </p>
+          </div>
+        </div>
+
+        {/* Chips de datos clave — fila homogénea, con borde e íconos definidos */}
+        <div className="mt-4 flex flex-wrap gap-2 text-sm">
+          {job.location && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700">
+              <MapPin size={16} className="text-slate-500" /> {job.location}
+            </span>
+          )}
+          {job.type && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700">
+              <BadgeCheck size={16} className="text-slate-500" /> {job.type}
+            </span>
+          )}
+          {job.salary && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700">
+              <Wallet size={16} className="text-slate-500" /> {job.salary}
+            </span>
+          )}
+          {timeAgo(job.postedAt) && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700">
+              <Clock size={16} className="text-slate-500" /> {timeAgo(job.postedAt)}
+            </span>
+          )}
         </div>
       </div>
-
-      {/* Chips de datos clave */}
-      <div className="mt-4 flex flex-wrap gap-2 text-sm">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700">
-          <MapPin size={14} /> {job.location}
-        </span>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${
-            typeStyles[job.type] ?? "bg-slate-100 text-slate-700"
-          }`}
-        >
-          <BadgeCheck size={14} /> {job.type}
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700">
-          <Wallet size={14} /> {job.salary}
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700">
-          <Clock size={14} /> {timeAgo(job.postedAt)}
-        </span>
-      </div>
-
-      <Button
-        variant="brand"
-        className="mt-5 w-full rounded-2xl sm:w-auto sm:px-10"
-        onClick={onApply}
-      >
-        Postularme
-      </Button>
     </div>
 
     {/* Cuerpo scrolleable */}
-    <div className="flex-1 space-y-6 overflow-y-auto p-5 sm:p-6">
-      <section>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Descripción del puesto
-        </h3>
-        <p className="text-sm leading-relaxed text-slate-600">{job.description}</p>
-      </section>
+    <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+      <div className="mx-auto max-w-3xl space-y-8">
+        {job.description && (
+          <section>
+            <h3 className="mb-3 text-lg font-bold text-slate-900">
+              Descripción del puesto
+            </h3>
+            <p className="text-sm leading-relaxed text-slate-600">{job.description}</p>
+          </section>
+        )}
 
-      <DetailList title="Responsabilidades" items={job.responsibilities} />
-      <DetailList title="Requisitos" items={job.requirements} />
+        <DetailList title="Responsabilidades" items={job.responsibilities} />
+        <DetailList title="Requisitos" items={job.requirements} />
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Skills
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {job.skills.map((s, i) => (
-            <Badge key={`${s}-${i}`} variant="secondary" className="rounded-lg">
-              {s}
-            </Badge>
-          ))}
-        </div>
-      </section>
+        {job.skills?.length ? (
+          <section>
+            <h3 className="mb-3 text-lg font-bold text-slate-900">Skills</h3>
+            <div className="flex flex-wrap gap-2">
+              {job.skills.map((s, i) => (
+                <Badge
+                  key={`${s}-${i}`}
+                  variant="secondary"
+                  className="rounded-lg border-slate-300 bg-slate-200 px-3 py-1 text-sm text-slate-700"
+                >
+                  {s}
+                </Badge>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Beneficios
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {job.benefits.map((b, i) => (
-            <span
-              key={`${b}-${i}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
-            >
-              <CheckCircle2 size={14} className="text-emerald-600" /> {b}
-            </span>
-          ))}
-        </div>
-      </section>
+        {job.benefits?.length ? (
+          <section>
+            <h3 className="mb-3 text-lg font-bold text-slate-900">Beneficios</h3>
+            <div className="flex flex-wrap gap-2">
+              {job.benefits.map((b, i) => (
+                <span
+                  key={`${b}-${i}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900"
+                >
+                  <Gift size={15} className="text-amber-500" /> {b}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </div>
+
+    {/* CTA siempre visible — footer anclado con sombra hacia arriba que lo despega
+        del contenido. En mobile ocupa todo el ancho (mejor toque); desde sm queda
+        alineado a la derecha y con ancho automático, para no verse como una barra. */}
+    <div className="sticky bottom-0 z-10 border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      <div className="mx-auto flex max-w-3xl justify-end">
+        <Button
+          variant="brand"
+          className="w-full rounded-2xl sm:w-auto sm:px-8"
+          onClick={onApply}
+        >
+          Postularme
+        </Button>
+      </div>
     </div>
   </div>
 );
 
-const DetailList: React.FC<{ title: string; items: string[] }> = ({ title, items }) => (
-  <section>
-    <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
-    <ul className="space-y-1.5">
-      {items.map((it, i) => (
-        <li key={`${it}-${i}`} className="flex gap-2 text-sm text-slate-600">
-          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
-          <span>{it}</span>
-        </li>
-      ))}
-    </ul>
-  </section>
-);
+const DetailList: React.FC<{ title: string; items: string[] }> = ({ title, items }) => {
+  // Render condicional: si el campo viene vacío, no mostramos ni el título (sin huecos).
+  if (!items || items.length === 0) return null;
+  return (
+    <section>
+      <h3 className="mb-3 text-lg font-bold text-slate-900">{title}</h3>
+      <ul className="space-y-2.5">
+        {items.map((it, i) => (
+          <li
+            key={`${it}-${i}`}
+            className="flex gap-3 text-sm leading-relaxed text-slate-600"
+          >
+            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
+            <span>{it}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modal de postulación
@@ -454,6 +468,7 @@ const OfertasPage: React.FC = () => {
   const [applyOpen, setApplyOpen] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [filtersOpen, setFiltersOpen] = useState(false); // mobile: selects secundarios colapsados
 
   const locations = useMemo(
     () => [...new Set(jobs.map((j) => j.location).filter(Boolean))],
@@ -465,6 +480,11 @@ const OfertasPage: React.FC = () => {
     () => filterJobs(jobs, { q: searchTerm, location: locationFilter, type: typeFilter, category: categoryFilter }),
     [jobs, searchTerm, locationFilter, typeFilter, categoryFilter]
   );
+
+  // Cuántos filtros secundarios están activos (badge del botón "Filtros" en mobile).
+  const activeFilterCount = [locationFilter, typeFilter, categoryFilter].filter(
+    Boolean
+  ).length;
 
   // Al cambiar los filtros, la lista se reordena: volvemos a mostrar desde el principio.
   useEffect(() => {
@@ -495,12 +515,12 @@ const OfertasPage: React.FC = () => {
 
       <main className="min-h-screen bg-slate-50 text-slate-900">
         <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-          {/* Encabezado */}
-          <div className="mb-6">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-500 sm:text-xs">
+          {/* Encabezado — oculto en mobile cuando se ve el detalle (pantalla completa) */}
+          <div className={`mb-6 ${mobileDetail ? "hidden lg:block" : ""}`}>
+            <p className="t-eyebrow">
               Nuestras Vacantes
             </p>
-            <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Encontrá tu próximo desafío</h1>
+            <h1 className="mt-1 t-h1">Encontrá tu próximo desafío</h1>
             <p className="mt-1 text-sm text-slate-500">
               {loading
                 ? "Cargando ofertas…"
@@ -510,54 +530,76 @@ const OfertasPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Filtros */}
-          <div className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 lg:grid-cols-5">
-            <div className="relative lg:col-span-2">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Buscar por puesto o empresa…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-11 pl-10"
-              />
+          {/* Filtros — mobile: solo búsqueda + botón "Filtros" (selects colapsables) */}
+          <div className={`mb-6 space-y-3 ${mobileDetail ? "hidden lg:block" : ""}`}>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar puesto o empresa…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-white pl-10"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((v) => !v)}
+                aria-expanded={filtersOpen}
+                className="inline-flex h-11 shrink-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 lg:hidden"
+              >
+                <Filter size={16} /> Filtros
+                {activeFilterCount > 0 && (
+                  <span className="grid size-5 place-items-center rounded-full bg-amber-500 text-[11px] font-bold text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
             </div>
-            <select
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+
+            <div
+              className={`grid-cols-1 gap-3 sm:grid-cols-3 lg:grid ${
+                filtersOpen ? "grid" : "hidden"
+              }`}
             >
-              <option value="">Todas las ubicaciones</option>
-              {locations.map((loc) => (
-                <option key={loc} value={loc}>
-                  {loc}
-                </option>
-              ))}
-            </select>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-            >
-              <option value="">Todas las modalidades</option>
-              {types.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-            >
-              <option value="">Todos los rubros</option>
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              <Select
+                variant="light"
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+              >
+                <option value="">Todas las ubicaciones</option>
+                {locations.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                variant="light"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+              >
+                <option value="">Todas las modalidades</option>
+                {types.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                variant="light"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="">Todos los rubros</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
 
           {loading ? (
@@ -573,12 +615,13 @@ const OfertasPage: React.FC = () => {
             <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/40 py-16 text-center">
               <h3 className="text-lg font-semibold text-slate-800">No pudimos cargar las ofertas</h3>
               <p className="mt-1 text-sm text-slate-500">{loadError}</p>
-              <button
+              <Button
+                variant="brand"
+                className="mt-4 rounded-xl"
                 onClick={() => window.location.reload()}
-                className="mt-4 inline-flex items-center rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-600"
               >
                 Reintentar
-              </button>
+              </Button>
             </div>
           ) : jobs.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center">
@@ -601,7 +644,7 @@ const OfertasPage: React.FC = () => {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
               {/* Lista */}
               <div
-                className={`space-y-3 lg:block lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto lg:pr-1 ${
+                className={`space-y-3 lg:block ${
                   mobileDetail ? "hidden" : "block"
                 }`}
               >
@@ -626,7 +669,7 @@ const OfertasPage: React.FC = () => {
               {/* Detalle */}
               {selectedJob && (
                 <div
-                  className={`rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-180px)] lg:overflow-hidden ${
+                  className={`rounded-2xl border border-slate-200 bg-white shadow lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-180px)] lg:overflow-hidden ${
                     mobileDetail ? "block" : "hidden"
                   }`}
                 >

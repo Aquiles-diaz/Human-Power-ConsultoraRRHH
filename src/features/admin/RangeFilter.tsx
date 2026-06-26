@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { resolveRange, type Range, type RangeKey } from "./admin-stats";
 
 const PRESETS: { key: RangeKey; label: string }[] = [
@@ -22,30 +24,33 @@ export function RangeFilter({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {PRESETS.map((p) => (
-        <button
+        <Button
           key={p.key}
+          type="button"
+          size="sm"
+          variant={value.key === p.key ? "brand" : "subtle"}
+          className="rounded-full"
           onClick={() => onChange(resolveRange(p.key, now))}
-          className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-            value.key === p.key ? "bg-amber-500 text-black" : "bg-white/5 text-white/60 hover:bg-white/10"
-          }`}
         >
           {p.label}
-        </button>
+        </Button>
       ))}
       <div className="flex items-center gap-1">
-        <input
+        <Input
           type="date"
+          variant="dark"
           aria-label="Desde"
-          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none [color-scheme:dark] focus:border-amber-400/50"
+          className="h-8 w-auto px-2 text-xs"
           onChange={(e) =>
             onChange({ key: "custom", from: e.target.value ? new Date(`${e.target.value}T00:00:00`) : null, to: value.to })
           }
         />
-        <span className="text-white/30">→</span>
-        <input
+        <span className="text-white/60">→</span>
+        <Input
           type="date"
+          variant="dark"
           aria-label="Hasta"
-          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none [color-scheme:dark] focus:border-amber-400/50"
+          className="h-8 w-auto px-2 text-xs"
           onChange={(e) =>
             onChange({ key: "custom", from: value.from, to: e.target.value ? new Date(`${e.target.value}T23:59:59`) : null })
           }

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+
 // Modal accesible reutilizable: cierra con Escape, toma foco al abrir, role=dialog.
 export function Modal({
   title,
@@ -33,18 +35,20 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-neutral-900/95 p-6 shadow-2xl outline-none backdrop-blur-xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-neutral-900/95 p-6 shadow-2xl outline-none backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <button
+          <h2 className="t-h3 text-white">{title}</h2>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
             aria-label="Cerrar"
-            className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10"
+            className="text-white/60 hover:bg-white/10 hover:text-white"
           >
             <X className="size-4" />
-          </button>
+          </Button>
         </div>
         {children}
       </div>
