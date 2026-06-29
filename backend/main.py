@@ -166,6 +166,17 @@ class ResumeItem(BaseModel):
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
 
+class ApplicationItem(BaseModel):
+    id: int
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    created_at: str
+    withdrawn_at: Optional[str] = None
+    status: str  # "active" | "withdrawn"
+
+class ApplicationsOut(BaseModel):
+    items: list[ApplicationItem]
+
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
@@ -919,6 +930,33 @@ def _download_profile_cv(user_id: int):
 @app.get("/me/profile/cv", tags=["profile"])
 def download_my_cv(current_user: dict = Depends(get_current_user)):
     return _download_profile_cv(current_user["id"])
+
+@app.get("/me/applications", response_model=ApplicationsOut, tags=["profile"])
+def list_my_applications(current_user: dict = Depends(get_current_user)) -> ApplicationsOut:
+    """Postulaciones del usuario logueado (por email), más nuevas primero."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, job_id, job_title, created_at, withdrawn_at
+            FROM resumes
+            WHERE email = %s
+            ORDER BY created_at DESC, id DESC
+            """,
+            (current_user["email"],),
+        )
+        rows = cur.fetchall()
+    return ApplicationsOut(items=[
+        ApplicationItem(
+            id=r[0],
+            job_id=r[1],
+            job_title=r[2],
+            created_at=_legacy_ts(r[3]),
+            withdrawn_at=_legacy_ts(r[4]),
+            status="withdrawn" if r[4] else "active",
+        )
+        for r in rows
+    ])
 
 @app.get("/uploads/{key}", tags=["default"])
 def serve_upload(key: str):
