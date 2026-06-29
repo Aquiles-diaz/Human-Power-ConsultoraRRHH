@@ -41,6 +41,7 @@ type ResumeRow = {
   message?: string;
   job_id?: string | null;
   job_title?: string | null;
+  withdrawn_at?: string | null;
 };
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
@@ -482,9 +483,16 @@ export default function AdminPanel() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="t-h3 truncate capitalize text-white">{cv.full_name}</h3>
-                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
-                      #{cv.id}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {cv.withdrawn_at && (
+                        <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-300">
+                          Retirada
+                        </span>
+                      )}
+                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
+                        #{cv.id}
+                      </span>
+                    </div>
                   </div>
                   <a
                     href={`mailto:${cv.email}`}
@@ -572,7 +580,14 @@ export default function AdminPanel() {
                         {initials(cv.full_name)}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate font-medium capitalize text-white">{cv.full_name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="truncate font-medium capitalize text-white">{cv.full_name}</p>
+                          {cv.withdrawn_at && (
+                            <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-300">
+                              Retirada
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-white/60">#{cv.id}</p>
                       </div>
                     </div>

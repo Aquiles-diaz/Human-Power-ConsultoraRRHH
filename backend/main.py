@@ -162,6 +162,7 @@ class ResumeItem(BaseModel):
     created_at: str
     job_id: Optional[str] = None
     job_title: Optional[str] = None
+    withdrawn_at: Optional[str] = None
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
@@ -705,7 +706,7 @@ def list_cvs_admin() -> ListCvOut:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, full_name, email, original_name, COALESCE(message, ''), created_at, job_id, job_title
+            SELECT id, full_name, email, original_name, COALESCE(message, ''), created_at, job_id, job_title, withdrawn_at
             FROM resumes
             ORDER BY id DESC
             """
@@ -720,6 +721,7 @@ def list_cvs_admin() -> ListCvOut:
                 created_at=_legacy_ts(r[5]),
                 job_id=r[6],
                 job_title=r[7],
+                withdrawn_at=_legacy_ts(r[8]),
             )
             for r in cur.fetchall()
         ]
