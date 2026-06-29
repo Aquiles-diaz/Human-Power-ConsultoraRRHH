@@ -503,6 +503,50 @@ def delete_job(job_id: str):
         raise HTTPException(status_code=404, detail="Puesto no encontrado")
     return {"ok": True}
 
+def _persist_resume(
+    *,
+    full_name: str,
+    email: str,
+    message: Optional[str],
+    key: str,
+    original: str,
+    mimetype: str,
+    size: int,
+    job_id: Optional[str] = None,
+    job_title: Optional[str] = None,
+) -> int:
+    """Inserta la fila en `resumes` para un objeto ya subido al bucket.
+
+    Si la DB falla, borra el objeto recién subido para no dejar huérfanos en el
+    bucket (compensación). storage.remove es idempotente, así que no enmascara
+    el error original. Lo comparten el path de archivo subido y el de copia
+    desde el perfil.
+    """
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO resumes (full_name, email, message, filename, original_name, mimetype, size, job_id, job_title)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    full_name.strip(), email.strip(), message or "", key, original,
+                    mimetype, size, job_id, job_title,
+                ),
+            )
+            resume_id = cur.fetchone()[0]
+            conn.commit()
+    except Exception:
+        storage.remove(storage.CV_BUCKET, key)
+        raise
+
+    # No logueamos email ni nombre de archivo (PII); con el id alcanza para auditar.
+    log.info("CV guardado: id=%s (%s bytes) job=%s", resume_id, size, job_id or "—")
+    return resume_id
+
+
 async def _store_resume(
     *,
     full_name: str,
@@ -512,7 +556,7 @@ async def _store_resume(
     job_id: Optional[str] = None,
     job_title: Optional[str] = None,
 ) -> int:
-    """Valida y guarda un CV en disco + DB. Devuelve el id del registro.
+    """Valida y guarda un CV subido (multipart) en el bucket + DB. Devuelve el id.
 
     Reutilizado por el envío espontáneo (/cv) y por la postulación a un puesto (/apply).
     """
@@ -532,32 +576,50 @@ async def _store_resume(
     mimetype = file.content_type or _detect_mimetype(original)
     _upload_or_502(storage.CV_BUCKET, key, data, mimetype)
 
-    # Si la DB falla luego de subir el archivo, borramos el objeto recién subido
-    # para no dejar huérfanos en el bucket (compensación). storage.remove es
-    # idempotente, así que no enmascara el error original.
-    try:
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO resumes (full_name, email, message, filename, original_name, mimetype, size, job_id, job_title)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (
-                    full_name.strip(), email.strip(), message or "", key, original,
-                    mimetype, len(data), job_id, job_title,
-                ),
-            )
-            resume_id = cur.fetchone()[0]
-            conn.commit()
-    except Exception:
-        storage.remove(storage.CV_BUCKET, key)
-        raise
+    return _persist_resume(
+        full_name=full_name, email=email, message=message, key=key, original=original,
+        mimetype=mimetype, size=len(data), job_id=job_id, job_title=job_title,
+    )
 
-    # No logueamos email ni nombre de archivo (PII); con el id alcanza para auditar.
-    log.info("CV guardado: id=%s (%s bytes) job=%s", resume_id, len(data), job_id or "—")
-    return resume_id
+
+def _store_resume_from_profile(
+    *,
+    user_id: int,
+    full_name: str,
+    email: str,
+    message: Optional[str],
+    job_id: str,
+    job_title: str,
+) -> int:
+    """Postula reutilizando el CV ya cargado en el perfil del usuario.
+
+    Copia el objeto del perfil a una clave NUEVA (snapshot): así la postulación
+    conserva su propia copia aunque el usuario cambie o borre el CV de su perfil
+    más adelante.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT cv_filename, cv_original_name FROM profiles WHERE user_id = %s",
+            (user_id,),
+        ).fetchone()
+    if not row or not row[0]:
+        raise HTTPException(
+            status_code=400,
+            detail="No tenés un CV cargado en tu perfil. Subí uno para postularte.",
+        )
+
+    src_key = row[0]
+    original = row[1] or "cv"
+    data = storage.download_bytes(storage.CV_BUCKET, src_key)
+    ext = Path(original).suffix.lower()
+    key = f"cv-{uuid.uuid4().hex}{ext}"
+    mimetype = _detect_mimetype(original)
+    _upload_or_502(storage.CV_BUCKET, key, data, mimetype)
+
+    return _persist_resume(
+        full_name=full_name, email=email, message=message, key=key, original=original,
+        mimetype=mimetype, size=len(data), job_id=job_id, job_title=job_title,
+    )
 
 
 @app.post("/cv", response_model=UploadCvOut, tags=["default"])
@@ -584,10 +646,14 @@ async def apply_to_job(
     job_id: str = Form(..., max_length=100),
     job_title: str = Form(..., max_length=300),
     message: Optional[str] = Form(None, max_length=10_000),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
 ) -> UploadCvOut:
-    """Postulación a un puesto. Requiere sesión iniciada; toma nombre/email de la cuenta."""
+    """Postulación a un puesto. Requiere sesión iniciada; toma nombre/email de la cuenta.
+
+    Si no se adjunta archivo, se usa el CV ya cargado en el perfil del usuario
+    (postulación en un paso). Si tampoco hay CV en el perfil, falla con 400.
+    """
     # Validamos que el puesto exista y esté publicado, y usamos su título canónico
     # (ignoramos el job_title del Form para evitar inconsistencias/spoofing).
     with get_db() as conn:
@@ -597,14 +663,17 @@ async def apply_to_job(
     if not row:
         raise HTTPException(status_code=404, detail="El puesto no existe o ya no está disponible")
 
-    resume_id = await _store_resume(
-        full_name=current_user.get("name") or current_user.get("email", ""),
-        email=current_user["email"],
-        message=message,
-        file=file,
-        job_id=job_id,
-        job_title=row[0],
-    )
+    full_name = current_user.get("name") or current_user.get("email", "")
+    if file is not None and file.filename:
+        resume_id = await _store_resume(
+            full_name=full_name, email=current_user["email"], message=message,
+            file=file, job_id=job_id, job_title=row[0],
+        )
+    else:
+        resume_id = _store_resume_from_profile(
+            user_id=current_user["id"], full_name=full_name, email=current_user["email"],
+            message=message, job_id=job_id, job_title=row[0],
+        )
     return UploadCvOut(resume_id=resume_id)
 
 @app.get("/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])

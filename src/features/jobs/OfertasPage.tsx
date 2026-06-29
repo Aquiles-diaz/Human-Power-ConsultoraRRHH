@@ -13,6 +13,8 @@ import {
   Lock,
   X,
   Filter,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -260,12 +262,46 @@ const ApplyModal: React.FC<{
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // CV ya cargado en el perfil: si existe, la postulación es de un paso (no se
+  // vuelve a pedir el archivo). Se consulta al abrir el modal con sesión activa.
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [hasCv, setHasCv] = useState(false);
+  const [cvName, setCvName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !isAuthenticated) return;
+    let cancelled = false;
+    setProfileLoading(true);
+    authFetch(`/me/profile`, getAuthHeader())
+      .then(async (res) => {
+        if (!res.ok) throw new Error("perfil");
+        const p = (await res.json()) as { has_cv?: boolean; cv_original_name?: string | null };
+        if (cancelled) return;
+        setHasCv(!!p.has_cv);
+        setCvName(p.cv_original_name ?? null);
+      })
+      .catch(() => {
+        // Si no podemos leer el perfil, degradamos al flujo de subida (sin CV).
+        if (cancelled) return;
+        setHasCv(false);
+        setCvName(null);
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isAuthenticated, getAuthHeader]);
 
   function reset() {
     setFile(null);
     setMessage("");
     setSubmitting(false);
     setDone(false);
+    setHasCv(false);
+    setCvName(null);
+    setProfileLoading(false);
   }
 
   function handleClose() {
@@ -275,14 +311,16 @@ const ApplyModal: React.FC<{
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!job || !file) return;
+    if (!job) return;
+    if (!hasCv && !file) return; // sin CV en el perfil hay que adjuntar uno
     setSubmitting(true);
     try {
       const fd = new FormData();
       fd.append("job_id", job.id);
       fd.append("job_title", job.title);
       fd.append("message", message);
-      fd.append("file", file);
+      // Si hay archivo nuevo lo mandamos; si no, el backend usa el CV del perfil.
+      if (file) fd.append("file", file);
 
       // authFetch: ante 401 cierra la sesión global; el modal pasa solo a pedir login.
       const res = await authFetch(`/apply`, getAuthHeader(), { method: "POST", body: fd });
@@ -363,60 +401,88 @@ const ApplyModal: React.FC<{
               </div>
 
               {/* CV */}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Tu CV <span className="text-rose-600">*</span>
-                </label>
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-3 text-sm transition-colors ${
-                    file
-                      ? "border-emerald-300 bg-emerald-50"
-                      : "border-slate-300 hover:border-amber-400 hover:bg-amber-50/40"
-                  }`}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-amber-500 shadow-sm">
-                    <UploadCloud size={18} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    {file ? (
-                      <span className="block truncate font-medium text-emerald-700">{file.name}</span>
-                    ) : (
-                      <span className="text-slate-500">Subí tu CV (PDF, DOC o DOCX)</span>
+              {profileLoading ? (
+                // Mientras consultamos si ya tiene CV en el perfil.
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                  <Loader2 className="size-4 animate-spin" />
+                  Buscando tu CV…
+                </div>
+              ) : hasCv ? (
+                // Ya tiene CV en el perfil: postulación directa, sin volver a subirlo.
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Tu CV</label>
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-emerald-600 shadow-sm">
+                      <FileText size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-emerald-800">
+                        {cvName || "CV de tu perfil"}
+                      </span>
+                      <span className="text-xs text-emerald-700">Usaremos el CV de tu perfil</span>
+                    </span>
+                    <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Tu CV <span className="text-rose-600">*</span>
+                  </label>
+                  <label
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-3 text-sm transition-colors ${
+                      file
+                        ? "border-emerald-300 bg-emerald-50"
+                        : "border-slate-300 hover:border-amber-400 hover:bg-amber-50/40"
+                    }`}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-amber-500 shadow-sm">
+                      <UploadCloud size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      {file ? (
+                        <span className="block truncate font-medium text-emerald-700">{file.name}</span>
+                      ) : (
+                        <span className="text-slate-500">Subí tu CV (PDF, DOC o DOCX)</span>
+                      )}
+                    </span>
+                    {file && (
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.preventDefault();
+                          setFile(null);
+                        }}
+                        className="text-slate-400 hover:text-rose-500"
+                      >
+                        <X size={16} />
+                      </button>
                     )}
-                  </span>
-                  {file && (
-                    <button
-                      type="button"
-                      onClick={(ev) => {
-                        ev.preventDefault();
-                        setFile(null);
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const selected = e.target.files?.[0];
+                        if (!selected) {
+                          setFile(null);
+                          return;
+                        }
+                        const validationError = validateCvFile(selected);
+                        if (validationError) {
+                          toast.error(validationError);
+                          e.target.value = "";
+                          return;
+                        }
+                        setFile(selected);
                       }}
-                      className="text-slate-400 hover:text-rose-500"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                    onChange={(e) => {
-                      const selected = e.target.files?.[0];
-                      if (!selected) {
-                        setFile(null);
-                        return;
-                      }
-                      const validationError = validateCvFile(selected);
-                      if (validationError) {
-                        toast.error(validationError);
-                        e.target.value = "";
-                        return;
-                      }
-                      setFile(selected);
-                    }}
-                  />
-                </label>
-              </div>
+                    />
+                  </label>
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    Guardá tu CV en tu perfil para postularte más rápido la próxima vez.
+                  </p>
+                </div>
+              )}
 
               {/* Mensaje opcional */}
               <div>
@@ -447,7 +513,7 @@ const ApplyModal: React.FC<{
                 type="submit"
                 variant="brand"
                 className="flex-1 rounded-xl"
-                disabled={!file || submitting}
+                disabled={submitting || profileLoading || (!hasCv && !file)}
               >
                 {submitting ? "Enviando…" : "Enviar postulación"}
               </Button>
