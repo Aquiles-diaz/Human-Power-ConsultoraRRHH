@@ -6,7 +6,7 @@ import OfertasPreview from "./sections/OfertasPreview";
 import CtaBanner from "./sections/CtaBanner";
 import Contacto from "./sections/Contacto";
 import LandingFooter from "./sections/LandingFooter";
-import FaqChatWidget from "@/features/faq/FaqChatWidget";
+import FaqWidget from "@/features/faq/FaqWidget";
 import { useSeo } from "@/lib/use-seo";
 import { JsonLd } from "@/components/shared/JsonLd";
 import { organizationLd, DEFAULT_TITLE, DEFAULT_DESCRIPTION } from "@/lib/seo";
@@ -24,7 +24,7 @@ export default function LandingPage() {
       <Servicios />
       <Contacto />
       <LandingFooter />
-      <FaqChatWidget />
+      <FaqWidget />
     </div>
   );
 }
