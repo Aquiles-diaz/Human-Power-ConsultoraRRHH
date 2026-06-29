@@ -54,4 +54,12 @@ describe("MyApplications", () => {
     await waitFor(() => expect(mockApi.withdrawApplication).toHaveBeenCalledWith(headers, 1));
     expect(await screen.findByText("Dada de baja")).toBeInTheDocument();
   });
+
+  it("muestra el estado de error y reintenta", async () => {
+    mockApi.getMyApplications.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce([]);
+    render(<MyApplications authHeaders={headers} />);
+    expect(await screen.findByText(/no pudimos cargar tus postulaciones/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
+    expect(await screen.findByText(/todavía no te postulaste/i)).toBeInTheDocument();
+  });
 });

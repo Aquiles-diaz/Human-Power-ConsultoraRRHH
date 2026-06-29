@@ -38,7 +38,7 @@ export default function MyApplications({ authHeaders }: { authHeaders: Record<st
     setWorking(true);
     try {
       const updated = await withdrawApplication(authHeaders, confirmId);
-      setApps((cur) => cur?.map((a) => (a.id === updated.id ? updated : a)) ?? null);
+      setApps((cur) => (cur ?? []).map((a) => (a.id === updated.id ? updated : a)));
       toast.success("Postulación dada de baja");
       setConfirmId(null);
     } catch (err) {
@@ -67,7 +67,7 @@ export default function MyApplications({ authHeaders }: { authHeaders: Record<st
     );
   }
 
-  if (apps && apps.length === 0) {
+  if ((apps ?? []).length === 0) {
     return (
       <div className="py-16 text-center">
         <FileText className="mx-auto size-8 text-slate-300" />
@@ -85,7 +85,7 @@ export default function MyApplications({ authHeaders }: { authHeaders: Record<st
   return (
     <>
       <ul className="space-y-3">
-        {apps!.map((a) => {
+        {(apps ?? []).map((a) => {
           const withdrawn = a.status === "withdrawn";
           return (
             <li
@@ -121,7 +121,7 @@ export default function MyApplications({ authHeaders }: { authHeaders: Record<st
                     className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                     onClick={() => setConfirmId(a.id)}
                   >
-                    <Ban className="size-4" /> Dar de baja
+                    <Ban className="size-4" aria-hidden="true" /> Dar de baja
                   </Button>
                 )}
               </div>
