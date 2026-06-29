@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS resumes (
     size          BIGINT,
     job_id        TEXT,            -- NULL = envío espontáneo
     job_title     TEXT,
-    created_at    timestamptz NOT NULL DEFAULT now()
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    withdrawn_at  timestamptz             -- baja blanda; NULL = postulación activa
 );
 
 -- ── Puestos / ofertas laborales (gestionados desde el panel admin) ────────
