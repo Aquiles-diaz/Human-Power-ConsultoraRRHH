@@ -958,6 +958,38 @@ def list_my_applications(current_user: dict = Depends(get_current_user)) -> Appl
         for r in rows
     ])
 
+@app.post("/me/applications/{application_id}/withdraw", response_model=ApplicationItem, tags=["profile"])
+def withdraw_my_application(
+    application_id: int,
+    current_user: dict = Depends(get_current_user),
+) -> ApplicationItem:
+    """Baja blanda: marca la postulación como retirada. Solo el dueño (por email)."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, job_id, job_title, created_at, withdrawn_at FROM resumes WHERE id = %s AND email = %s",
+            (application_id, current_user["email"]),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Postulación no encontrada")
+        if row[4] is None:  # withdrawn_at
+            cur.execute("UPDATE resumes SET withdrawn_at = now() WHERE id = %s", (application_id,))
+            conn.commit()
+            cur.execute(
+                "SELECT id, job_id, job_title, created_at, withdrawn_at FROM resumes WHERE id = %s",
+                (application_id,),
+            )
+            row = cur.fetchone()
+    return ApplicationItem(
+        id=row[0],
+        job_id=row[1],
+        job_title=row[2],
+        created_at=_legacy_ts(row[3]),
+        withdrawn_at=_legacy_ts(row[4]),
+        status="withdrawn" if row[4] else "active",
+    )
+
 @app.get("/uploads/{key}", tags=["default"])
 def serve_upload(key: str):
     """Sirve una foto de perfil desde el bucket privado.

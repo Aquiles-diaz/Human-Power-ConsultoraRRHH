@@ -106,6 +106,32 @@ def test_list_returns_only_my_apps_desc():
     assert items[0]["status"] == "active"
 
 
+def test_withdraw_marks_withdrawn_and_is_idempotent():
+    state = seed()
+    client = make_client(state)
+    r = client.post("/me/applications/1/withdraw")
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert r.json()["status"] == "withdrawn"
+    assert r.json()["withdrawn_at"]
+    # segundo llamado: idempotente, sigue dada de baja
+    r2 = client.post("/me/applications/1/withdraw")
+    assert r2.status_code == 200, (r2.status_code, r2.text)
+    assert r2.json()["status"] == "withdrawn"
+
+
+def test_withdraw_other_users_app_returns_404():
+    state = seed()
+    r = make_client(state).post("/me/applications/9/withdraw")
+    assert r.status_code == 404, (r.status_code, r.text)
+    assert state["resumes"][2]["withdrawn_at"] is None, "no debe tocar la postulación ajena"
+
+
+def test_withdraw_missing_returns_404():
+    state = seed()
+    r = make_client(state).post("/me/applications/123/withdraw")
+    assert r.status_code == 404, (r.status_code, r.text)
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 if __name__ == "__main__":
