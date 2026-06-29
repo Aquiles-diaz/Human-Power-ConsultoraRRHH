@@ -21,6 +21,7 @@ import { isAllowedVideoUrl } from "@/lib/video-embeds";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
 import ChangePasswordDialog from "./ChangePasswordDialog";
+import MyApplications from "./MyApplications";
 import { computeProfileCompletion } from "./completion";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
@@ -68,6 +69,7 @@ export default function ProfilePage() {
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
   const [pwOpen, setPwOpen] = useState(false);
+  const [tab, setTab] = useState<"perfil" | "postulaciones">("perfil");
 
   const completion = useMemo(
     () => computeProfileCompletion(profile),
@@ -261,8 +263,22 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
-              {/* ── Encabezado unificado: avatar + identidad ── */}
-              <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+              {/* ── Solapas: Mi perfil | Mis postulaciones ── */}
+              <div className="mb-6 flex gap-1 border-b border-slate-200" role="tablist">
+                <TabButton active={tab === "perfil"} onClick={() => setTab("perfil")}>
+                  Mi perfil
+                </TabButton>
+                <TabButton active={tab === "postulaciones"} onClick={() => setTab("postulaciones")}>
+                  Mis postulaciones
+                </TabButton>
+              </div>
+
+              {tab === "postulaciones" ? (
+                <MyApplications authHeaders={authHeaders} />
+              ) : (
+                <>
+                  {/* ── Encabezado unificado: avatar + identidad ── */}
+                  <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 {/* avatar con cámara al pasar el mouse */}
                 <div className="group relative shrink-0">
                   {profile?.photo_url ? (
@@ -571,11 +587,13 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <ChangePasswordDialog
-                open={pwOpen}
-                onOpenChange={setPwOpen}
-                authHeaders={authHeaders}
-              />
+                  <ChangePasswordDialog
+                    open={pwOpen}
+                    onOpenChange={setPwOpen}
+                    authHeaders={authHeaders}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
@@ -690,5 +708,31 @@ function SelectField({
         />
       </div>
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+        active
+          ? "border-amber-500 text-slate-900"
+          : "border-transparent text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
