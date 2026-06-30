@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     salary_expectation TEXT,
     headline           TEXT,
     video_url          TEXT,
+    video_filename    TEXT,            -- key del objeto en el bucket de videos (2º proyecto)
     photo_filename     TEXT,   -- clave del objeto en el bucket de fotos
     cv_filename        TEXT,   -- clave del objeto en el bucket de CVs
     cv_original_name   TEXT,

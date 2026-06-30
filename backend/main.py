@@ -23,6 +23,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
+from . import storage_video  # Supabase Storage para videos (2º proyecto)
 from . import emailer  # envío de emails (consultas de contacto)
 from .auth import require_admin, get_current_user  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
@@ -39,6 +40,8 @@ class Settings(BaseModel):
     allowed_ext: set[str] = Field(default_factory=lambda: {".pdf", ".doc", ".docx"})
     allowed_image_ext: set[str] = Field(default_factory=lambda: {".jpg", ".jpeg", ".png", ".webp"})
     max_image_bytes: int = Field(default=int(os.getenv("MAX_IMAGE_BYTES", 5 * 1024 * 1024)))  # 5 MB
+    max_video_bytes: int = Field(default=int(os.getenv("MAX_VIDEO_BYTES", 8 * 1024 * 1024)))  # 8 MB
+    allowed_video_types: set[str] = Field(default_factory=lambda: {"video/webm", "video/mp4"})
 
 settings = Settings()
 
@@ -182,7 +185,7 @@ class ApplicationsOut(BaseModel):
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
     "professional_area", "education_level", "experience_years",
-    "availability", "salary_expectation", "headline", "video_url",
+    "availability", "salary_expectation", "headline",
 ]
 
 class ProfileUpdate(BaseModel):
@@ -784,6 +787,7 @@ def _profile_row_to_out(user: dict, row=None) -> ProfileOut:
         has_cv=bool(data.get("cv_filename")),
         cv_original_name=data.get("cv_original_name"),
         updated_at=_legacy_ts(data.get("updated_at")),
+        video_url=storage_video.public_url(data.get("video_filename")) or data.get("video_url"),
         **{f: data.get(f) for f in PROFILE_TEXT_FIELDS},
     )
 
