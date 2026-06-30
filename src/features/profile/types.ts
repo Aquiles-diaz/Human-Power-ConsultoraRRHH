@@ -38,7 +38,6 @@ export const PROFILE_TEXT_FIELDS = [
   "availability",
   "salary_expectation",
   "headline",
-  "video_url",
 ] as const;
 
 // Opciones para los selects (reutilizadas también por los filtros del admin)
