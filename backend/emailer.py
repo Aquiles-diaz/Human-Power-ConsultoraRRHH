@@ -17,6 +17,9 @@ import os
 import smtplib
 import socket
 from email.message import EmailMessage
+from email.utils import parseaddr
+
+import requests
 
 log = logging.getLogger("humanpower.email")
 
@@ -27,6 +30,12 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "no-reply@humanpower.com")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() in ("1", "true", "yes")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+# Brevo (API HTTP, puerto 443). Render free bloquea el SMTP saliente, así que en
+# producción mandamos por HTTP. Si BREVO_API_KEY está seteada, tiene precedencia
+# sobre el SMTP. El remitente sale de SMTP_FROM (debe ser un sender verificado).
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 class _SMTPForceIPv4(smtplib.SMTP):
@@ -45,9 +54,36 @@ class _SMTPForceIPv4(smtplib.SMTP):
         return socket.create_connection(infos[0][4], timeout, self.source_address)
 
 
+def _send_via_brevo(to: str, subject: str, html_body: str,
+                    text_body: str | None, reply_to: str | None) -> None:
+    """Manda el mail por la API HTTP de Brevo (puerto 443; no lo bloquea Render)."""
+    name, addr = parseaddr(SMTP_FROM)
+    sender = {"email": addr}
+    if name:
+        sender["name"] = name
+    payload = {"sender": sender, "to": [{"email": to}], "subject": subject,
+               "htmlContent": html_body}
+    if text_body:
+        payload["textContent"] = text_body
+    if reply_to:
+        payload["replyTo"] = {"email": reply_to}
+    resp = requests.post(
+        BREVO_API_URL,
+        headers={"api-key": BREVO_API_KEY, "accept": "application/json",
+                 "content-type": "application/json"},
+        json=payload, timeout=15,
+    )
+    if resp.status_code >= 300:
+        raise RuntimeError(f"Brevo respondió {resp.status_code}: {resp.text[:300]}")
+    log.info("Email enviado por Brevo a %s (asunto: %s)", to, subject)
+
+
 def send_email(to: str, subject: str, html_body: str, text_body: str | None = None,
                reply_to: str | None = None) -> None:
-    """Envía un email. En dev (sin SMTP_HOST) loguea en vez de mandar."""
+    """Envía un email. Precedencia: Brevo (HTTP) > SMTP > dev (loguea, no manda)."""
+    if BREVO_API_KEY:
+        _send_via_brevo(to, subject, html_body, text_body, reply_to)
+        return
     if not SMTP_HOST:
         log.warning(
             "[EMAIL DEV] SMTP no configurado; no se envía. Para: %s | Asunto: %s\n%s",
