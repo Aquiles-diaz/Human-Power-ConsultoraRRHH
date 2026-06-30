@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/utils";
 import type { Profile } from "./types";
 import { uploadVideo } from "./video-api";
-import { validateVideoFile, MAX_VIDEO_SECONDS } from "./video-upload";
+import { validateVideoFile, MAX_VIDEO_SECONDS, pickRecorderMime } from "./video-upload";
 
 type Phase = "welcome" | "ready" | "countdown" | "recording" | "review" | "saving" | "done";
 
@@ -44,6 +44,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cdRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const celebrationRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Bloqueo de scroll del body + foco inicial dentro del overlay + limpieza.
   useEffect(() => {
@@ -80,6 +81,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     clearTimeout(stopTimerRef.current);
     clearInterval(cdRef.current);
     clearTimeout(celebrationRef.current);
+    clearTimeout(watchdogRef.current);
   }
 
   function teardown() {
@@ -148,8 +150,10 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     }
     let rec: MediaRecorder;
     try {
-      const mime = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "video/mp4";
-      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 700_000 });
+      const mime = pickRecorderMime();
+      rec = mime
+        ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 700_000 })
+        : new MediaRecorder(stream, { videoBitsPerSecond: 700_000 });
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => {
         if (e.data.size) chunks.push(e.data);
@@ -157,34 +161,54 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
       rec.onstop = () => {
         clearTimers();
         if (closedRef.current) return;
-        const blob = new Blob(chunks, { type: mime });
+        // Tipo real del recorder (en iOS suele ser mp4), sin codecs para que matchee
+        // el whitelist del backend (video/webm | video/mp4).
+        const real = (rec.mimeType || mime || "video/mp4").split(";")[0].trim().toLowerCase();
+        const type = real === "video/webm" ? "video/webm" : "video/mp4";
+        const blob = new Blob(chunks, { type });
         if (!blob.size) {
-          setError("No se grabó nada. Probá de nuevo.");
+          setError("No se grabó nada. Probá de nuevo o subí un archivo 👇");
           setPhase("ready");
           return;
         }
-        const ext = mime === "video/webm" ? "webm" : "mp4";
-        fileRef.current = new File([blob], `presentacion.${ext}`, { type: mime });
+        const ext = type === "video/webm" ? "webm" : "mp4";
+        fileRef.current = new File([blob], `presentacion.${ext}`, { type });
         recordedUrlRef.current = URL.createObjectURL(blob);
         setPhase("review");
       };
       recRef.current = rec;
-      rec.start();
+      // timeslice: clave en iOS para que entregue datos y stop() finalice de verdad.
+      rec.start(1000);
     } catch {
-      setError("No pudimos iniciar la grabación. Podés subir un archivo.");
+      setError("Tu teléfono no dejó iniciar la grabación. Probá subir un archivo 👇");
       setPhase("ready");
       return;
     }
     setElapsed(0);
     setPhase("recording");
     tickRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    stopTimerRef.current = setTimeout(() => {
-      if (rec.state !== "inactive") rec.stop();
-    }, MAX_VIDEO_SECONDS * 1000);
+    stopTimerRef.current = setTimeout(stopRecording, MAX_VIDEO_SECONDS * 1000);
   }
 
   function stopRecording() {
-    if (recRef.current && recRef.current.state !== "inactive") recRef.current.stop();
+    const rec = recRef.current;
+    if (!rec || rec.state === "inactive") return;
+    // Red de seguridad: si en este dispositivo stop() no dispara onstop (bug de iOS),
+    // no dejamos al usuario trabado en "grabando" — avisamos y ofrecemos subir archivo.
+    // Se arma ANTES del stop() por si onstop fuese síncrono (lo limpia clearTimers).
+    clearTimeout(watchdogRef.current);
+    watchdogRef.current = setTimeout(() => {
+      if (closedRef.current) return;
+      setError("No pudimos cortar la grabación en este dispositivo. Probá subir un archivo 👇");
+      setPhase("ready");
+    }, 4000);
+    try {
+      rec.stop();
+    } catch {
+      clearTimeout(watchdogRef.current);
+      setError("No pudimos cortar la grabación en este dispositivo. Probá subir un archivo 👇");
+      setPhase("ready");
+    }
   }
 
   function retake() {
