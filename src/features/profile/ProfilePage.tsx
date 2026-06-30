@@ -8,7 +8,6 @@ import {
   FileText,
   Loader2,
   X,
-  ExternalLink,
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,9 +16,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
-import { isAllowedVideoUrl } from "@/lib/video-embeds";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
+import VideoUploader from "./VideoUploader";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import MyApplications from "./MyApplications";
 import { computeProfileCompletion } from "./completion";
@@ -131,14 +130,6 @@ export default function ProfilePage() {
   }
 
   async function saveProfile() {
-    const video = (form.video_url ?? "").trim();
-    // El video es opcional, pero si pegan un link tiene que ser válido.
-    if (video && !isAllowedVideoUrl(video)) {
-      toast.error("Link de video inválido", {
-        description: "Tiene que ser un link de TikTok, Instagram, YouTube o Vimeo.",
-      });
-      return;
-    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { languages: form.languages ?? [] };
@@ -417,43 +408,14 @@ export default function ProfilePage() {
 
                   {/* Video de presentación (opcional) */}
                   <div className="mt-6">
-                    <label htmlFor="video_url" className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                      Video de presentación{" "}
-                      <span className="font-normal text-slate-500">(opcional)</span>
+                    <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                      Video de presentación
                     </label>
-                    <div className="relative">
-                      <ExternalLink
-                        size={15}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      />
-                      <input
-                        id="video_url"
-                        type="url"
-                        inputMode="url"
-                        value={form.video_url ?? ""}
-                        onChange={(e) => setField("video_url", e.target.value)}
-                        placeholder="Link de TikTok, Instagram, YouTube o Vimeo"
-                        className={`${INPUT_CLS} pl-9`}
-                      />
-                    </div>
-                    <p className="mt-1.5 text-xs text-slate-500">
-                      Opcional: pegá el link de tu video en TikTok, Instagram, YouTube o Vimeo
-                      (idealmente de menos de 1 minuto).
-                    </p>
-                    <p className="mt-1 text-xs text-amber-700">
-                      Importante: el video tiene que estar <strong>público o “no listado”</strong> (no
-                      privado), si no, el equipo de RRHH no va a poder verlo.
-                    </p>
-                    {form.video_url && isAllowedVideoUrl(form.video_url) && (
-                      <a
-                        href={form.video_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-amber-700 hover:text-amber-800"
-                      >
-                        <ExternalLink size={14} /> Ver video cargado
-                      </a>
-                    )}
+                    <VideoUploader
+                      authHeaders={authHeaders}
+                      videoUrl={form.video_url}
+                      onUpdated={(p) => { setProfile(p); setForm(p); }}
+                    />
                   </div>
                 </Row>
 

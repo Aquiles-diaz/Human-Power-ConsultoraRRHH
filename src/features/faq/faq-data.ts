@@ -6,7 +6,7 @@ export const FAQS: Faq[] = [
   {
     id: "cv-video",
     q: '¿Qué es el "CV en video"?',
-    a: "Es tu carta de presentación en video: además del CV en PDF, sumás un video corto (idealmente de menos de 1 minuto) contándole a las empresas quién sos. Te ayuda a destacar entre cientos de CV y a mostrar tu primera impresión.",
+    a: "Es tu carta de presentación en video: además del CV en PDF, sumás un video corto (idealmente de menos de 30 segundos) contándole a las empresas quién sos. Te ayuda a destacar entre cientos de CV y a mostrar tu primera impresión.",
   },
   {
     id: "postularme",

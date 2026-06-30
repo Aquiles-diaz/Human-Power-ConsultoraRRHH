@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/Modal";
 import VideoPreview from "./VideoPreview";
-import { isAllowedVideoUrl, getVideoEmbed } from "@/lib/video-embeds";
+import { getVideoEmbed } from "@/lib/video-embeds";
 import {
   EDUCATION_LEVELS,
   PROFESSIONAL_AREAS,
@@ -331,7 +331,7 @@ export default function CandidatesView() {
                 </Button>
               </div>
 
-              {active.video_url && isAllowedVideoUrl(active.video_url) && (
+              {active.video_url && getVideoEmbed(active.video_url) && (
                 <div className="mt-5">
                   <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-white/80">
                     <Video className="size-4" /> Video de presentación
