@@ -992,7 +992,7 @@ def delete_my_video(current_user: dict = Depends(get_current_user)) -> ProfileOu
             "SELECT video_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
         ).fetchone()
         conn.execute(
-            "UPDATE profiles SET video_filename = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
+            "UPDATE profiles SET video_filename = NULL, video_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
             (current_user["id"],),
         )
         conn.commit()

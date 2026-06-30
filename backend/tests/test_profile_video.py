@@ -39,7 +39,6 @@ def test_ext_for_only_allows_webm_and_mp4():
     assert storage_video.ext_for("video/quicktime") is None
 
 
-import io
 import uuid as _uuid
 from fastapi.testclient import TestClient
 from backend.db import DualRow
@@ -125,6 +124,7 @@ def test_upload_video_ok_sets_filename_and_replaces_previous():
     assert new_key.startswith("1/") and new_key.endswith(".webm"), new_key
     assert state["video_filename"] == new_key
     assert "1/old.webm" in state.get("removed", []), "debe borrar el anterior"
+    assert new_key not in state.get("removed", []), "no debe borrar el video recién subido"
 
 
 def test_delete_video_clears_filename_and_removes_object():
