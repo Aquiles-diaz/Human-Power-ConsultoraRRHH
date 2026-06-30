@@ -315,7 +315,12 @@ def password_reset_request(request: Request, dto: PasswordResetRequestDTO):
             user["email"], "reset", 30,
             extra={"fp": _password_fingerprint(user["password_hash"])},
         )
-        emailer.send_password_reset(user["email"], token)
+        # No propagar fallos de envío: un 500 acá delataría que el email existe
+        # (enumeración). Logueamos y respondemos igual que para un email no registrado.
+        try:
+            emailer.send_password_reset(user["email"], token)
+        except Exception as e:
+            log.warning("No se pudo enviar el email de reset a %s: %s", user["email"], e)
     return {"message": "Si el email está registrado, te enviamos un enlace para restablecer la contraseña."}
 
 
@@ -339,7 +344,10 @@ def verify_email_request(request: Request, dto: EmailVerifyRequestDTO):
     user = get_user_by_email(dto.email)
     if user and not user.get("email_verified"):
         token = create_purpose_token(user["email"], "verify", 60 * 24)
-        emailer.send_email_verification(user["email"], token)
+        try:
+            emailer.send_email_verification(user["email"], token)
+        except Exception as e:
+            log.warning("No se pudo enviar el email de verificación a %s: %s", user["email"], e)
     return {"message": "Si el email está registrado y sin verificar, te enviamos un enlace de confirmación."}
 
 
