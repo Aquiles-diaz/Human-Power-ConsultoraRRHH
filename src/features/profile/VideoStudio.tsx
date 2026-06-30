@@ -14,8 +14,14 @@ type Props = {
   onSaved: (p: Profile) => void;
 };
 
-// Tips que bajan la ansiedad y guían qué decir.
-const TIPS = ["Mirá a la cámara 👀", "Buena luz de frente", "Arrancá con tu nombre y a qué te dedicás"];
+// Guion de 30 segundos sugerido por RRHH: da estructura y baja la ansiedad de
+// "no sé qué decir". Orden: presentación → a qué te dedicás → qué buscás → cierre.
+const SCRIPT: { title: string; hint: string }[] = [
+  { title: "Presentate", hint: "tu nombre" },
+  { title: "A qué te dedicás", hint: "tu rubro o experiencia" },
+  { title: "Qué estás buscando", hint: "el trabajo que querés" },
+  { title: "Hobbies y demás", hint: "algo tuyo, para cerrar" },
+];
 
 const RING_R = 34;
 const RING_C = 2 * Math.PI * RING_R;
@@ -38,6 +44,9 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
   const previewRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]); // datos acumulados por el timeslice
+  const mimeRef = useRef<string>(""); // mimeType elegido al iniciar el recorder
+  const finalizedRef = useRef(false); // evita finalizar dos veces (onstop + watchdog)
   const fileRef = useRef<File | null>(null);
   const recordedUrlRef = useRef<string | null>(null);
   const closedRef = useRef(false); // evita callbacks/setState tras cerrar/desmontar
@@ -157,30 +166,17 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
       rec = mime
         ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 600_000 })
         : new MediaRecorder(stream, { videoBitsPerSecond: 600_000 });
-      const chunks: Blob[] = [];
+      chunksRef.current = [];
+      mimeRef.current = mime;
+      finalizedRef.current = false;
       rec.ondataavailable = (e) => {
-        if (e.data.size) chunks.push(e.data);
+        if (e.data.size) chunksRef.current.push(e.data);
       };
-      rec.onstop = () => {
-        clearTimers();
-        if (closedRef.current) return;
-        // Tipo real del recorder (en iOS suele ser mp4), sin codecs para que matchee
-        // el whitelist del backend (video/webm | video/mp4).
-        const real = (rec.mimeType || mime || "video/mp4").split(";")[0].trim().toLowerCase();
-        const type = real === "video/webm" ? "video/webm" : "video/mp4";
-        const blob = new Blob(chunks, { type });
-        if (!blob.size) {
-          setError("No se grabó nada. Probá de nuevo o subí un archivo 👇");
-          setPhase("ready");
-          return;
-        }
-        const ext = type === "video/webm" ? "webm" : "mp4";
-        fileRef.current = new File([blob], `presentacion.${ext}`, { type });
-        recordedUrlRef.current = URL.createObjectURL(blob);
-        setPhase("review");
-      };
+      // En iOS, onstop suele NO dispararse: por eso finalizar no depende de él
+      // (lo hace también el watchdog desde los chunks ya acumulados por el timeslice).
+      rec.onstop = finalizeRecording;
       recRef.current = rec;
-      // timeslice: clave en iOS para que entregue datos y stop() finalice de verdad.
+      // timeslice: clave en iOS para que entregue datos durante la grabación.
       rec.start(1000);
     } catch {
       setError("Tu teléfono no dejó iniciar la grabación. Probá subir un archivo 👇");
@@ -193,24 +189,48 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     stopTimerRef.current = setTimeout(stopRecording, MAX_VIDEO_SECONDS * 1000);
   }
 
+  // Arma el File a partir de los chunks ya acumulados (por el timeslice) y pasa a
+  // revisión. NO depende de onstop: lo llaman tanto onstop (desktop/Android) como el
+  // watchdog (iOS, donde stop() no dispara onstop). El guard evita finalizar dos veces.
+  function finalizeRecording() {
+    if (finalizedRef.current) return;
+    finalizedRef.current = true;
+    clearTimers();
+    if (closedRef.current) return;
+    // Tipo real del recorder (en iOS suele ser mp4), sin codecs para que matchee
+    // el whitelist del backend (video/webm | video/mp4).
+    const real = (recRef.current?.mimeType || mimeRef.current || "video/mp4").split(";")[0].trim().toLowerCase();
+    const type = real === "video/webm" ? "video/webm" : "video/mp4";
+    const blob = new Blob(chunksRef.current, { type });
+    if (!blob.size) {
+      setError("No se grabó nada. Probá de nuevo o subí un archivo 👇");
+      setPhase("ready");
+      return;
+    }
+    const ext = type === "video/webm" ? "webm" : "mp4";
+    fileRef.current = new File([blob], `presentacion.${ext}`, { type });
+    recordedUrlRef.current = URL.createObjectURL(blob);
+    setPhase("review");
+  }
+
   function stopRecording() {
     const rec = recRef.current;
     if (!rec || rec.state === "inactive") return;
+    // iOS a veces no suelta el último pedazo solo: lo pedimos antes de stop().
+    try {
+      rec.requestData?.();
+    } catch {
+      /* no-op: algunos navegadores no lo soportan */
+    }
     // Red de seguridad: si en este dispositivo stop() no dispara onstop (bug de iOS),
-    // no dejamos al usuario trabado en "grabando" — avisamos y ofrecemos subir archivo.
-    // Se arma ANTES del stop() por si onstop fuese síncrono (lo limpia clearTimers).
+    // NO perdemos la grabación — finalizamos igual con los chunks que el timeslice ya
+    // acumuló. Si onstop sí dispara, corre antes y el guard evita el doble finalize.
     clearTimeout(watchdogRef.current);
-    watchdogRef.current = setTimeout(() => {
-      if (closedRef.current) return;
-      setError("No pudimos cortar la grabación en este dispositivo. Probá subir un archivo 👇");
-      setPhase("ready");
-    }, 4000);
+    watchdogRef.current = setTimeout(finalizeRecording, 1500);
     try {
       rec.stop();
     } catch {
-      clearTimeout(watchdogRef.current);
-      setError("No pudimos cortar la grabación en este dispositivo. Probá subir un archivo 👇");
-      setPhase("ready");
+      finalizeRecording();
     }
   }
 
@@ -331,13 +351,21 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
             <p className="mt-2 text-sm leading-relaxed text-white/70">
               Contanos quién sos en 30 segundos. Es lo que más mira el equipo de RRHH de HumanPower.
             </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {TIPS.map((t) => (
-                <span key={t} className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/80">
-                  {t}
-                </span>
+            {/* Guion sugerido: la estructura de los 30 segundos, paso a paso. */}
+            <ol className="mx-auto mt-5 max-w-xs space-y-2 text-left">
+              {SCRIPT.map((s, i) => (
+                <li key={s.title} className="flex items-start gap-3 rounded-xl bg-white/5 px-3 py-2">
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-amber-500 text-[11px] font-bold text-black">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm leading-snug">
+                    <span className="font-semibold">{s.title}</span>
+                    <span className="text-white/55"> — {s.hint}</span>
+                  </span>
+                </li>
               ))}
-            </div>
+            </ol>
+            <p className="mt-4 text-xs text-white/50">Mirá a la cámara, con buena luz de frente 👀</p>
             <Button
               variant="brand"
               className="mt-7 w-full rounded-full py-6 text-base"

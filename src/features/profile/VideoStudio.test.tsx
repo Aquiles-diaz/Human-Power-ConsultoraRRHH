@@ -42,10 +42,28 @@ class FakeRecorder {
     this.onstop?.();
   }
 }
-// Variante que "cuelga": stop() no dispara onstop (bug clásico de iOS).
+// Variante que "cuelga" SIN datos: stop() no dispara onstop y nunca llegó un
+// chunk (cámara que no entregó nada). Debe caer al fallback "subir archivo".
 class HangRecorder extends FakeRecorder {
   stop() {
     this.state = "inactive";
+  }
+}
+// iOS real: el timeslice SÍ entrega chunks durante la grabación, pero stop() no
+// dispara onstop (bug de WebKit). El video ya está en los chunks acumulados.
+class IOSHangRecorder extends FakeRecorder {
+  start(timeslice?: number) {
+    super.start(timeslice);
+    // El primer timeslice ya entregó datos.
+    this.ondataavailable?.({ data: new Blob(["humanpower-video-bytes"]) });
+  }
+  requestData() {
+    // iOS necesita un requestData() explícito para soltar el último pedazo.
+    this.ondataavailable?.({ data: new Blob(["last-chunk"]) });
+  }
+  stop() {
+    this.state = "inactive";
+    // onstop NUNCA dispara (iOS).
   }
 }
 
@@ -81,9 +99,14 @@ describe("VideoStudio", () => {
     expect(pickRecorderMime()).toBe("video/webm;codecs=vp8");
   });
 
-  it("muestra la bienvenida con tips y el botón de activar cámara", () => {
+  it("muestra la bienvenida con el guion de 4 pasos y el botón de activar cámara", () => {
     render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText(/tu momento/i)).toBeInTheDocument();
+    // El guion que pidió RRHH: presentación → a qué te dedicás → qué buscás → hobbies.
+    expect(screen.getByText(/presentate/i)).toBeInTheDocument();
+    expect(screen.getByText(/a qué te dedicás/i)).toBeInTheDocument();
+    expect(screen.getByText(/qué estás buscando/i)).toBeInTheDocument();
+    expect(screen.getByText(/hobbies/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /activar cámara/i })).toBeInTheDocument();
   });
 
@@ -145,7 +168,36 @@ describe("VideoStudio", () => {
     expect(file.name).toMatch(/\.mp4$/);
   });
 
-  it("si stop() cuelga (no dispara onstop), avisa y vuelve a 'listo' para subir archivo", async () => {
+  it("iOS: si stop() no dispara onstop pero el timeslice ya entregó datos, recupera el video y va a revisión", async () => {
+    vi.useFakeTimers();
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = IOSHangRecorder;
+    FakeRecorder.supported = false;
+    stubCamera(() => Promise.resolve({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    mockApi.uploadVideo.mockResolvedValue({ video_url: "https://x/v.mp4" });
+
+    render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await recordUntilRecording();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /detener/i }));
+      await vi.advanceTimersByTimeAsync(1500); // sin onstop, el watchdog finaliza desde los chunks
+    });
+
+    // Recuperó el video: estamos en revisión, NO tiramos la grabación con un error.
+    expect(screen.getByRole("button", { name: /usar este video/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no pudimos cortar/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /usar este video/i }));
+      await flush();
+    });
+    expect(mockApi.uploadVideo).toHaveBeenCalled();
+    const file = mockApi.uploadVideo.mock.calls[0][1] as File;
+    expect(file.type).toBe("video/mp4");
+  });
+
+  it("si stop() cuelga y no hubo datos, avisa y vuelve a 'listo' para subir archivo", async () => {
     vi.useFakeTimers();
     (globalThis as { MediaRecorder?: unknown }).MediaRecorder = HangRecorder;
     FakeRecorder.supported = false;
@@ -154,11 +206,11 @@ describe("VideoStudio", () => {
 
     render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
     await recordUntilRecording();
-    fireEvent.click(screen.getByRole("button", { name: /detener/i }));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(4000); // watchdog
+      fireEvent.click(screen.getByRole("button", { name: /detener/i }));
+      await vi.advanceTimersByTimeAsync(1500); // watchdog finaliza, pero no hay chunks
     });
-    expect(screen.getByText(/no pudimos cortar la grabación/i)).toBeInTheDocument();
+    expect(screen.getByText(/no se grabó nada/i)).toBeInTheDocument();
     expect(screen.getByTestId("studio-file-input")).toBeInTheDocument();
   });
 
