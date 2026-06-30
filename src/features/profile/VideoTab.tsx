@@ -100,7 +100,7 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
                   src={embed.src}
                   controls
                   playsInline
-                  className="aspect-[9/16] w-full rounded-2xl bg-black object-cover ring-1 ring-white/10"
+                  className="aspect-[3/4] w-full rounded-2xl bg-black object-cover ring-1 ring-white/10"
                 />
               ) : (
                 <div className="aspect-[9/16] w-full overflow-hidden rounded-2xl ring-1 ring-white/10">
@@ -160,7 +160,7 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
             <button
               type="button"
               onClick={() => setStudio(true)}
-              className="group mx-auto mt-6 grid aspect-[9/16] w-full max-w-[220px] place-items-center rounded-2xl border border-white/15 bg-white/5 transition hover:border-amber-400/50 hover:bg-white/10"
+              className="group mx-auto mt-6 grid aspect-[3/4] w-full max-w-[220px] place-items-center rounded-2xl border border-white/15 bg-white/5 transition hover:border-amber-400/50 hover:bg-white/10"
             >
               <span className="grid size-14 place-items-center rounded-full bg-amber-500 text-black transition group-hover:scale-105">
                 <Play size={26} className="ml-0.5 fill-current" />

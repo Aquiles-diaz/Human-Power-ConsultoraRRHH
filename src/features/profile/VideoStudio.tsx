@@ -22,7 +22,8 @@ const RING_C = 2 * Math.PI * RING_R;
 
 /**
  * Estudio de grabación a pantalla completa: oscuro e íntimo. Graba un video
- * vertical (9:16) de hasta 30s, con cuenta regresiva, anillo de progreso y un
+ * retrato 3:4 (encuadre natural del frente, sin zoom) de hasta 30s, con cuenta
+ * regresiva, anillo de progreso y un
  * paso de revisión "Repetir / Usar" (regrabar sin culpa). Reusa los endpoints
  * y validaciones existentes. La grabación real exige un navegador con cámara;
  * el QA de cámara/permiso se hace en dispositivo real.
@@ -109,7 +110,9 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 720 }, height: { ideal: 1280 }, facingMode: "user" },
+        // Ratio NATURAL del frente (3:4) a baja resolución: encuadre normal (sin zoom
+        // por recorte) y liviano. Forzar 9:16 recortaba el sensor → "se grababa muy de cerca".
+        video: { width: { ideal: 540 }, height: { ideal: 720 }, facingMode: "user" },
         audio: true,
       });
       // Si cerraron el estudio mientras pedíamos permiso, no dejes la cámara prendida.
@@ -152,8 +155,8 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     try {
       const mime = pickRecorderMime();
       rec = mime
-        ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 700_000 })
-        : new MediaRecorder(stream, { videoBitsPerSecond: 700_000 });
+        ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 600_000 })
+        : new MediaRecorder(stream, { videoBitsPerSecond: 600_000 });
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => {
         if (e.data.size) chunks.push(e.data);
@@ -351,7 +354,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
           <div className="flex w-full max-w-[360px] flex-1 flex-col items-center">
             {/* El video se ajusta al alto disponible para que el botón SIEMPRE quede a la vista. */}
             <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-              <div className="relative aspect-[9/16] h-full max-w-full overflow-hidden rounded-3xl bg-black shadow-2xl ring-1 ring-white/10">
+              <div className="relative aspect-[3/4] max-h-full w-full max-w-[320px] overflow-hidden rounded-3xl bg-black shadow-2xl ring-1 ring-white/10">
                 <video
                   ref={previewRef}
                   className="h-full w-full -scale-x-100 object-cover"
@@ -431,7 +434,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
               src={recordedUrlRef.current ?? undefined}
               controls
               playsInline
-              className="aspect-[9/16] max-h-[55vh] w-full rounded-3xl bg-black object-cover ring-1 ring-white/10"
+              className="aspect-[3/4] max-h-[55vh] w-full rounded-3xl bg-black object-cover ring-1 ring-white/10"
             />
             <p className="mt-3 text-center text-xs text-white/60">
               Tranqui, lo regrabás las veces que quieras.
