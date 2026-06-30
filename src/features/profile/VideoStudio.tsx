@@ -1,0 +1,459 @@
+import { useEffect, useRef, useState } from "react";
+import { X, Circle, Square, RotateCcw, Check, Upload, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/utils";
+import type { Profile } from "./types";
+import { uploadVideo } from "./video-api";
+import { validateVideoFile, MAX_VIDEO_SECONDS } from "./video-upload";
+
+type Phase = "welcome" | "ready" | "countdown" | "recording" | "review" | "saving" | "done";
+
+type Props = {
+  authHeaders: Record<string, string>;
+  onClose: () => void;
+  onSaved: (p: Profile) => void;
+};
+
+// Tips que bajan la ansiedad y guían qué decir.
+const TIPS = ["Mirá a la cámara 👀", "Buena luz de frente", "Arrancá con tu nombre y a qué te dedicás"];
+
+const RING_R = 34;
+const RING_C = 2 * Math.PI * RING_R;
+
+/**
+ * Estudio de grabación a pantalla completa: oscuro e íntimo. Graba un video
+ * vertical (9:16) de hasta 30s, con cuenta regresiva, anillo de progreso y un
+ * paso de revisión "Repetir / Usar" (regrabar sin culpa). Reusa los endpoints
+ * y validaciones existentes. La grabación real exige un navegador con cámara;
+ * el QA de cámara/permiso se hace en dispositivo real.
+ */
+export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
+  const [phase, setPhase] = useState<Phase>("welcome");
+  const [countdown, setCountdown] = useState(3);
+  const [elapsed, setElapsed] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const fileRef = useRef<File | null>(null);
+  const recordedUrlRef = useRef<string | null>(null);
+  const closedRef = useRef(false); // evita callbacks/setState tras cerrar/desmontar
+  const tickRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cdRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const celebrationRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bindTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Bloqueo de scroll del body + foco inicial dentro del overlay + limpieza.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    rootRef.current?.focus();
+    return () => {
+      document.body.style.overflow = prev;
+      teardown();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function clearTimers() {
+    clearInterval(tickRef.current);
+    clearTimeout(stopTimerRef.current);
+    clearInterval(cdRef.current);
+    clearTimeout(celebrationRef.current);
+    clearTimeout(bindTimerRef.current);
+  }
+
+  function teardown() {
+    closedRef.current = true;
+    clearTimers();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (recordedUrlRef.current) {
+      URL.revokeObjectURL(recordedUrlRef.current);
+      recordedUrlRef.current = null;
+    }
+  }
+
+  function close() {
+    if (closedRef.current) return; // ya cerrado: no dispares onClose dos veces
+    teardown();
+    onClose();
+  }
+
+  function bindPreview() {
+    const v = previewRef.current;
+    const stream = streamRef.current;
+    if (v && stream) {
+      v.srcObject = stream;
+      v.muted = true;
+      void v.play().catch(() => {});
+    }
+  }
+
+  async function activateCamera() {
+    setError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Tu navegador no soporta la cámara. Podés subir un archivo.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 720 }, height: { ideal: 1280 }, facingMode: "user" },
+        audio: true,
+      });
+      // Si cerraron el estudio mientras pedíamos permiso, no dejes la cámara prendida.
+      if (closedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      streamRef.current = stream;
+      setPhase("ready");
+      bindTimerRef.current = setTimeout(bindPreview, 0); // tras render del <video>
+    } catch {
+      if (!closedRef.current) setError("No pudimos acceder a la cámara. Podés subir un archivo.");
+    }
+  }
+
+  function startCountdown() {
+    setError(null);
+    setCountdown(3);
+    setPhase("countdown");
+    cdRef.current = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(cdRef.current);
+          beginRecording();
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  }
+
+  function beginRecording() {
+    const stream = streamRef.current;
+    if (!stream) return;
+    if (typeof MediaRecorder === "undefined") {
+      setError("Tu navegador no soporta grabar video. Podés subir un archivo.");
+      setPhase("ready");
+      return;
+    }
+    let rec: MediaRecorder;
+    try {
+      const mime = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "video/mp4";
+      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 700_000 });
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size) chunks.push(e.data);
+      };
+      rec.onstop = () => {
+        clearTimers();
+        if (closedRef.current) return;
+        const blob = new Blob(chunks, { type: mime });
+        if (!blob.size) {
+          setError("No se grabó nada. Probá de nuevo.");
+          setPhase("ready");
+          return;
+        }
+        const ext = mime === "video/webm" ? "webm" : "mp4";
+        fileRef.current = new File([blob], `presentacion.${ext}`, { type: mime });
+        recordedUrlRef.current = URL.createObjectURL(blob);
+        setPhase("review");
+      };
+      recRef.current = rec;
+      rec.start();
+    } catch {
+      setError("No pudimos iniciar la grabación. Podés subir un archivo.");
+      setPhase("ready");
+      return;
+    }
+    setElapsed(0);
+    setPhase("recording");
+    tickRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+    stopTimerRef.current = setTimeout(() => {
+      if (rec.state !== "inactive") rec.stop();
+    }, MAX_VIDEO_SECONDS * 1000);
+  }
+
+  function stopRecording() {
+    if (recRef.current && recRef.current.state !== "inactive") recRef.current.stop();
+  }
+
+  function retake() {
+    if (recordedUrlRef.current) {
+      URL.revokeObjectURL(recordedUrlRef.current);
+      recordedUrlRef.current = null;
+    }
+    fileRef.current = null;
+    setElapsed(0);
+    setPhase("ready");
+    bindTimerRef.current = setTimeout(bindPreview, 0); // el stream sigue vivo
+  }
+
+  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const v = validateVideoFile(f);
+    if (v) {
+      setError(v);
+      return;
+    }
+    void save(f);
+  }
+
+  async function save(file: File) {
+    setError(null);
+    setPhase("saving");
+    try {
+      const profile = await uploadVideo(authHeaders, file);
+      if (closedRef.current) return;
+      setPhase("done");
+      celebrationRef.current = setTimeout(() => {
+        if (closedRef.current) return;
+        onSaved(profile);
+        close();
+      }, 1500);
+    } catch (err) {
+      if (closedRef.current) return;
+      setError(getErrorMessage(err) ?? "No se pudo subir el video.");
+      setPhase(fileRef.current ? "review" : "ready");
+    }
+  }
+
+  // Esc cierra + foco atrapado dentro del overlay (a11y de modal).
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const root = rootRef.current;
+    if (!root) return;
+    const list = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, video[controls], [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
+    if (list.length === 0) {
+      e.preventDefault();
+      root.focus();
+      return;
+    }
+    const first = list[0];
+    const last = list[list.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && (active === first || active === root)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  const showCamera = phase === "ready" || phase === "countdown" || phase === "recording";
+  const ringOffset = RING_C * (1 - Math.min(elapsed, MAX_VIDEO_SECONDS) / MAX_VIDEO_SECONDS);
+
+  return (
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Estudio de grabación"
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+      className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-neutral-950 text-white outline-none"
+    >
+      {/* Barra superior: salir + contador */}
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6">
+        <button
+          type="button"
+          onClick={close}
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
+        >
+          <X size={18} /> Salir del estudio
+        </button>
+        {phase === "recording" && (
+          <span className="inline-flex items-center gap-2 text-sm font-medium tabular-nums text-white/90">
+            <span className="size-2 animate-pulse rounded-full bg-rose-500" /> REC{" "}
+            {String(Math.floor(elapsed / 60)).padStart(1, "0")}:{String(elapsed % 60).padStart(2, "0")} /
+            0:{MAX_VIDEO_SECONDS}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8">
+        {/* ── Bienvenida ── */}
+        {phase === "welcome" && (
+          <div className="w-full max-w-sm text-center">
+            <p className="text-3xl">🎬</p>
+            <h2 className="mt-3 text-2xl font-bold">Tu momento</h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/70">
+              Contanos quién sos en 30 segundos. Es lo que más mira el equipo de RRHH de HumanPower.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {TIPS.map((t) => (
+                <span key={t} className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/80">
+                  {t}
+                </span>
+              ))}
+            </div>
+            <Button
+              variant="brand"
+              className="mt-7 w-full rounded-full py-6 text-base"
+              onClick={activateCamera}
+            >
+              Activar cámara
+            </Button>
+            <UploadFallback onPick={onPickFile} />
+          </div>
+        )}
+
+        {/* ── Cámara (lista / countdown / grabando) ── */}
+        {showCamera && (
+          <div className="flex w-full max-w-[320px] flex-col items-center">
+            <div className="relative aspect-[9/16] w-full overflow-hidden rounded-3xl bg-black shadow-2xl ring-1 ring-white/10">
+              <video
+                ref={previewRef}
+                className="h-full w-full -scale-x-100 object-cover"
+                playsInline
+                autoPlay
+                muted
+              />
+              {/* viñeta que enfoca el rostro */}
+              <div className="pointer-events-none absolute inset-0 rounded-3xl shadow-[inset_0_0_90px_30px_rgba(0,0,0,0.6)]" />
+              {phase === "countdown" && (
+                <div className="absolute inset-0 grid place-items-center">
+                  <span className="text-7xl font-extrabold drop-shadow-lg">{countdown}</span>
+                </div>
+              )}
+              {phase === "ready" && (
+                <p className="absolute inset-x-0 bottom-4 text-center text-sm font-medium text-white/90 drop-shadow">
+                  Cuando estés listo, tocá grabar
+                </p>
+              )}
+            </div>
+
+            {/* Botón REC / Detener con anillo de progreso */}
+            <div className="relative mt-6 grid size-20 place-items-center">
+              {phase === "recording" && (
+                <svg className="absolute inset-0 -rotate-90" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r={RING_R} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r={RING_R}
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeDasharray={RING_C}
+                    strokeDashoffset={ringOffset}
+                    className="transition-[stroke-dashoffset] duration-1000 ease-linear"
+                  />
+                </svg>
+              )}
+              {phase === "recording" ? (
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  aria-label="Detener"
+                  className="grid size-14 place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
+                >
+                  <Square size={22} className="fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startCountdown}
+                  disabled={phase === "countdown"}
+                  aria-label="Grabar"
+                  className="grid size-16 place-items-center rounded-full bg-amber-500 text-black ring-4 ring-white/20 transition hover:bg-amber-400 disabled:opacity-60"
+                >
+                  <Circle size={26} className="fill-current" />
+                </button>
+              )}
+            </div>
+            {phase !== "recording" && <UploadFallback onPick={onPickFile} />}
+          </div>
+        )}
+
+        {/* ── Revisión ── */}
+        {phase === "review" && (
+          <div className="flex w-full max-w-[320px] flex-col items-center">
+            <video
+              src={recordedUrlRef.current ?? undefined}
+              controls
+              playsInline
+              className="aspect-[9/16] w-full rounded-3xl bg-black object-cover ring-1 ring-white/10"
+            />
+            <p className="mt-3 text-center text-xs text-white/60">
+              Tranqui, lo regrabás las veces que quieras.
+            </p>
+            <div className="mt-4 flex w-full gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-full border-white/20 bg-transparent text-white hover:bg-white/10"
+                onClick={retake}
+              >
+                <RotateCcw size={16} /> Repetir
+              </Button>
+              <Button variant="brand" className="flex-1 rounded-full" onClick={() => void save(fileRef.current!)}>
+                <Check size={16} /> Usar este video
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Guardando ── */}
+        {phase === "saving" && (
+          <div className="text-center text-white/80">
+            <Loader2 className="mx-auto size-8 animate-spin text-amber-500" />
+            <p className="mt-3 text-sm">Guardando tu presentación…</p>
+          </div>
+        )}
+
+        {/* ── Celebración ── */}
+        {phase === "done" && (
+          <div className="text-center">
+            <div className="mx-auto grid size-16 place-items-center rounded-full bg-amber-500 text-black">
+              <Check size={32} />
+            </div>
+            <p className="mt-4 text-lg font-bold">¡Listo! Así te van a ver.</p>
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" className="mt-5 max-w-sm text-center text-sm font-medium text-rose-400">
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Opción de respaldo siempre disponible (clave si la cámara falla o se deniega).
+function UploadFallback({ onPick }: { onPick: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+  return (
+    <label className="mt-4 inline-flex cursor-pointer items-center justify-center gap-2 text-sm text-white/60 transition hover:text-white/90">
+      <Upload size={15} /> Prefiero subir un archivo
+      <input
+        type="file"
+        accept="video/webm,video/mp4"
+        className="hidden"
+        data-testid="studio-file-input"
+        onChange={onPick}
+      />
+    </label>
+  );
+}

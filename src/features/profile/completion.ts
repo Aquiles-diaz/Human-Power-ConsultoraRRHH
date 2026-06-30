@@ -1,7 +1,8 @@
 import type { Profile } from "./types";
 
-export type MilestoneId = "account" | "cv" | "photo" | "personal" | "professional";
+export type MilestoneId = "account" | "video" | "cv" | "photo" | "personal" | "professional";
 export type MilestoneAction =
+  | "go-video"
   | "upload-cv"
   | "upload-photo"
   | "scroll-personal"
@@ -18,7 +19,7 @@ export type Milestone = {
   action: MilestoneAction;
 };
 
-export type BonusId = "email" | "languages" | "video";
+export type BonusId = "email" | "languages";
 export type BonusAction = "verify-email" | "scroll-professional" | null;
 
 export type Bonus = {
@@ -58,15 +59,19 @@ export function computeProfileCompletion(
   const personalDone = PERSONAL_FIELDS.filter((f) => filled(p?.[f])).length;
   const professionalDone = PROFESSIONAL_FIELDS.filter((f) => filled(p?.[f])).length;
 
+  // El video es el diferenciador de HumanPower ("CV en video"): por eso es un hito
+  // de peso alto (no un bonus) y queda primero para ganar los empates de "próximo
+  // paso". `video_url` cubre las 3 formas de cargarlo (grabado, subido o link).
   const milestones: Milestone[] = [
     { id: "account", label: "Creaste tu cuenta", benefit: "¡Ya diste el primer paso!", weight: 10, done: true, action: null },
-    { id: "cv", label: "Subí tu CV", benefit: "Es lo primero que mira RRHH.", weight: 30, done: !!p?.has_cv, action: "upload-cv" },
-    { id: "photo", label: "Agregá tu foto", benefit: "Un perfil con foto genera más confianza.", weight: 10, done: !!p?.photo_url, action: "upload-photo" },
+    { id: "video", label: "Grabá tu video de presentación", benefit: "Es lo que más mira RRHH en HumanPower.", weight: 25, done: filled(p?.video_url), action: "go-video" },
+    { id: "cv", label: "Subí tu CV", benefit: "Es lo primero que mira RRHH.", weight: 25, done: !!p?.has_cv, action: "upload-cv" },
+    { id: "photo", label: "Agregá tu foto", benefit: "Un perfil con foto genera más confianza.", weight: 5, done: !!p?.photo_url, action: "upload-photo" },
     {
       id: "personal",
       label: "Completá tus datos personales",
       benefit: "Ayuda a RRHH a ubicarte en las búsquedas.",
-      weight: 25,
+      weight: 20,
       done: personalDone === PERSONAL_FIELDS.length,
       partial: { done: personalDone, total: PERSONAL_FIELDS.length },
       action: "scroll-personal",
@@ -75,7 +80,7 @@ export function computeProfileCompletion(
       id: "professional",
       label: "Completá tu perfil profesional",
       benefit: "Mostrá tu experiencia para destacar.",
-      weight: 25,
+      weight: 15,
       done: professionalDone === PROFESSIONAL_FIELDS.length,
       partial: { done: professionalDone, total: PROFESSIONAL_FIELDS.length },
       action: "scroll-professional",
@@ -103,7 +108,6 @@ export function computeProfileCompletion(
   // La infra de verify-email (página/API/banner) queda dormida para re-activar.
   const bonuses: Bonus[] = [
     { id: "languages", label: "Agregá tus idiomas", benefit: "Sumá los idiomas que hablás.", done: (p?.languages?.length ?? 0) >= 1, action: "scroll-professional" },
-    { id: "video", label: "Subí un video de presentación", benefit: "Un video corto te hace destacar.", done: filled(p?.video_url), action: null },
   ];
 
   return { percent, complete: percent === 100, milestones, nextStep, bonuses };

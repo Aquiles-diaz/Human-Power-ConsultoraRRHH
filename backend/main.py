@@ -185,7 +185,7 @@ class ApplicationsOut(BaseModel):
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
     "professional_area", "education_level", "experience_years",
-    "availability", "salary_expectation", "headline",
+    "availability", "salary_expectation", "headline", "video_url",
 ]
 
 class ProfileUpdate(BaseModel):
@@ -787,8 +787,10 @@ def _profile_row_to_out(user: dict, row=None) -> ProfileOut:
         has_cv=bool(data.get("cv_filename")),
         cv_original_name=data.get("cv_original_name"),
         updated_at=_legacy_ts(data.get("updated_at")),
+        # video_url se arma con precedencia (archivo subido > link); por eso se
+        # excluye del spread de PROFILE_TEXT_FIELDS para no pasarlo dos veces.
         video_url=storage_video.public_url(data.get("video_filename")) or data.get("video_url"),
-        **{f: data.get(f) for f in PROFILE_TEXT_FIELDS},
+        **{f: data.get(f) for f in PROFILE_TEXT_FIELDS if f != "video_url"},
     )
 
 @app.get("/me/profile", response_model=ProfileOut, tags=["profile"])

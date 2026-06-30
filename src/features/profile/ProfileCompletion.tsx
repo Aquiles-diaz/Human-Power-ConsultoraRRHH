@@ -9,6 +9,7 @@ type Props = {
   onUploadCv: () => void;
   onUploadPhoto: () => void;
   onScrollTo: (id: "personal" | "professional") => void;
+  onGoVideo: () => void;
 };
 
 export default function ProfileCompletion({
@@ -17,6 +18,7 @@ export default function ProfileCompletion({
   onUploadCv,
   onUploadPhoto,
   onScrollTo,
+  onGoVideo,
 }: Props) {
   const { percent, complete, milestones, nextStep, bonuses } = result;
 
@@ -29,6 +31,8 @@ export default function ProfileCompletion({
 
   function runAction(action: Milestone["action"] | Bonus["action"]) {
     switch (action) {
+      case "go-video":
+        return onGoVideo();
       case "upload-cv":
         return onUploadCv();
       case "upload-photo":

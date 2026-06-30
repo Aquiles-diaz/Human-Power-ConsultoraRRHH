@@ -19,6 +19,7 @@ function renderWith(profile: Profile) {
       onUploadCv={noop}
       onUploadPhoto={noop}
       onScrollTo={noop}
+      onGoVideo={noop}
     />,
   );
 }
@@ -37,10 +38,10 @@ describe("ProfileCompletion", () => {
   it("celebra al 100%", () => {
     renderWith(
       makeProfile({
-        has_cv: true, photo_url: "/x.jpg", headline: "RRHH", phone: "1", city: "Rosario",
-        country: "Argentina", age_range: "25-34", professional_area: "Recursos Humanos",
-        education_level: "Universitario completo", experience_years: "3-5 años",
-        availability: "Inmediata", salary_expectation: "$800.000",
+        has_cv: true, video_url: "https://youtu.be/x", photo_url: "/x.jpg", headline: "RRHH",
+        phone: "1", city: "Rosario", country: "Argentina", age_range: "25-34",
+        professional_area: "Recursos Humanos", education_level: "Universitario completo",
+        experience_years: "3-5 años", availability: "Inmediata", salary_expectation: "$800.000",
       }),
     );
     expect(screen.getByText(/¡Perfil completo!/)).toBeInTheDocument();

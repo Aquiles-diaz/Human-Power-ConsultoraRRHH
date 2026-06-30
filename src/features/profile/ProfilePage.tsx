@@ -18,7 +18,7 @@ import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
-import VideoUploader from "./VideoUploader";
+import VideoTab from "./VideoTab";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import MyApplications from "./MyApplications";
 import { computeProfileCompletion } from "./completion";
@@ -68,7 +68,7 @@ export default function ProfilePage() {
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
   const [pwOpen, setPwOpen] = useState(false);
-  const [tab, setTab] = useState<"perfil" | "postulaciones">("perfil");
+  const [tab, setTab] = useState<"perfil" | "video" | "postulaciones">("perfil");
 
   const completion = useMemo(
     () => computeProfileCompletion(profile),
@@ -254,19 +254,33 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
-              {/* ── Solapas: Mi perfil | Mis postulaciones ── */}
-              <div className="mb-6 flex gap-1 border-b border-slate-200" role="tablist">
+              {/* ── Solapas: Mi perfil | Mi video | Mis postulaciones ── */}
+              <div className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist">
                 <TabButton active={tab === "perfil"} onClick={() => setTab("perfil")}>
                   Mi perfil
+                </TabButton>
+                <TabButton active={tab === "video"} onClick={() => setTab("video")}>
+                  Mi video
                 </TabButton>
                 <TabButton active={tab === "postulaciones"} onClick={() => setTab("postulaciones")}>
                   Mis postulaciones
                 </TabButton>
               </div>
 
-              {tab === "postulaciones" ? (
-                <MyApplications authHeaders={authHeaders} />
-              ) : (
+              {tab === "postulaciones" && <MyApplications authHeaders={authHeaders} />}
+
+              {tab === "video" && (
+                <VideoTab
+                  authHeaders={authHeaders}
+                  videoUrl={form.video_url}
+                  onUpdated={(p) => {
+                    setProfile(p);
+                    setForm(p);
+                  }}
+                />
+              )}
+
+              {tab === "perfil" && (
                 <>
                   {/* ── Encabezado unificado: avatar + identidad ── */}
                   <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
@@ -334,14 +348,15 @@ export default function ProfilePage() {
                     onUploadCv={() => cvInputRef.current?.click()}
                     onUploadPhoto={() => photoInputRef.current?.click()}
                     onScrollTo={scrollToSection}
+                    onGoVideo={() => setTab("video")}
                   />
                 </div>
               )}
 
               {/* ── Flujo de configuración (filas) ── */}
               <div>
-                {/* CV + video */}
-                <Row title="Currículum y video" desc="Tu CV y un video opcional de presentación.">
+                {/* CV */}
+                <Row title="Tu CV" desc="Subí tu currículum en PDF, DOC o DOCX.">
                   {profile?.has_cv ? (
                     <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
                       <span className="grid size-9 shrink-0 place-items-center rounded-md bg-slate-100 text-slate-500">
@@ -405,18 +420,6 @@ export default function ProfilePage() {
                     className="hidden"
                     onChange={onCvChange}
                   />
-
-                  {/* Video de presentación (opcional) */}
-                  <div className="mt-6">
-                    <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                      Video de presentación
-                    </label>
-                    <VideoUploader
-                      authHeaders={authHeaders}
-                      videoUrl={form.video_url}
-                      onUpdated={(p) => { setProfile(p); setForm(p); }}
-                    />
-                  </div>
                 </Row>
 
                 {/* Datos personales */}
