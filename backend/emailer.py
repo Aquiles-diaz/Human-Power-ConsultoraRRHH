@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import os
 import smtplib
+import socket
 from email.message import EmailMessage
 
 log = logging.getLogger("humanpower.email")
@@ -26,6 +27,22 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "no-reply@humanpower.com")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() in ("1", "true", "yes")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+
+class _SMTPForceIPv4(smtplib.SMTP):
+    """SMTP que fuerza IPv4 al conectar.
+
+    En algunos contenedores (p. ej. Render) el host tiene una IPv6 asignada pero
+    sin ruta de salida; smtplib elige IPv6 y falla con
+    'OSError: [Errno 101] Network is unreachable' antes de autenticar. Resolvemos
+    explícitamente a IPv4. Se mantiene el hostname (self._host, que setea connect)
+    para que starttls() valide el certificado contra smtp.gmail.com, no la IP."""
+
+    def _get_socket(self, host, port, timeout):
+        infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        if not infos:
+            raise OSError(f"sin dirección IPv4 para {host}:{port}")
+        return socket.create_connection(infos[0][4], timeout, self.source_address)
 
 
 def send_email(to: str, subject: str, html_body: str, text_body: str | None = None,
@@ -47,7 +64,7 @@ def send_email(to: str, subject: str, html_body: str, text_body: str | None = No
     msg.set_content(text_body or "Abre este correo en un cliente compatible con HTML.")
     msg.add_alternative(html_body, subtype="html")
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+    with _SMTPForceIPv4(SMTP_HOST, SMTP_PORT, timeout=15) as server:
         if SMTP_STARTTLS:
             server.starttls()
         if SMTP_USER:
