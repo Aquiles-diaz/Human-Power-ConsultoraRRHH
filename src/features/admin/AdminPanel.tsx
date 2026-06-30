@@ -29,6 +29,7 @@ import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import CandidatesView from "./CandidatesView";
 import VideoPreview from "./VideoPreview";
+import { getVideoEmbed } from "@/lib/video-embeds";
 import JobsManager from "./JobsManager";
 import ResumenDashboard from "./ResumenDashboard";
 
@@ -42,6 +43,7 @@ type ResumeRow = {
   job_id?: string | null;
   job_title?: string | null;
   withdrawn_at?: string | null;
+  video_url?: string | null;
 };
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
@@ -717,7 +719,11 @@ export default function AdminPanel() {
                   <Video className="size-4" /> Video
                 </p>
                 <div className="overflow-hidden rounded-xl border border-white/10">
-                  <VideoPreview message={active.message || ""} />
+                  {active.video_url && getVideoEmbed(active.video_url) ? (
+                    <VideoPreview url={active.video_url} />
+                  ) : (
+                    <VideoPreview message={active.message || ""} />
+                  )}
                 </div>
               </div>
             </div>

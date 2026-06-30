@@ -166,6 +166,7 @@ class ResumeItem(BaseModel):
     job_id: Optional[str] = None
     job_title: Optional[str] = None
     withdrawn_at: Optional[str] = None
+    video_url: Optional[str] = None  # video de presentación del perfil del candidato (si tiene)
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
@@ -710,9 +711,13 @@ def list_cvs_admin() -> ListCvOut:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, full_name, email, original_name, COALESCE(message, ''), created_at, job_id, job_title, withdrawn_at
-            FROM resumes
-            ORDER BY id DESC
+            SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, ''),
+                   r.created_at, r.job_id, r.job_title, r.withdrawn_at,
+                   p.video_filename, p.video_url
+            FROM resumes r
+            LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
+            LEFT JOIN profiles p ON p.user_id = u.id
+            ORDER BY r.id DESC
             """
         )
         rows = [
@@ -726,6 +731,8 @@ def list_cvs_admin() -> ListCvOut:
                 job_id=r[6],
                 job_title=r[7],
                 withdrawn_at=_legacy_ts(r[8]),
+                # video del perfil: archivo subido (precede) o link viejo
+                video_url=storage_video.public_url(r[9]) or r[10],
             )
             for r in cur.fetchall()
         ]
