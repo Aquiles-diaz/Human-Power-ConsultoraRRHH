@@ -44,7 +44,6 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cdRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const celebrationRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const bindTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Bloqueo de scroll del body + foco inicial dentro del overlay + limpieza.
   useEffect(() => {
@@ -58,12 +57,29 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Conecta el stream de la cámara al <video> del preview. Va en un efecto (no en
+  // un setTimeout) para que corra DESPUÉS del commit del DOM: así previewRef ya
+  // existe y, en iOS Safari, el play() arranca de verdad (el setTimeout previo
+  // podía correr antes del elemento o fuera del gesto y dejaba el preview en negro).
+  useEffect(() => {
+    if (phase !== "ready" && phase !== "countdown" && phase !== "recording") return;
+    const v = previewRef.current;
+    const stream = streamRef.current;
+    if (!v || !stream) return;
+    if (v.srcObject !== stream) v.srcObject = stream;
+    v.muted = true;
+    const play = () => void v.play().catch(() => {});
+    play();
+    // iOS a veces no muestra el primer frame hasta tener metadata: reintentamos una vez.
+    v.addEventListener("loadedmetadata", play, { once: true });
+    return () => v.removeEventListener("loadedmetadata", play);
+  }, [phase]);
+
   function clearTimers() {
     clearInterval(tickRef.current);
     clearTimeout(stopTimerRef.current);
     clearInterval(cdRef.current);
     clearTimeout(celebrationRef.current);
-    clearTimeout(bindTimerRef.current);
   }
 
   function teardown() {
@@ -83,16 +99,6 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     onClose();
   }
 
-  function bindPreview() {
-    const v = previewRef.current;
-    const stream = streamRef.current;
-    if (v && stream) {
-      v.srcObject = stream;
-      v.muted = true;
-      void v.play().catch(() => {});
-    }
-  }
-
   async function activateCamera() {
     setError(null);
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -110,8 +116,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
         return;
       }
       streamRef.current = stream;
-      setPhase("ready");
-      bindTimerRef.current = setTimeout(bindPreview, 0); // tras render del <video>
+      setPhase("ready"); // el efecto de binding conecta el stream al <video> tras el render
     } catch {
       if (!closedRef.current) setError("No pudimos acceder a la cámara. Podés subir un archivo.");
     }
@@ -189,8 +194,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     }
     fileRef.current = null;
     setElapsed(0);
-    setPhase("ready");
-    bindTimerRef.current = setTimeout(bindPreview, 0); // el stream sigue vivo
+    setPhase("ready"); // el efecto de binding reconecta el stream (sigue vivo) al <video>
   }
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {

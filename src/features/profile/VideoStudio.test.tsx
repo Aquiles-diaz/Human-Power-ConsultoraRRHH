@@ -43,6 +43,21 @@ describe("VideoStudio", () => {
     expect(screen.getByTestId("studio-file-input")).toBeInTheDocument();
   });
 
+  it("al activar la cámara engancha el stream al <video> y arranca la reproducción (no queda negro)", async () => {
+    const track = { stop: vi.fn() };
+    const fakeStream = { getTracks: () => [track] } as unknown as MediaStream;
+    stubCamera(() => Promise.resolve(fakeStream));
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const { container } = render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /activar cámara/i }));
+    // al pasar a "ready" se monta el <video> y el efecto le engancha el stream
+    await screen.findByText(/tocá grabar/i);
+    const video = container.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.srcObject).toBe(fakeStream));
+    expect(play).toHaveBeenCalled();
+    play.mockRestore();
+  });
+
   it("subir un archivo válido llama a uploadVideo", async () => {
     mockApi.uploadVideo.mockResolvedValue({ video_url: "https://x/v.mp4" });
     render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
