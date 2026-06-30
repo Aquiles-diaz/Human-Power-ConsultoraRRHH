@@ -336,14 +336,7 @@ export default function CandidatesView() {
                   <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-white/80">
                     <Video className="size-4" /> Video de presentación
                   </p>
-                  {getVideoEmbed(active.video_url) ? (
-                    <VideoPreview url={active.video_url} />
-                  ) : (
-                    <p className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                      Este link no se puede incrustar acá (puede ser un link corto o
-                      privado). Abrilo en una pestaña con el botón de abajo.
-                    </p>
-                  )}
+                  <VideoPreview url={active.video_url} />
                   <a
                     href={active.video_url}
                     target="_blank"

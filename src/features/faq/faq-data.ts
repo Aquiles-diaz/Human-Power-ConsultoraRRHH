@@ -16,7 +16,7 @@ export const FAQS: Faq[] = [
   {
     id: "cargar-cv",
     q: "¿Cómo cargo o actualizo mi CV?",
-    a: "Iniciá sesión y entrá a Mi perfil. Ahí subís tu CV (PDF, DOC o DOCX) y el link de tu video de presentación. Podés reemplazarlo cuando quieras.",
+    a: "Iniciá sesión y entrá a Mi perfil. Ahí subís tu CV (PDF, DOC o DOCX) y grabás o subís tu video de presentación (de menos de 30 segundos). Podés reemplazarlo cuando quieras.",
   },
   {
     id: "costo",
