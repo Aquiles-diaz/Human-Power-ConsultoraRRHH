@@ -52,6 +52,11 @@ CREATE TABLE IF NOT EXISTS profiles (
     updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
+-- Foto de perfil traída de Google al loguearse: URL externa (no un objeto del
+-- bucket de fotos). La subida manual (photo_filename) tiene precedencia al armar
+-- photo_url. Agregada después; idempotente para bases ya creadas.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS external_photo_url TEXT;
+
 -- ── CVs enviados (postulaciones + envíos espontáneos) ─────────────────────
 -- Sin FK a users: los envíos espontáneos (/cv) no requieren cuenta; se guarda
 -- el email/nombre sueltos. Esto respeta el comportamiento actual.

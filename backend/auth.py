@@ -133,6 +133,20 @@ def create_user(name: str, last_name: str, email: str, password: str) -> dict:
         # El commit ocurre al salir del bloque `with` de la conexión psycopg.
         return dict(new_user_row)
 
+def set_profile_photo_url(user_id: int, url: str) -> None:
+    """Guarda en el perfil una URL de foto externa (la que da Google al loguearse).
+
+    Crea la fila de perfil si todavía no existe. NO pisa una foto subida a mano:
+    esa va en profiles.photo_filename y tiene precedencia al construir photo_url
+    (ver _profile_row_to_out en main.py). Esto solo aporta el avatar inicial."""
+    with get_conn() as con:
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO profiles (user_id, external_photo_url) VALUES (%s, %s) "
+            "ON CONFLICT (user_id) DO UPDATE SET external_photo_url = EXCLUDED.external_photo_url",
+            (user_id, url),
+        )
+
 # --- Funciones de Autenticación y Tokens ---
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
@@ -272,6 +286,10 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
         if idinfo.get("email_verified"):
             set_email_verified(email)
             user["email_verified"] = True
+        # Pre-cargar el perfil con la foto de la cuenta de Google (si la trae).
+        picture = (idinfo.get("picture") or "").strip()
+        if picture:
+            set_profile_photo_url(user["id"], picture)
 
     access_token = create_access_token(data={"sub": email})
     return {"access_token": access_token, "user": user}
@@ -312,7 +330,7 @@ def password_reset_request(request: Request, dto: PasswordResetRequestDTO):
     user = get_user_by_email(dto.email)
     if user:
         token = create_purpose_token(
-            user["email"], "reset", 30,
+            user["email"], "reset", 5,
             extra={"fp": _password_fingerprint(user["password_hash"])},
         )
         # No propagar fallos de envío: un 500 acá delataría que el email existe

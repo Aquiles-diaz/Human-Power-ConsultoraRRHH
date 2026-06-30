@@ -791,7 +791,8 @@ def _profile_row_to_out(user: dict, row=None) -> ProfileOut:
         email=user["email"],
         role=user.get("role") or "user",
         languages=languages,
-        photo_url=_photo_url(data.get("photo_filename")),
+        # Foto subida a mano (objeto del bucket) > foto externa de Google.
+        photo_url=_photo_url(data.get("photo_filename")) or data.get("external_photo_url"),
         has_cv=bool(data.get("cv_filename")),
         cv_original_name=data.get("cv_original_name"),
         updated_at=_legacy_ts(data.get("updated_at")),
@@ -1141,8 +1142,8 @@ def list_candidates(
     sql = """
         SELECT u.id, u.name, u.last_name, u.email,
                p.headline, p.professional_area, p.education_level,
-               p.experience_years, p.city, p.photo_filename, p.cv_filename,
-               p.video_filename, p.video_url
+               p.experience_years, p.city, p.photo_filename, p.external_photo_url,
+               p.cv_filename, p.video_filename, p.video_url
         FROM users u
         LEFT JOIN profiles p ON p.user_id = u.id
         WHERE u.role != 'admin'
@@ -1171,7 +1172,7 @@ def list_candidates(
             user_id=r["id"], name=r["name"], last_name=r["last_name"], email=r["email"],
             headline=r["headline"], professional_area=r["professional_area"],
             education_level=r["education_level"], experience_years=r["experience_years"],
-            city=r["city"], photo_url=_photo_url(r["photo_filename"]),
+            city=r["city"], photo_url=_photo_url(r["photo_filename"]) or r["external_photo_url"],
             has_cv=bool(r["cv_filename"]),
             has_video=bool(r["video_filename"]) or bool(r["video_url"]),
         )

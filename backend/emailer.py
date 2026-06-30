@@ -151,12 +151,12 @@ def send_password_reset(to: str, token: str) -> None:
         _branded_html(
             "Restablecé tu contraseña",
             "Recibimos un pedido para restablecer la contraseña de tu cuenta. "
-            "Hacé clic en el botón para crear una nueva. El enlace vence en 30 minutos.",
+            "Hacé clic en el botón para crear una nueva. El enlace vence en 5 minutos.",
             "Crear nueva contraseña",
             link,
             "Si no fuiste vos, ignorá este correo: tu contraseña no cambia.",
         ),
-        text_body=f"Restablecé tu contraseña: {link} (vence en 30 minutos). Si no fuiste vos, ignorá este correo.",
+        text_body=f"Restablecé tu contraseña: {link} (vence en 5 minutos). Si no fuiste vos, ignorá este correo.",
     )
 
 

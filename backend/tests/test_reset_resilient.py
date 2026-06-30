@@ -55,6 +55,25 @@ def test_verify_returns_200_even_if_send_fails():
     assert rec.get("verify_sent") == "u@test.com"
 
 
+def test_reset_token_expires_in_5_minutes():
+    """El link de reset debe durar 5 minutos (no 30)."""
+    captured = {}
+    app = FastAPI()
+    app.state.limiter = limiter
+    app.include_router(auth.router)
+    auth.get_user_by_email = lambda email: USER
+
+    def capture(email, purpose, expires_minutes, extra=None):
+        captured["minutes"] = expires_minutes
+        return "tok"
+
+    auth.create_purpose_token = capture
+    auth.emailer.send_password_reset = lambda to, token: None
+    r = TestClient(app).post("/password-reset/request", json={"email": "u@test.com"})
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert captured.get("minutes") == 5, f"el reset debe durar 5 min, fue {captured.get('minutes')}"
+
+
 def test_reset_unknown_email_returns_200_no_send():
     rec = {}
     r = make_client(rec, user=None).post("/password-reset/request", json={"email": "x@test.com"})
