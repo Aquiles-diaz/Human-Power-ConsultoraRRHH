@@ -31,13 +31,14 @@ export default function VideoUploader({ authHeaders, videoUrl, onUpdated }: Prop
     setError(null);
     const v = validateVideoFile(file);
     if (v) { setError(v); return; }
-    try {
-      const dur = await getVideoDuration(file).catch(() => 0);
-      if (dur && dur > MAX_VIDEO_SECONDS + 1) {
-        setError(`El video tiene que durar menos de ${MAX_VIDEO_SECONDS} segundos.`);
-        return;
-      }
-    } catch { /* si no se puede medir, el backend igual valida el peso */ }
+    // Tolerancia de +1s: la grabación auto-corta a 30s pero el metadata puede
+    // marcar ~30.x; sin la tolerancia rechazaríamos un video que nosotros mismos
+    // capamos. El tope duro de MB es el límite de 8MB del server, no esta medición.
+    const dur = await getVideoDuration(file).catch(() => 0);
+    if (dur && dur > MAX_VIDEO_SECONDS + 1) {
+      setError(`El video tiene que durar menos de ${MAX_VIDEO_SECONDS} segundos.`);
+      return;
+    }
     setBusy(true);
     try {
       const profile = await uploadVideo(authHeaders, file);
@@ -91,7 +92,7 @@ export default function VideoUploader({ authHeaders, videoUrl, onUpdated }: Prop
   }
 
   function stopRecording() {
-    recRef.current?.rec.state !== "inactive" && recRef.current?.rec.stop();
+    if (recRef.current?.rec.state !== "inactive") recRef.current?.rec.stop();
   }
 
   async function doDelete() {
