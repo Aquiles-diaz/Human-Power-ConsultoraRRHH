@@ -319,7 +319,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 pb-4">
         {/* ── Bienvenida ── */}
         {phase === "welcome" && (
           <div className="w-full max-w-sm text-center">
@@ -348,70 +348,79 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
 
         {/* ── Cámara (lista / countdown / grabando) ── */}
         {showCamera && (
-          <div className="flex w-full max-w-[320px] flex-col items-center">
-            <div className="relative aspect-[9/16] w-full overflow-hidden rounded-3xl bg-black shadow-2xl ring-1 ring-white/10">
-              <video
-                ref={previewRef}
-                className="h-full w-full -scale-x-100 object-cover"
-                playsInline
-                autoPlay
-                muted
-              />
-              {/* viñeta que enfoca el rostro */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl shadow-[inset_0_0_90px_30px_rgba(0,0,0,0.6)]" />
-              {phase === "countdown" && (
-                <div className="absolute inset-0 grid place-items-center">
-                  <span className="text-7xl font-extrabold drop-shadow-lg">{countdown}</span>
-                </div>
-              )}
-              {phase === "ready" && (
-                <p className="absolute inset-x-0 bottom-4 text-center text-sm font-medium text-white/90 drop-shadow">
-                  Cuando estés listo, tocá grabar
-                </p>
-              )}
+          <div className="flex w-full max-w-[360px] flex-1 flex-col items-center">
+            {/* El video se ajusta al alto disponible para que el botón SIEMPRE quede a la vista. */}
+            <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+              <div className="relative aspect-[9/16] h-full max-w-full overflow-hidden rounded-3xl bg-black shadow-2xl ring-1 ring-white/10">
+                <video
+                  ref={previewRef}
+                  className="h-full w-full -scale-x-100 object-cover"
+                  playsInline
+                  autoPlay
+                  muted
+                />
+                {/* viñeta que enfoca el rostro */}
+                <div className="pointer-events-none absolute inset-0 rounded-3xl shadow-[inset_0_0_90px_30px_rgba(0,0,0,0.6)]" />
+                {phase === "countdown" && (
+                  <div className="absolute inset-0 grid place-items-center">
+                    <span className="text-7xl font-extrabold drop-shadow-lg">{countdown}</span>
+                  </div>
+                )}
+                {phase === "ready" && (
+                  <p className="absolute inset-x-0 bottom-4 text-center text-sm font-medium text-white/90 drop-shadow">
+                    Cuando estés listo, tocá grabar
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* Botón REC / Detener con anillo de progreso */}
-            <div className="relative mt-6 grid size-20 place-items-center">
-              {phase === "recording" && (
-                <svg className="absolute inset-0 -rotate-90" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r={RING_R} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r={RING_R}
-                    fill="none"
-                    stroke="#f59e0b"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    strokeDasharray={RING_C}
-                    strokeDashoffset={ringOffset}
-                    className="transition-[stroke-dashoffset] duration-1000 ease-linear"
-                  />
-                </svg>
-              )}
+            {/* Controles: SIEMPRE visibles abajo, al alcance del pulgar. */}
+            <div className="flex shrink-0 flex-col items-center pt-4">
+              <div className="relative grid size-20 place-items-center">
+                {phase === "recording" && (
+                  <svg className="absolute inset-0 -rotate-90" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r={RING_R} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r={RING_R}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeDasharray={RING_C}
+                      strokeDashoffset={ringOffset}
+                      className="transition-[stroke-dashoffset] duration-1000 ease-linear"
+                    />
+                  </svg>
+                )}
+                {phase === "recording" ? (
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    aria-label="Detener"
+                    className="grid size-16 place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
+                  >
+                    <Square size={24} className="fill-current" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startCountdown}
+                    disabled={phase === "countdown"}
+                    aria-label="Grabar"
+                    className="grid size-16 place-items-center rounded-full bg-amber-500 text-black ring-4 ring-white/20 transition hover:bg-amber-400 disabled:opacity-60"
+                  >
+                    <Circle size={26} className="fill-current" />
+                  </button>
+                )}
+              </div>
               {phase === "recording" ? (
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  aria-label="Detener"
-                  className="grid size-14 place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
-                >
-                  <Square size={22} className="fill-current" />
-                </button>
+                <p className="mt-2 text-xs text-white/60">Tocá el cuadrado para cortar cuando quieras</p>
               ) : (
-                <button
-                  type="button"
-                  onClick={startCountdown}
-                  disabled={phase === "countdown"}
-                  aria-label="Grabar"
-                  className="grid size-16 place-items-center rounded-full bg-amber-500 text-black ring-4 ring-white/20 transition hover:bg-amber-400 disabled:opacity-60"
-                >
-                  <Circle size={26} className="fill-current" />
-                </button>
+                <UploadFallback onPick={onPickFile} />
               )}
             </div>
-            {phase !== "recording" && <UploadFallback onPick={onPickFile} />}
           </div>
         )}
 
@@ -422,7 +431,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
               src={recordedUrlRef.current ?? undefined}
               controls
               playsInline
-              className="aspect-[9/16] w-full rounded-3xl bg-black object-cover ring-1 ring-white/10"
+              className="aspect-[9/16] max-h-[55vh] w-full rounded-3xl bg-black object-cover ring-1 ring-white/10"
             />
             <p className="mt-3 text-center text-xs text-white/60">
               Tranqui, lo regrabás las veces que quieras.
