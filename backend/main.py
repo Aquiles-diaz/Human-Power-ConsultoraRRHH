@@ -1004,6 +1004,39 @@ def delete_my_video(current_user: dict = Depends(get_current_user)) -> ProfileOu
     return _profile_row_to_out(current_user, row)
 
 
+@app.get("/health/video", tags=["default"])
+def health_video() -> dict:
+    """Diagnóstico SIN secretos del storage de videos (2º proyecto Supabase).
+    `configured`: están las env vars en este entorno. `reachable`: la service_role
+    autentica de verdad contra Supabase (list_buckets). `bucket_found`: existe el
+    bucket configurado. No expone URL ni key. Sirve para verificar la config de Render."""
+    configured = bool(storage_video.VIDEO_SUPABASE_URL and storage_video.VIDEO_SUPABASE_SERVICE_KEY)
+    reachable = False
+    bucket_found = None
+    error = None
+    if configured:
+        try:
+            buckets = storage_video.get_client().storage.list_buckets()
+            names = set()
+            for b in buckets:
+                n = getattr(b, "name", None)
+                if n is None and isinstance(b, dict):
+                    n = b.get("name") or b.get("id")
+                if n:
+                    names.add(n)
+            reachable = True
+            bucket_found = storage_video.VIDEO_BUCKET in names
+        except Exception as e:
+            error = type(e).__name__
+    return {
+        "configured": configured,
+        "bucket": storage_video.VIDEO_BUCKET,
+        "bucket_found": bucket_found,
+        "reachable": reachable,
+        "error": error,
+    }
+
+
 @app.get("/me/applications", response_model=ApplicationsOut, tags=["profile"])
 def list_my_applications(current_user: dict = Depends(get_current_user)) -> ApplicationsOut:
     """Postulaciones del usuario logueado (por email), más nuevas primero."""
