@@ -937,6 +937,71 @@ def _download_profile_cv(user_id: int):
 def download_my_cv(current_user: dict = Depends(get_current_user)):
     return _download_profile_cv(current_user["id"])
 
+@app.post("/me/profile/video", response_model=ProfileOut, tags=["profile"])
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
+@limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_MIN)
+async def upload_my_video(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+) -> ProfileOut:
+    ct = (file.content_type or "").split(";")[0].strip().lower()
+    if ct not in settings.allowed_video_types:
+        raise HTTPException(status_code=400, detail="Solo se permiten videos WEBM o MP4")
+    ext = storage_video.ext_for(ct)
+    if not ext:
+        raise HTTPException(status_code=400, detail="Formato de video no soportado")
+    data = await _read_upload_limited(file, settings.max_video_bytes, "Video demasiado grande (máx 8MB)")
+    try:
+        await file.close()
+    except Exception:
+        pass
+    key = f"{current_user['id']}/{uuid.uuid4().hex}{ext}"
+    try:
+        storage_video.upload(key, data, ct)
+    except Exception:
+        log.exception("Fallo al subir video %s", key)
+        raise HTTPException(status_code=502, detail="No se pudo guardar el video. Probá de nuevo en un momento.")
+
+    # Si la DB falla tras subir, borramos el objeto nuevo (compensación).
+    try:
+        with get_db() as conn:
+            _ensure_profile(conn, current_user["id"])
+            old = conn.execute(
+                "SELECT video_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
+            ).fetchone()
+            conn.execute(
+                "UPDATE profiles SET video_filename = %s, video_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
+                (key, current_user["id"]),
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)).fetchone()
+    except Exception:
+        storage_video.remove(key)
+        raise
+    if old and old[0]:
+        storage_video.remove(old[0])  # borra el video anterior
+    return _profile_row_to_out(current_user, row)
+
+
+@app.delete("/me/profile/video", response_model=ProfileOut, tags=["profile"])
+def delete_my_video(current_user: dict = Depends(get_current_user)) -> ProfileOut:
+    with get_db() as conn:
+        _ensure_profile(conn, current_user["id"])
+        old = conn.execute(
+            "SELECT video_filename FROM profiles WHERE user_id = %s", (current_user["id"],)
+        ).fetchone()
+        conn.execute(
+            "UPDATE profiles SET video_filename = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
+            (current_user["id"],),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)).fetchone()
+    if old and old[0]:
+        storage_video.remove(old[0])
+    return _profile_row_to_out(current_user, row)
+
+
 @app.get("/me/applications", response_model=ApplicationsOut, tags=["profile"])
 def list_my_applications(current_user: dict = Depends(get_current_user)) -> ApplicationsOut:
     """Postulaciones del usuario logueado (por email), más nuevas primero."""
