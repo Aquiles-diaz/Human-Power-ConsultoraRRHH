@@ -47,6 +47,7 @@ type Candidate = {
   city?: string | null;
   photo_url?: string | null;
   has_cv: boolean;
+  has_video?: boolean;
 };
 
 function initials(name?: string | null, last?: string | null) {
@@ -67,6 +68,7 @@ export default function CandidatesView() {
   const [area, setArea] = useState("");
   const [education, setEducation] = useState("");
   const [onlyCv, setOnlyCv] = useState(false);
+  const [onlyVideo, setOnlyVideo] = useState(false);
   const [active, setActive] = useState<Profile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const detailReqId = useRef(0);
@@ -79,6 +81,7 @@ export default function CandidatesView() {
       if (area) params.set("area", area);
       if (education) params.set("education", education);
       if (onlyCv) params.set("only_with_cv", "true");
+      if (onlyVideo) params.set("only_with_video", "true");
       const res = await authFetch(`/admin/candidates?${params}`, authHeaders);
       if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
@@ -90,7 +93,7 @@ export default function CandidatesView() {
     } finally {
       setLoading(false);
     }
-  }, [q, area, education, onlyCv, authHeaders]);
+  }, [q, area, education, onlyCv, onlyVideo, authHeaders]);
 
   useEffect(() => {
     const t = setTimeout(load, 250); // debounce de filtros
@@ -130,7 +133,7 @@ export default function CandidatesView() {
     }
   }
 
-  const hasFilters = !!(q.trim() || area || education || onlyCv);
+  const hasFilters = !!(q.trim() || area || education || onlyCv || onlyVideo);
 
   return (
     <div>
@@ -176,6 +179,17 @@ export default function CandidatesView() {
           <FileText className="size-4" /> Con CV
         </button>
 
+        <button
+          onClick={() => setOnlyVideo((v) => !v)}
+          className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm transition ${
+            onlyVideo
+              ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
+              : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+          }`}
+        >
+          <Video className="size-4" /> Con video
+        </button>
+
         {hasFilters && (
           <Button
             variant="subtle"
@@ -184,6 +198,7 @@ export default function CandidatesView() {
               setArea("");
               setEducation("");
               setOnlyCv(false);
+              setOnlyVideo(false);
             }}
           >
             <X className="size-4" /> Limpiar
@@ -258,6 +273,11 @@ export default function CandidatesView() {
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-white/60">
                     Sin CV
+                  </span>
+                )}
+                {c.has_video && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">
+                    <Video className="size-3" /> Video
                   </span>
                 )}
               </div>

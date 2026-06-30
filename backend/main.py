@@ -241,6 +241,7 @@ class CandidateListItem(BaseModel):
     city: Optional[str] = None
     photo_url: Optional[str] = None
     has_cv: bool = False
+    has_video: bool = False
 
 class CandidatesOut(BaseModel):
     items: list[CandidateListItem]
@@ -1128,11 +1129,13 @@ def list_candidates(
     area: Optional[str] = None,
     education: Optional[str] = None,
     only_with_cv: bool = False,
+    only_with_video: bool = False,
 ) -> CandidatesOut:
     sql = """
         SELECT u.id, u.name, u.last_name, u.email,
                p.headline, p.professional_area, p.education_level,
-               p.experience_years, p.city, p.photo_filename, p.cv_filename
+               p.experience_years, p.city, p.photo_filename, p.cv_filename,
+               p.video_filename, p.video_url
         FROM users u
         LEFT JOIN profiles p ON p.user_id = u.id
         WHERE u.role != 'admin'
@@ -1150,6 +1153,8 @@ def list_candidates(
         params.append(f"%{education.lower()}%")
     if only_with_cv:
         sql += " AND p.cv_filename IS NOT NULL"
+    if only_with_video:
+        sql += " AND (p.video_filename IS NOT NULL OR p.video_url IS NOT NULL)"
     sql += " ORDER BY u.id DESC LIMIT 500"
 
     with get_db() as conn:
@@ -1161,6 +1166,7 @@ def list_candidates(
             education_level=r["education_level"], experience_years=r["experience_years"],
             city=r["city"], photo_url=_photo_url(r["photo_filename"]),
             has_cv=bool(r["cv_filename"]),
+            has_video=bool(r["video_filename"]) or bool(r["video_url"]),
         )
         for r in rows
     ]
