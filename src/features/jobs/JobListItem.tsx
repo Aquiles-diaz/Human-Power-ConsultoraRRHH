@@ -8,9 +8,13 @@ export const JobListItem: React.FC<{
   active: boolean;
   onSelect: () => void;
 }> = ({ job, active, onSelect }) => (
-  <button
-    onClick={onSelect}
-    className={`w-full text-left rounded-2xl border p-4 transition-all ${
+  <a
+    href={`/ofertas/${job.id}`}
+    onClick={(e) => {
+      e.preventDefault();
+      onSelect();
+    }}
+    className={`block w-full text-left rounded-2xl border p-4 transition-all ${
       active
         ? "border-amber-400 bg-amber-50/60 shadow-sm"
         : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
@@ -39,5 +43,5 @@ export const JobListItem: React.FC<{
         </div>
       </div>
     </div>
-  </button>
+  </a>
 );
