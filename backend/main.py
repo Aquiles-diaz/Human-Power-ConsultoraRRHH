@@ -52,6 +52,11 @@ settings = Settings()
 #                 serverless/Vercel). Requiere que el cliente siga el redirect.
 CV_DELIVERY = os.getenv("CV_DELIVERY", "stream").lower()
 
+# Docs interactivos (/docs, /redoc, /openapi.json): apagados por defecto. En prod
+# enumeran toda la API (incluidos endpoints admin) sin aportar valor. Encendelos
+# en desarrollo con ENABLE_DOCS=1.
+ENABLE_DOCS = os.getenv("ENABLE_DOCS", "0") == "1"
+
 # Destinatario de las consultas del formulario de contacto público.
 CONTACT_TO = os.getenv("CONTACT_TO", "humanpower.rrhh@gmail.com")
 
@@ -96,7 +101,14 @@ async def lifespan(app: FastAPI):
         log.info("RUN_INIT_DB!=1; salteo init_db() (esquema gestionado por migraciones).")
     yield
 
-app = FastAPI(title="HumanPower API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="HumanPower API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_DOCS else None,
+)
 
 # Rate limiting (slowapi): registra el limiter y el handler del error 429.
 app.state.limiter = limiter
@@ -120,6 +132,10 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Render termina TLS siempre: forzar HTTPS en el navegador por 2 años.
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    # La API no usa cámara/mic/geoloc: negarlas por defecto.
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 
 # Las fotos de perfil se sirven vía la ruta GET /uploads/{key} (más abajo),
@@ -189,6 +205,16 @@ PROFILE_TEXT_FIELDS = [
     "availability", "salary_expectation", "headline", "video_url",
 ]
 
+# Hosts de video permitidos para el link pegado (video_url). Espeja
+# isAllowedVideoUrl del frontend (src/lib/video-embeds.ts). Exige el dominio real
+# al final para no aceptar suplantaciones tipo "tiktok.com.evil.com", y solo
+# http(s): así un valor peligroso (javascript:, data:) nunca llega a la DB ni al
+# href que el panel admin renderiza (defensa server-side contra stored XSS).
+_ALLOWED_VIDEO_HOST = re.compile(
+    r"^https?://([a-z0-9-]+\.)*(tiktok\.com|youtube\.com|youtu\.be|instagram\.com|vimeo\.com)/",
+    re.IGNORECASE,
+)
+
 class ProfileUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=40)
     birthdate: Optional[str] = Field(None, max_length=40)
@@ -204,6 +230,18 @@ class ProfileUpdate(BaseModel):
     salary_expectation: Optional[str] = Field(None, max_length=120)
     headline: Optional[str] = Field(None, max_length=200)
     video_url: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("video_url")
+    @classmethod
+    def _validate_video_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if v == "":
+            return ""  # cadena vacía = limpiar el link
+        if not _ALLOWED_VIDEO_HOST.match(v):
+            raise ValueError("El link de video debe ser de YouTube, TikTok, Instagram o Vimeo.")
+        return v
 
 class ProfileOut(BaseModel):
     user_id: int
@@ -309,6 +347,36 @@ def _ext_ok(filename: str) -> bool:
 def _detect_mimetype(name, fallback: str = "application/octet-stream") -> str:
     mt, _ = mimetypes.guess_type(str(name))
     return mt or fallback
+
+def _like_escape(s: str) -> str:
+    r"""Neutraliza los comodines de LIKE (`%`, `_`) y el escape `\` en una búsqueda.
+    Postgres usa `\` como carácter de escape por defecto en LIKE."""
+    return s.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+
+# Firmas por bytes mágicos aceptadas por categoría de subida. La validación por
+# extensión / Content-Type del cliente es falsificable; esto mira el contenido
+# real para que no se puedan subir bytes arbitrarios etiquetados como otra cosa
+# (p. ej. un HTML disfrazado de video en un bucket público).
+def _sniff_ok(data: bytes, kind: str) -> bool:
+    head = data[:16]
+    if kind == "cv":
+        return (
+            head.startswith(b"%PDF")                      # PDF
+            or head.startswith(b"PK\x03\x04")             # docx (zip)
+            or head.startswith(b"\xd0\xcf\x11\xe0")       # doc legacy (OLE2)
+        )
+    if kind == "image":
+        return (
+            head.startswith(b"\xff\xd8\xff")              # JPEG
+            or head.startswith(b"\x89PNG\r\n\x1a\n")      # PNG
+            or (head[:4] == b"RIFF" and data[8:12] == b"WEBP")  # WEBP
+        )
+    if kind == "video":
+        return (
+            data[4:8] == b"ftyp"                          # MP4 / MOV (ISO-BMFF)
+            or head.startswith(b"\x1a\x45\xdf\xa3")       # WEBM / Matroska (EBML)
+        )
+    return False
 
 # ── Helpers de puestos ──
 def _slugify(text: str) -> str:
@@ -590,6 +658,9 @@ async def _store_resume(
     except Exception:
         pass
 
+    if not _sniff_ok(data, "cv"):
+        raise HTTPException(status_code=400, detail="El archivo no es un PDF/DOC/DOCX válido")
+
     mimetype = file.content_type or _detect_mimetype(original)
     _upload_or_502(storage.CV_BUCKET, key, data, mimetype)
 
@@ -854,6 +925,8 @@ async def upload_my_cv(
         await file.close()
     except Exception:
         pass
+    if not _sniff_ok(data, "cv"):
+        raise HTTPException(status_code=400, detail="El archivo no es un PDF/DOC/DOCX válido")
     _upload_or_502(storage.CV_BUCKET, key, data, file.content_type or _detect_mimetype(original))
 
     # Si la DB falla tras subir el archivo, borramos el objeto nuevo (compensación).
@@ -913,6 +986,8 @@ async def upload_my_photo(
         await file.close()
     except Exception:
         pass
+    if not _sniff_ok(data, "image"):
+        raise HTTPException(status_code=400, detail="El archivo no es una imagen JPG/PNG/WEBP válida")
     _upload_or_502(storage.PHOTO_BUCKET, key, data, file.content_type or _detect_mimetype(original))
 
     # Si la DB falla tras subir la imagen, borramos el objeto nuevo (compensación).
@@ -967,6 +1042,8 @@ async def upload_my_video(
         await file.close()
     except Exception:
         pass
+    if not _sniff_ok(data, "video"):
+        raise HTTPException(status_code=400, detail="El archivo no es un video MP4/WEBM válido")
     key = f"{current_user['id']}/{uuid.uuid4().hex}{ext}"
     try:
         storage_video.upload(key, data, ct)
@@ -1151,14 +1228,14 @@ def list_candidates(
     params: list = []
     if q:
         sql += " AND (LOWER(u.name) LIKE %s OR LOWER(u.last_name) LIKE %s OR LOWER(u.email) LIKE %s)"
-        needle = f"%{q.lower()}%"
+        needle = f"%{_like_escape(q.lower())}%"
         params += [needle, needle, needle]
     if area:
         sql += " AND LOWER(COALESCE(p.professional_area,'')) LIKE %s"
-        params.append(f"%{area.lower()}%")
+        params.append(f"%{_like_escape(area.lower())}%")
     if education:
         sql += " AND LOWER(COALESCE(p.education_level,'')) LIKE %s"
-        params.append(f"%{education.lower()}%")
+        params.append(f"%{_like_escape(education.lower())}%")
     if only_with_cv:
         sql += " AND p.cv_filename IS NOT NULL"
     if only_with_video:

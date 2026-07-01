@@ -3,6 +3,11 @@
 # fijadas no compilan en 3.14: pydantic-core/PyO3 no lo soportaban).
 # El backend hashea con pbkdf2_sha256 (passlib), no usa bcrypt.
 fastapi>=0.136
+# starlette>=1.3.1: parchea PYSEC-2026-248 (path validation manipula url.hostname)
+# y PYSEC-2026-249 (límites de parseo de forms ignorados en x-www-form-urlencoded).
+starlette>=1.3.1
+# cryptography>=48.0.1: parchea GHSA-537c-gmf6-5ccf (out-of-bounds read en OpenSSL).
+cryptography>=48.0.1
 uvicorn[standard]>=0.49
 passlib>=1.7.4
 python-jose[cryptography]>=3.5

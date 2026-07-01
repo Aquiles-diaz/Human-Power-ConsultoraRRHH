@@ -1,21 +1,31 @@
-# Security Policy
+# Política de Seguridad
 
-## Supported Versions
+## Versión soportada
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Este proyecto se despliega de forma continua desde la rama `main`. Solo la última
+versión en `main` (y lo que está en producción) recibe correcciones de seguridad.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Versión        | Soportada          |
+| -------------- | ------------------ |
+| `main` (prod)  | :white_check_mark: |
+| Ramas viejas   | :x:                |
 
-## Reporting a Vulnerability
+## Reportar una vulnerabilidad
 
-Use this section to tell people how to report a vulnerability.
+Si encontrás un problema de seguridad, **no abras un issue público**. Reportalo
+de forma privada por alguno de estos canales:
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+- **GitHub**: usá "Report a vulnerability" (Security → Private vulnerability reporting) en este repositorio.
+- **Email**: achilles.sistemas@gmail.com
+
+Por favor incluí: descripción del problema, pasos para reproducirlo, impacto
+estimado y, si podés, una prueba de concepto.
+
+**Qué esperar:**
+
+- Acuse de recibo dentro de las 72 horas.
+- Una evaluación inicial (aceptado / necesita más info / no aplica) dentro de los 7 días.
+- Si se acepta, trabajamos la corrección en privado y coordinamos la divulgación
+  una vez que el parche esté en producción. Se te da crédito si lo deseás.
+
+Gracias por ayudarnos a mantener seguros los datos de los candidatos.

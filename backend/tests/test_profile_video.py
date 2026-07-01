@@ -117,7 +117,10 @@ def test_upload_video_too_big_rejected():
 def test_upload_video_ok_sets_filename_and_replaces_previous():
     state = {"video_filename": "1/old.webm"}
     client = make_client(state)
-    r = client.post("/me/profile/video", files={"file": ("v.webm", b"%vid" * 10, "video/webm")})
+    # Cabecera EBML/Matroska real: el backend valida los bytes mágicos (no solo el
+    # Content-Type), así que el fixture debe ser un webm válido.
+    webm = b"\x1a\x45\xdf\xa3" + b"\x00" * 36
+    r = client.post("/me/profile/video", files={"file": ("v.webm", webm, "video/webm")})
     assert r.status_code == 200, (r.status_code, r.text)
     assert state.get("uploads"), "debe subir el nuevo"
     new_key = state["uploads"][0][0]

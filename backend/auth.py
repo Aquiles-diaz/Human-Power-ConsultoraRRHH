@@ -152,7 +152,11 @@ def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "iat": now})
+    # `type: access` separa este token de los "con propósito" (reset/verify), que
+    # se firman con el mismo SECRET_KEY. get_current_user exige type==access para
+    # que un link de reset/verificación (que viaja por email/logs) NO pueda
+    # replayearse como credencial de acceso a los endpoints protegidos.
+    to_encode.update({"exp": expire, "iat": now, "type": "access"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -209,7 +213,9 @@ def get_current_user(authorization: str | None = Header(default=None)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        if email is None:
+        # Solo un token de acceso autentica. Rechaza reset/verify (u otros
+        # propósitos) para cerrar el replay de esos tokens como bearer de acceso.
+        if email is None or payload.get("type") != "access":
             raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -275,6 +281,11 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
     email = (idinfo.get("email") or "").strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="Google no devolvió un email.")
+    # Solo confiamos en el email si Google lo marca verificado. Un email no
+    # verificado no debe crear ni, sobre todo, linkearse a una cuenta local
+    # preexistente (evita takeover por edge-cases de Workspace).
+    if not idinfo.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Tu email de Google no está verificado.")
 
     user = get_user_by_email(email)
     if not user:
@@ -283,9 +294,8 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
         # Contraseña aleatoria inutilizable: el alta por Google no usa contraseña.
         # El usuario puede setear una luego con "olvidé mi contraseña" si quiere.
         user = create_user(name, last_name, email, secrets.token_urlsafe(32))
-        if idinfo.get("email_verified"):
-            set_email_verified(email)
-            user["email_verified"] = True
+        set_email_verified(email)
+        user["email_verified"] = True
         # Pre-cargar el perfil con la foto de la cuenta de Google (si la trae).
         picture = (idinfo.get("picture") or "").strip()
         if picture:

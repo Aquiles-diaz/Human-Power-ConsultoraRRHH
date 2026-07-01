@@ -76,6 +76,17 @@ describe("getVideoEmbed", () => {
   it("devuelve null para una cadena vacía", () => {
     expect(getVideoEmbed("")).toBeNull();
   });
+
+  // Anti stored-XSS: un valor con scheme peligroso que termina en .mp4 pasaba el
+  // gate del branch "file" y se renderizaba tal cual en un href del panel admin.
+  it("rechaza un scheme javascript: aunque termine en .mp4", () => {
+    expect(getVideoEmbed("javascript:alert(document.cookie)//x.mp4")).toBeNull();
+    expect(getVideoEmbed("javascript:alert(1)?a.mp4")).toBeNull();
+  });
+
+  it("rechaza data: y otros schemes no http(s) en el branch file", () => {
+    expect(getVideoEmbed("data:text/html,<script>alert(1)</script>#x.mp4")).toBeNull();
+  });
 });
 
 describe("isAllowedVideoUrl", () => {
