@@ -16,7 +16,7 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Header } from "@/components/shared/Header";
+import { JsonLd } from "@/components/shared/JsonLd";
 import { useSeo } from "@/lib/use-seo";
+import { DEFAULT_DESCRIPTION } from "@/lib/seo";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
@@ -41,6 +43,8 @@ import { filterJobs } from "./job-filter";
 import { CATEGORIES, isValidCategory } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo, initials, typeStyles } from "./job-ui";
+import { jobPostingLd } from "./job-seo";
+import { resolveJobRoute } from "./job-routing";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
 // Los filtros siguen operando en memoria sobre la lista completa.
@@ -529,16 +533,11 @@ const ApplyModal: React.FC<{
 // Página principal
 // ─────────────────────────────────────────────────────────────────────────────
 const OfertasPage: React.FC = () => {
-  useSeo({
-    title: "Ofertas de empleo | Human Power",
-    description:
-      "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
-    path: "/ofertas",
-  });
-
   // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
   // y se revalidan en background (suaviza el cold start del backend).
   const { jobs, loading, error: loadError } = useJobs();
+  const { jobId } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [locationFilter, setLocationFilter] = useState("");
@@ -585,9 +584,43 @@ const OfertasPage: React.FC = () => {
     );
   }, [filteredJobs, selectedId]);
 
+  // Deep-link /ofertas/:jobId → seleccionar ese aviso (y abrir el detalle en
+  // mobile). Id inexistente una vez cargados los jobs → volver al listado.
+  const routeRes = resolveJobRoute(jobId, jobs, loading);
+  useEffect(() => {
+    if (routeRes.kind === "found") {
+      setSelectedId(routeRes.id);
+      setMobileDetail(true);
+    } else if (routeRes.kind === "redirect") {
+      navigate("/ofertas", { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, jobs, loading]);
+
+  // SEO por aviso SOLO con deep-link real: jobForSeo exige que el aviso de la
+  // URL sea el efectivamente seleccionado (los filtros podrían excluirlo y
+  // selectedJob caería en el primero de la lista, que no corresponde).
+  const jobForSeo =
+    routeRes.kind === "found" && selectedJob?.id === routeRes.id ? selectedJob : null;
+  useSeo(
+    jobForSeo
+      ? {
+          title: `${jobForSeo.title} en ${jobForSeo.company} | Human Power`,
+          description: jobForSeo.shortDescription || DEFAULT_DESCRIPTION,
+          path: `/ofertas/${jobForSeo.id}`,
+        }
+      : {
+          title: "Ofertas de empleo | Human Power",
+          description:
+            "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
+          path: "/ofertas",
+        }
+  );
+
   function handleSelect(id: string) {
     setSelectedId(id);
     setMobileDetail(true);
+    navigate(`/ofertas/${id}`);
   }
 
   return (
@@ -754,10 +787,14 @@ const OfertasPage: React.FC = () => {
                     mobileDetail ? "block" : "hidden"
                   }`}
                 >
+                  {jobForSeo && <JsonLd data={jobPostingLd(jobForSeo)} />}
                   <JobDetail
                     job={selectedJob}
                     onApply={() => setApplyOpen(true)}
-                    onBack={() => setMobileDetail(false)}
+                    onBack={() => {
+                      setMobileDetail(false);
+                      navigate("/ofertas");
+                    }}
                   />
                 </div>
               )}

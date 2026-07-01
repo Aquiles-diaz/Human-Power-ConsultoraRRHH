@@ -19,8 +19,12 @@ const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
 // nuevas heredan la posición de scroll de la anterior.
 function ScrollToTop() {
   const { pathname } = useLocation();
+  const prev = React.useRef<string | null>(null);
   React.useEffect(() => {
-    window.scrollTo(0, 0);
+    const dentroDeOfertas =
+      prev.current?.startsWith("/ofertas") && pathname.startsWith("/ofertas");
+    prev.current = pathname;
+    if (!dentroDeOfertas) window.scrollTo(0, 0);
   }, [pathname]);
   return null;
 }
@@ -32,7 +36,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
-          path="/ofertas"
+          path="/ofertas/:jobId?"
           element={
             <React.Suspense fallback={<LoadingScreen />}>
               <OfertasPage />
