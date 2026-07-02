@@ -115,6 +115,7 @@ export default function Contacto() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   maxLength={254}
+                  autoComplete="email"
                 />
               </div>
               <Textarea

@@ -14,6 +14,13 @@ import {
 import { toast } from "sonner";
 import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
@@ -73,6 +80,7 @@ export default function ProfilePage() {
   const [cvUploading, setCvUploading] = useState(false);
   const [langName, setLangName] = useState("");
   const [langLevel, setLangLevel] = useState("");
+  const [cvDeleteOpen, setCvDeleteOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
@@ -211,8 +219,7 @@ export default function ProfilePage() {
     }
   }
 
-  async function deleteCv() {
-    if (!confirm("¿Eliminar tu CV?")) return;
+  async function confirmDeleteCv() {
     try {
       const res = await authFetch(`/me/profile/cv`, authHeaders, { method: "DELETE" });
       if (!res.ok) throw new Error(await parseApiError(res));
@@ -221,6 +228,8 @@ export default function ProfilePage() {
       toast.success("CV eliminado");
     } catch (e) {
       toast.error("No se pudo eliminar", { description: getErrorMessage(e) });
+    } finally {
+      setCvDeleteOpen(false);
     }
   }
 
@@ -397,7 +406,7 @@ export default function ProfilePage() {
                         </button>
                         <button
                           type="button"
-                          onClick={deleteCv}
+                          onClick={() => setCvDeleteOpen(true)}
                           title="Eliminar"
                           aria-label="Eliminar CV"
                           className="grid size-8 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
@@ -443,7 +452,15 @@ export default function ProfilePage() {
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
-                    <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." maxLength={40} onChange={(v) => setField("phone", v)} />
+                    <TextField
+                      label="Teléfono"
+                      value={form.phone}
+                      placeholder="+54 9 341 ..."
+                      maxLength={40}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      onChange={(v) => setField("phone", v)}
+                    />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
                     <SelectField label="País" value={form.country} options={COUNTRIES} onChange={(v) => setField("country", v)} />
@@ -508,7 +525,13 @@ export default function ProfilePage() {
                           ))}
                         </select>
                       </div>
-                      <Button type="button" variant="outline" className="rounded-lg sm:w-auto" onClick={addLanguage}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-lg sm:w-auto"
+                        onClick={addLanguage}
+                        disabled={!langName}
+                      >
                         Agregar
                       </Button>
                     </div>
@@ -570,6 +593,27 @@ export default function ProfilePage() {
                     onOpenChange={setPwOpen}
                     authHeaders={authHeaders}
                   />
+
+                  {/* Confirmación de borrado de CV (reemplaza window.confirm) */}
+                  <Dialog open={cvDeleteOpen} onOpenChange={setCvDeleteOpen}>
+                    <DialogContent className="sm:max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle>Eliminar tu CV</DialogTitle>
+                        <DialogDescription>¿Eliminar tu CV?</DialogDescription>
+                      </DialogHeader>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="ghost" onClick={() => setCvDeleteOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={confirmDeleteCv}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </>
               )}
             </>
@@ -614,6 +658,7 @@ function TextField({
   type = "text",
   suggestions,
   maxLength = 500,
+  ...rest
 }: {
   label: string;
   value?: string | null;
@@ -622,7 +667,10 @@ function TextField({
   type?: string;
   suggestions?: string[];
   maxLength?: number;
-}) {
+} & Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "id" | "value" | "onChange" | "placeholder" | "type" | "list" | "maxLength" | "className"
+>) {
   const id = React.useId();
   const listId = suggestions
     ? `dl-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
@@ -639,6 +687,7 @@ function TextField({
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         className={INPUT_CLS}
+        {...rest}
       />
       {suggestions && (
         <datalist id={listId}>

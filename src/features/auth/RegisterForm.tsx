@@ -25,11 +25,26 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
     confirm: "",
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  // Mensaje inline bajo "Repetir contraseña": aparece cuando el campo pierde
+  // foco y no coincide, y se limpia solo (en cada tecleo) apenas coincide.
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
+
+  const passwordsMismatch = (pwd: string, confirm: string) => confirm.length > 0 && pwd !== confirm;
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.currentTarget;
-    setValues((v) => ({ ...v, [name]: value }));
+    const next = { ...values, [name]: value };
+    setValues(next);
     setLocalError(null);
+    // Si ya se había mostrado el aviso, lo recalculamos en vivo mientras tipea
+    // (se limpia apenas coincide, sin esperar a un nuevo blur).
+    if (confirmMismatch) {
+      setConfirmMismatch(passwordsMismatch(next.password, next.confirm));
+    }
+  };
+
+  const handleConfirmBlur = () => {
+    setConfirmMismatch(passwordsMismatch(values.password, values.confirm));
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -109,18 +124,24 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
         hint="Mínimo 8 caracteres."
       />
 
-      <AuthField
-        id="register-confirm"
-        name="confirm"
-        type="password"
-        label="Repetir contraseña"
-        icon={<Lock size={18} />}
-        placeholder="••••••••"
-        value={values.confirm}
-        onChange={handleChange}
-        autoComplete="new-password"
-        required
-      />
+      <div>
+        <AuthField
+          id="register-confirm"
+          name="confirm"
+          type="password"
+          label="Repetir contraseña"
+          icon={<Lock size={18} />}
+          placeholder="••••••••"
+          value={values.confirm}
+          onChange={handleChange}
+          onBlur={handleConfirmBlur}
+          autoComplete="new-password"
+          required
+        />
+        {confirmMismatch && (
+          <p className="mt-1.5 text-xs text-red-600">Las contraseñas no coinciden</p>
+        )}
+      </div>
 
       {shownError && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

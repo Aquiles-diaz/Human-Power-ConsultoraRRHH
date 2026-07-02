@@ -53,6 +53,9 @@ import ApplySuccess from "./ApplySuccess";
 // Los filtros siguen operando en memoria sobre la lista completa.
 const PAGE_SIZE = 20;
 
+// Límite real del textarea de mensaje del modal de postulación (atributo maxLength).
+const MESSAGE_MAX_LENGTH = 10000;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,12 +445,15 @@ const ApplyModal: React.FC<{
                 </label>
                 <textarea
                   rows={3}
-                  maxLength={10000}
+                  maxLength={MESSAGE_MAX_LENGTH}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Contanos por qué sos ideal para este puesto…"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                 />
+                <p className="mt-1 text-right text-xs text-slate-400">
+                  {message.length}/{MESSAGE_MAX_LENGTH}
+                </p>
               </div>
             </div>
 
@@ -469,6 +475,11 @@ const ApplyModal: React.FC<{
                 {submitting ? "Enviando…" : "Enviar postulación"}
               </Button>
             </div>
+            {!profileLoading && !hasCv && !file && (
+              <p className="mt-2 text-center text-xs text-slate-400">
+                Subí tu CV para continuar
+              </p>
+            )}
           </form>
         )}
       </DialogContent>
