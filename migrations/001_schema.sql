@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS resumes (
     job_id        TEXT,            -- NULL = envío espontáneo
     job_title     TEXT,
     created_at    timestamptz NOT NULL DEFAULT now(),
-    withdrawn_at  timestamptz             -- baja blanda; NULL = postulación activa
+    withdrawn_at  timestamptz,             -- baja blanda; NULL = postulación activa
+    status        text NOT NULL DEFAULT 'received'  -- pipeline: recibida, vista, en proceso, finalizada
 );
 
 -- ── Puestos / ofertas laborales (gestionados desde el panel admin) ────────
