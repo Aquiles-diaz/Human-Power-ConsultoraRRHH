@@ -6,11 +6,13 @@ import { timeAgo, initials, typeStyles } from "./job-ui";
 // Es un <a> (no <button>) para que Google descubra /ofertas/:id crawleando
 // estos href — no hay sitemap de avisos. El click navega vía SPA con
 // preventDefault (no se recarga la página).
+// React.memo: en listas largas de avisos evita re-renderizar cada card
+// cuando cambia el estado de una sola (p. ej. al seleccionar otra).
 export const JobListItem: React.FC<{
   job: Job;
   active: boolean;
   onSelect: () => void;
-}> = ({ job, active, onSelect }) => (
+}> = React.memo(({ job, active, onSelect }) => (
   <a
     href={`/ofertas/${job.id}`}
     onClick={(e) => {
@@ -53,4 +55,4 @@ export const JobListItem: React.FC<{
       </div>
     </div>
   </a>
-);
+));

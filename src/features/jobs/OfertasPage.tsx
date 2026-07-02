@@ -48,6 +48,7 @@ import { jobPostingLd } from "./job-seo";
 import { resolveJobRoute } from "./job-routing";
 import { JobListItem } from "./JobListItem";
 import ApplySuccess from "./ApplySuccess";
+import SlowLoadingHint from "@/components/shared/SlowLoadingHint";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
 // Los filtros siguen operando en memoria sobre la lista completa.
@@ -78,7 +79,7 @@ const JobDetail: React.FC<{
         {onBack && (
           <button
             onClick={onBack}
-            className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 lg:hidden"
+            className="-ml-3 mb-3 inline-flex h-10 items-center gap-1 rounded-lg px-3 text-sm text-slate-500 lg:hidden"
           >
             <ChevronLeft size={16} /> Volver
           </button>
@@ -680,6 +681,7 @@ const OfertasPage: React.FC = () => {
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-28 w-full rounded-2xl" />
                 ))}
+                <SlowLoadingHint />
               </div>
               <Skeleton className="hidden h-[420px] w-full rounded-2xl lg:block" />
             </div>

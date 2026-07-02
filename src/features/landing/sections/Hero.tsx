@@ -135,6 +135,8 @@ export default function Hero() {
           <img
             src="/logohumap-white.png"
             alt="Human Power RRHH"
+            width={176}
+            height={176}
             className="mb-4 size-20 object-contain [filter:drop-shadow(0_2px_4px_rgb(0_0_0/0.55))_drop-shadow(0_10px_22px_rgb(0_0_0/0.5))] sm:size-32 md:size-44"
           />
 
@@ -191,7 +193,7 @@ export default function Hero() {
               <span className="font-semibold text-white">primera impresión</span>.
             </p>
           </Link>
-          <a href="#contacto" className={valueCard}>
+          <a href="#contacto" aria-label="Para empresas" className={valueCard}>
             <span className="flex w-full items-center justify-between text-[15px] font-bold text-white">
               <span className="inline-flex items-center gap-2">
                 <Building2 size={18} className="text-amber-400" /> Empresas

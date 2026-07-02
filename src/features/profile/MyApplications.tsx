@@ -13,6 +13,7 @@ import { cn, getErrorMessage } from "@/lib/utils";
 import { PIPELINE_STEPS, pipelineIndex } from "@/lib/pipeline";
 import { Application, getMyApplications, withdrawApplication } from "./applications-api";
 import { statusLabel, jobLabel, formatApplicationDate } from "./applications-ui";
+import SlowLoadingHint from "@/components/shared/SlowLoadingHint";
 
 export default function MyApplications({ authHeaders }: { authHeaders: Record<string, string> }) {
   const [apps, setApps] = useState<Application[] | null>(null);
@@ -51,8 +52,9 @@ export default function MyApplications({ authHeaders }: { authHeaders: Record<st
 
   if (apps === null && !error) {
     return (
-      <div className="flex justify-center py-16">
+      <div className="flex flex-col items-center gap-3 py-16">
         <Loader2 className="size-6 animate-spin text-slate-400" />
+        <SlowLoadingHint />
       </div>
     );
   }

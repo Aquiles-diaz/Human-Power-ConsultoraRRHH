@@ -31,6 +31,7 @@ import ChangePasswordDialog from "./ChangePasswordDialog";
 import MyApplications from "./MyApplications";
 import AlertsCard from "./AlertsCard";
 import { computeProfileCompletion } from "./completion";
+import SlowLoadingHint from "@/components/shared/SlowLoadingHint";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
   AGE_RANGES,
@@ -260,8 +261,9 @@ export default function ProfilePage() {
       <main className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-4xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
           {loading ? (
-            <div className="grid place-items-center py-24 text-slate-400">
+            <div className="grid place-items-center gap-3 py-24 text-slate-400">
               <Loader2 className="size-7 animate-spin" />
+              <SlowLoadingHint />
             </div>
           ) : loadError && !profile ? (
             <div className="mx-auto mt-12 max-w-md rounded-xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm">
@@ -309,6 +311,8 @@ export default function ProfilePage() {
                     <img
                       src={`${API}${profile.photo_url}`}
                       alt="Foto de perfil"
+                      width={80}
+                      height={80}
                       className="size-20 rounded-full border border-slate-200 object-cover"
                     />
                   ) : (

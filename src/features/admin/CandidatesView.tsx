@@ -242,6 +242,8 @@ export default function CandidatesView() {
                   <img
                     src={`${API}${c.photo_url}`}
                     alt={`Foto de ${c.name} ${c.last_name ?? ""}`}
+                    width={48}
+                    height={48}
                     className="size-12 rounded-full object-cover"
                   />
                 ) : (
@@ -303,6 +305,8 @@ export default function CandidatesView() {
                   <img
                     src={`${API}${active.photo_url}`}
                     alt={`Foto de ${active.name} ${active.last_name ?? ""}`}
+                    width={64}
+                    height={64}
                     className="size-16 rounded-2xl object-cover"
                   />
                 ) : (
