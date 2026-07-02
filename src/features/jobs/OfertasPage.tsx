@@ -38,6 +38,7 @@ import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import { type Job } from "./jobs-data";
+import { ShareJobButton } from "./ShareJobButton";
 import { useJobs } from "./use-jobs";
 import { filterJobs } from "./job-filter";
 import { CATEGORIES, isValidCategory } from "./categories";
@@ -88,6 +89,11 @@ const JobDetail: React.FC<{
               <Building2 size={15} /> {job.company}
             </p>
           </div>
+        </div>
+
+        {/* Compartir aviso — debajo del título/empresa, antes de los metadatos */}
+        <div className="mt-4">
+          <ShareJobButton job={job} />
         </div>
 
         {/* Chips de datos clave — fila homogénea, con borde e íconos definidos */}
