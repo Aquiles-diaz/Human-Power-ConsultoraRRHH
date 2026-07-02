@@ -773,11 +773,19 @@ async def apply_to_job(
 def download_cv(cv_id: int):
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT filename, original_name FROM resumes WHERE id = %s", (cv_id,))
+        cur.execute("SELECT filename, original_name, status FROM resumes WHERE id = %s", (cv_id,))
         row = cur.fetchone()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="No encontrado")
+        if not row:
+            raise HTTPException(status_code=404, detail="No encontrado")
+
+        if row and (row[2] or "received") == "received":
+            # Vista automática: la primera descarga del admin marca la postulación como vista.
+            # El guard en el WHERE evita degradar estados posteriores ante carreras.
+            cur.execute(
+                "UPDATE resumes SET status = 'viewed' WHERE id = %s AND status = 'received'",
+                (cv_id,),
+            )
 
     return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
 
@@ -814,6 +822,28 @@ def list_cvs_admin() -> ListCvOut:
             for r in cur.fetchall()
         ]
     return ListCvOut(items=rows)
+
+class CvStatusUpdate(BaseModel):
+    status: str
+
+class CvStatusOut(BaseModel):
+    id: int
+    pipeline_status: str
+
+@app.patch("/admin/cv/{cv_id}/status", response_model=CvStatusOut,
+           dependencies=[Depends(require_admin)], tags=["admin"])
+def update_cv_status(cv_id: int, dto: CvStatusUpdate) -> CvStatusOut:
+    # 400 explícito (no 422): el enum es contrato de la API, no forma del body.
+    status = (dto.status or "").strip().lower()
+    if status not in _PIPELINE_STATUSES:
+        raise HTTPException(status_code=400, detail="Estado inválido")
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM resumes WHERE id = %s", (cv_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="No encontrado")
+        cur.execute("UPDATE resumes SET status = %s WHERE id = %s", (status, cv_id))
+    return CvStatusOut(id=cv_id, pipeline_status=status)
 
 @app.delete("/admin/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])
 def delete_cv_admin(cv_id: int):
