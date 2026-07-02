@@ -2,12 +2,19 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { fileURLToPath, URL } from "node:url";
 
 const BACKEND_LOCAL = "http://localhost:10000";
 
+// LAN_HTTPS=1 habilita HTTPS autofirmado: getUserMedia (cámara/mic) exige un
+// "secure context" y un celular entrando por IP de LAN (no localhost) no
+// cuenta como tal en http plano. Solo se activa con `npm run dev:lan`, así
+// no afecta el dev server normal (ni al preview interno).
+const LAN_HTTPS = process.env.LAN_HTTPS === "1";
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), ...(LAN_HTTPS ? [basicSsl()] : [])],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -30,6 +37,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // host:true además escucha en 0.0.0.0 (LAN), no reemplaza el bind normal
+    // en localhost — no cambia nada para el uso habitual desde esta máquina.
+    host: true,
     proxy: {
       "/api": {
         target: BACKEND_LOCAL,
