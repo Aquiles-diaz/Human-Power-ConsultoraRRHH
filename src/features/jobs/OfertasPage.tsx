@@ -43,7 +43,7 @@ import { useJobs } from "./use-jobs";
 import { filterJobs } from "./job-filter";
 import { CATEGORIES, isValidCategory } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
-import { timeAgo, initials, typeStyles } from "./job-ui";
+import { timeAgo, initials } from "./job-ui";
 import { jobPostingLd } from "./job-seo";
 import { resolveJobRoute } from "./job-routing";
 import { JobListItem } from "./JobListItem";
@@ -60,7 +60,7 @@ const MESSAGE_MAX_LENGTH = 10000;
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades
 // ─────────────────────────────────────────────────────────────────────────────
-// timeAgo, initials y typeStyles viven en job-ui.ts (única fuente; compartidos con JobListItem/JobDetail).
+// timeAgo e initials viven en job-ui.ts (única fuente; typeStyles lo usa JobListItem).
 // JobListItem (tarjeta de la lista, columna izquierda) vive en ./JobListItem.
 
 // ─────────────────────────────────────────────────────────────────────────────
