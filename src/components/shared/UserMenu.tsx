@@ -1,20 +1,9 @@
-import React, { Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { LogIn, User, ShieldCheck, LogOut, ChevronDown } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { User, ShieldCheck, LogOut, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
-
-const AuthSection = React.lazy(() => import("@/features/auth/AuthSection"));
-const authFallback = (
-  <div className="p-4 text-center text-sm text-muted-foreground">Cargando…</div>
-);
+import AuthButtons from "./AuthButtons";
 
 function initials(
   name?: string | null,
@@ -47,28 +36,7 @@ export default function UserMenu() {
   }, [open]);
 
   if (!isAuthenticated) {
-    return (
-      <Dialog>
-        <DialogTrigger asChild>
-          <button
-            type="button"
-            aria-label="Entrar o registrarse"
-            title="Entrar o registrarse"
-            className="grid size-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/80 transition-colors hover:border-amber-400/40 hover:bg-white/10 hover:text-white"
-          >
-            <LogIn size={18} />
-          </button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="t-h3">Acceso a tu cuenta</DialogTitle>
-          </DialogHeader>
-          <Suspense fallback={authFallback}>
-            <AuthSection />
-          </Suspense>
-        </DialogContent>
-      </Dialog>
-    );
+    return <AuthButtons />;
   }
 
   const firstName = (user?.name || "").trim().split(" ")[0] || user?.email;
