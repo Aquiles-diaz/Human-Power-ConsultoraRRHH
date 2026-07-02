@@ -102,12 +102,22 @@ CREATE TABLE IF NOT EXISTS jobs (
     updated_at        timestamptz NOT NULL DEFAULT now()
 );
 
+-- ── Suscripciones a alertas de empleo ───────────────────────────────────────
+-- PK compuesta: un usuario no puede suscribirse dos veces al mismo rubro.
+CREATE TABLE IF NOT EXISTS job_alert_subscriptions (
+    user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, category)
+);
+
 -- ── Índices (búsquedas frecuentes) ────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_users_email        ON users(email);
 CREATE INDEX IF NOT EXISTS idx_resumes_email      ON resumes(email);
 CREATE INDEX IF NOT EXISTS idx_resumes_job        ON resumes(job_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_created_at ON resumes(created_at DESC);  -- listado admin ordena por fecha
 CREATE INDEX IF NOT EXISTS idx_jobs_published     ON jobs(is_published, posted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_job_alert_subs_category ON job_alert_subscriptions (category);
 
 -- ── Integridad referencial: resumes.job_id -> jobs.id ──────────────────────
 -- Se agrega después (idempotente). ON DELETE SET NULL: si se borra un puesto, las
