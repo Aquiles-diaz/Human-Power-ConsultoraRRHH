@@ -22,6 +22,7 @@ const activeApp = {
   created_at: "2026-06-20 10:00:00",
   withdrawn_at: null,
   status: "active" as const,
+  pipeline_status: "received",
 };
 
 describe("MyApplications", () => {
@@ -37,7 +38,7 @@ describe("MyApplications", () => {
     mockApi.getMyApplications.mockResolvedValue([activeApp]);
     render(<MyApplications authHeaders={headers} />);
     expect(await screen.findByText("Contador/a")).toBeInTheDocument();
-    expect(screen.getByText("Activa")).toBeInTheDocument();
+    expect(screen.getByText(/estado: recibida/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^dar de baja$/i })).toBeInTheDocument();
   });
 
@@ -61,5 +62,26 @@ describe("MyApplications", () => {
     expect(await screen.findByText(/no pudimos cargar tus postulaciones/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
     expect(await screen.findByText(/todavía no te postulaste/i)).toBeInTheDocument();
+  });
+
+  it("una postulación activa en proceso muestra el label del paso actual y no 'Activa'", async () => {
+    mockApi.getMyApplications.mockResolvedValue([{ ...activeApp, pipeline_status: "in_process" }]);
+    render(<MyApplications authHeaders={headers} />);
+    expect(await screen.findByText(/estado: en proceso/i)).toBeInTheDocument();
+    expect(screen.queryByText("Activa")).not.toBeInTheDocument();
+  });
+
+  it("una postulación retirada muestra 'Dada de baja' sin label de pipeline", async () => {
+    mockApi.getMyApplications.mockResolvedValue([
+      {
+        ...activeApp,
+        status: "withdrawn" as const,
+        withdrawn_at: "2026-06-29 12:00:00",
+        pipeline_status: "in_process",
+      },
+    ]);
+    render(<MyApplications authHeaders={headers} />);
+    expect(await screen.findByText("Dada de baja")).toBeInTheDocument();
+    expect(screen.queryByText(/estado: en proceso/i)).not.toBeInTheDocument();
   });
 });

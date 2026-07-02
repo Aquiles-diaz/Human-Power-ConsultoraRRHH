@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn, getErrorMessage } from "@/lib/utils";
+import { PIPELINE_STEPS, pipelineIndex } from "@/lib/pipeline";
 import { Application, getMyApplications, withdrawApplication } from "./applications-api";
 import { statusLabel, jobLabel, formatApplicationDate } from "./applications-ui";
 
@@ -106,14 +107,30 @@ export default function MyApplications({ authHeaders }: { authHeaders: Record<st
                 )}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                    withdrawn ? "bg-slate-100 text-slate-500" : "bg-emerald-50 text-emerald-700",
-                  )}
-                >
-                  {statusLabel(a.status)}
-                </span>
+                {withdrawn ? (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">
+                    {statusLabel(a.status)}
+                  </span>
+                ) : (
+                  // Stepper del pipeline: el anti-"agujero negro". Barras llenas
+                  // hasta el paso actual + label del paso.
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1" aria-hidden="true">
+                      {PIPELINE_STEPS.map((s, i) => (
+                        <span
+                          key={s.key}
+                          className={cn(
+                            "h-1.5 w-5 rounded-full",
+                            i <= pipelineIndex(a.pipeline_status) ? "bg-emerald-500" : "bg-slate-200",
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[11px] font-medium text-emerald-700">
+                      Estado: {PIPELINE_STEPS[pipelineIndex(a.pipeline_status)].label}
+                    </span>
+                  </div>
+                )}
                 {!withdrawn && (
                   <Button
                     variant="ghost"
