@@ -13,6 +13,7 @@ const ProfilePage = React.lazy(() => import("@/features/profile/ProfilePage"));
 const ForgotPasswordPage = React.lazy(() => import("@/features/auth/ForgotPasswordPage"));
 const ResetPasswordPage = React.lazy(() => import("@/features/auth/ResetPasswordPage"));
 const VerifyEmailPage = React.lazy(() => import("@/features/auth/VerifyEmailPage"));
+const AlertUnsubscribedPage = React.lazy(() => import("@/features/profile/AlertUnsubscribedPage"));
 const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
 
 // Cada vez que cambia la ruta, vuelve el scroll al tope: sin esto las páginas
@@ -72,6 +73,14 @@ export default function App() {
           element={
             <React.Suspense fallback={<LoadingScreen />}>
               <VerifyEmailPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/alertas/baja"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <AlertUnsubscribedPage />
             </React.Suspense>
           }
         />
