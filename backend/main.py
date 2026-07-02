@@ -1221,6 +1221,47 @@ def withdraw_my_application(
         status="withdrawn" if row[4] else "active",
     )
 
+class AlertsOut(BaseModel):
+    categories: list[str]
+
+class AlertsUpdate(BaseModel):
+    categories: list[str]
+
+@app.get("/me/alerts", response_model=AlertsOut, tags=["profile"])
+def get_my_alerts(current_user: dict = Depends(get_current_user)) -> AlertsOut:
+    """Rubros a los que el usuario logueado está suscripto para alertas de empleo."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT category FROM job_alert_subscriptions WHERE user_id = %s ORDER BY category",
+            (current_user["id"],),
+        )
+        return AlertsOut(categories=[r[0] for r in cur.fetchall()])
+
+@app.put("/me/alerts", response_model=AlertsOut, tags=["profile"])
+def put_my_alerts(
+    dto: AlertsUpdate,
+    current_user: dict = Depends(get_current_user),
+) -> AlertsOut:
+    """Reemplaza el set completo de rubros suscriptos por el usuario logueado."""
+    # 400 explícito: el set de rubros es contrato de la API (misma lógica que el PATCH de estado).
+    cats = [(c or "").strip().lower() for c in dto.categories]
+    for c in cats:
+        if c not in JOB_CATEGORIES:
+            raise HTTPException(status_code=400, detail=f"Rubro inválido: {c}")
+    cats = sorted(set(cats))
+    with get_db() as conn:
+        cur = conn.cursor()
+        # Reemplazo completo del set: más simple que diff y es idempotente.
+        cur.execute("DELETE FROM job_alert_subscriptions WHERE user_id = %s", (current_user["id"],))
+        for c in cats:
+            cur.execute(
+                "INSERT INTO job_alert_subscriptions (user_id, category) VALUES (%s, %s)",
+                (current_user["id"], c),
+            )
+        conn.commit()
+    return AlertsOut(categories=cats)
+
 @app.get("/uploads/{key}", tags=["default"])
 def serve_upload(key: str):
     """Sirve una foto de perfil desde el bucket privado.
