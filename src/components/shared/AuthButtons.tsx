@@ -3,6 +3,7 @@
 // Registrarse — el login vive en el menú hamburguesa.
 import React, { Suspense, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const AuthSection = React.lazy(() => import("@/features/auth/AuthSection"));
 
@@ -24,13 +25,14 @@ export default function AuthButtons() {
       >
         Iniciar sesión
       </button>
-      <button
+      <Button
         type="button"
+        variant="brand"
         onClick={() => abrir("register")}
-        className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-amber-400 to-amber-500 px-4 text-sm font-semibold text-black transition hover:brightness-105"
+        className="h-10 rounded-full px-4 text-sm"
       >
         Registrarse
-      </button>
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

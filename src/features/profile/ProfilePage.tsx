@@ -9,11 +9,12 @@ import {
   FileText,
   Loader2,
   X,
-  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -49,11 +50,6 @@ import { PROVINCES, COUNTRIES, CITIES_BY_PROVINCE } from "./ar-geo";
 
 // Límite de tamaño del CV en el perfil (alineado con el backend: 15MB).
 const PROFILE_CV_MAX_BYTES = 15 * 1024 * 1024;
-
-// Clase compartida por todos los inputs/selects del formulario para mantener
-// un estilo consistente (altura por padding, foco neutro slate, sin drift).
-const INPUT_CLS =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 placeholder:text-slate-400 transition focus:border-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-400/40 disabled:cursor-not-allowed disabled:opacity-60";
 
 function initials(name?: string | null, last?: string | null) {
   const n = (name ?? "").trim();
@@ -499,36 +495,32 @@ export default function ProfilePage() {
                   <div className="mt-6">
                     <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Idiomas</label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                      <div className="flex-1">
-                        <select
-                          value={langName}
-                          onChange={(e) => setLangName(e.target.value)}
-                          aria-label="Idioma"
-                          className={INPUT_CLS}
-                        >
-                          <option value="">Idioma…</option>
-                          {LANGUAGES.map((l) => (
-                            <option key={l} value={l}>
-                              {l}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex-1">
-                        <select
-                          value={langLevel}
-                          onChange={(e) => setLangLevel(e.target.value)}
-                          aria-label="Nivel"
-                          className={INPUT_CLS}
-                        >
-                          <option value="">Nivel (opcional)…</option>
-                          {LANGUAGE_LEVELS.map((l) => (
-                            <option key={l} value={l}>
-                              {l}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <Select
+                        value={langName}
+                        onChange={(e) => setLangName(e.target.value)}
+                        aria-label="Idioma"
+                        className="flex-1"
+                      >
+                        <option value="">Idioma…</option>
+                        {LANGUAGES.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={langLevel}
+                        onChange={(e) => setLangLevel(e.target.value)}
+                        aria-label="Nivel"
+                        className="flex-1"
+                      >
+                        <option value="">Nivel (opcional)…</option>
+                        {LANGUAGE_LEVELS.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </Select>
                       <Button
                         type="button"
                         variant="outline"
@@ -682,7 +674,8 @@ function TextField({
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-slate-700">{label}</label>
-      <input
+      <Input
+        variant="light"
         id={id}
         type={type}
         value={value ?? ""}
@@ -690,7 +683,6 @@ function TextField({
         list={listId}
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
-        className={INPUT_CLS}
         {...rest}
       />
       {suggestions && (
@@ -719,25 +711,14 @@ function SelectField({
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-slate-700">{label}</label>
-      <div className="relative">
-        <select
-          id={id}
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          className={`${INPUT_CLS} appearance-none pr-9`}
-        >
-          <option value="">Seleccionar…</option>
-          {(value && !options.includes(value) ? [value, ...options] : options).map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          size={15}
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-        />
-      </div>
+      <Select id={id} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Seleccionar…</option>
+        {(value && !options.includes(value) ? [value, ...options] : options).map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </Select>
     </div>
   );
 }

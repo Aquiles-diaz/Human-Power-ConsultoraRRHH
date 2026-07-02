@@ -89,7 +89,7 @@ export default function AuthPage() {
               </Link>
             </div>
           ) : (
-          <div className="[&_form]:max-w-none [&_label]:text-white/80 [&_input]:bg-white/5 [&_input]:text-white [&_input]:border-white/10 [&_input::placeholder]:text-white/30 [&_button[type=submit]]:bg-gradient-to-r [&_button[type=submit]]:from-amber-400 [&_button[type=submit]]:to-amber-500 [&_button[type=submit]]:text-black [&_button[type=submit]]:font-semibold [&_button[type=submit]]:hover:brightness-105">
+          <div className="[&_form]:max-w-none [&_label]:text-white/80 [&_input]:bg-white/5 [&_input]:text-white [&_input]:border-white/10 [&_input::placeholder]:text-white/30">
             <LoginForm onSubmit={handleLogin} loading={loading} error={error} />
             <GoogleAuthButton />
           </div>

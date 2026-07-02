@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { MessageCircle, X, ChevronDown, Mail } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { FAQS, CONTACT_EMAIL } from "./faq-data";
 
 const INTRO = "¿En qué te ayudo? Tocá una pregunta.";
@@ -130,16 +131,17 @@ export default function FaqWidget() {
         </motion.div>
       )}
 
-      <button
+      <Button
         ref={fabRef}
         type="button"
+        variant="brand"
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Cerrar ayuda" : "Abrir ayuda"}
         aria-expanded={open}
-        className="fixed bottom-4 right-4 z-50 flex size-14 items-center justify-center rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-lg shadow-amber-500/30 transition-all hover:shadow-xl hover:shadow-amber-500/50 hover:brightness-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/40 sm:right-6"
+        className="fixed bottom-4 right-4 z-50 size-14 rounded-full p-0 shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/50 sm:right-6"
       >
         {open ? <X className="size-6" /> : <MessageCircle className="size-6" />}
-      </button>
+      </Button>
     </>
   );
 }
