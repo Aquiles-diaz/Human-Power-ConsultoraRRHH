@@ -31,6 +31,10 @@ SMTP_FROM = os.getenv("SMTP_FROM", "no-reply@humanpower.com")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() in ("1", "true", "yes")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
+# URL pública del backend, para links que tienen que resolver contra la API (no
+# el front). En prod es la URL de Render (ej: https://human-power-api.onrender.com).
+API_PUBLIC_URL = os.getenv("API_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+
 # Brevo (API HTTP, puerto 443). Render free bloquea el SMTP saliente, así que en
 # producción mandamos por HTTP. Si BREVO_API_KEY está seteada, tiene precedencia
 # sobre el SMTP. El remitente sale de SMTP_FROM (debe ser un sender verificado).
@@ -117,6 +121,13 @@ def email_verify_link(token: str) -> str:
     return f"{FRONTEND_URL}/verify-email?token={token}"
 
 
+def job_alert_unsub_link(token: str) -> str:
+    """Link de baja de alertas de empleo. A diferencia de los otros links, apunta
+    al BACKEND (no al front): el endpoint GET /alerts/unsubscribe da de baja y
+    redirige, sin requerir que el usuario esté logueado ni abrir la SPA."""
+    return f"{API_PUBLIC_URL}/alerts/unsubscribe?token={token}"
+
+
 def _branded_html(heading: str, intro: str, button_label: str, button_url: str,
                   note: str = "") -> str:
     """Plantilla HTML con la marca (header oscuro + acento ámbar + CTA). Estilos
@@ -178,6 +189,26 @@ def send_password_changed(to: str) -> None:
         text_body=(
             "Tu contraseña de HumanPower fue cambiada. Si no fuiste vos, "
             f"recuperá tu cuenta ahora: {recuperar}"
+        ),
+    )
+
+
+def send_job_alert(to: str, job_title: str, company: str, job_url: str, unsub_url: str) -> None:
+    """Alerta de un nuevo puesto publicado que coincide con un rubro al que el
+    usuario está suscripto (ver /me/alerts)."""
+    send_email(
+        to,
+        f"Nuevo puesto: {job_title} | Human Power",
+        _branded_html(
+            "Nuevo puesto publicado",
+            f"Se publicó una búsqueda que coincide con tus alertas: {job_title} en {company}.",
+            "Ver el aviso",
+            job_url,
+            f'Recibís este mail por tus alertas de empleo. <a href="{unsub_url}">Dar de baja las alertas</a>.',
+        ),
+        text_body=(
+            f"Nuevo puesto: {job_title} en {company}. Ver: {job_url}\n"
+            f"Dar de baja las alertas: {unsub_url}"
         ),
     )
 

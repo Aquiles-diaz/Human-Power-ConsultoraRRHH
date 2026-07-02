@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from starlette.responses import Response, RedirectResponse
@@ -25,7 +25,7 @@ from slowapi import _rate_limit_exceeded_handler
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (2º proyecto)
 from . import emailer  # envío de emails (consultas de contacto)
-from .auth import require_admin, get_current_user  # autorización por JWT + rol admin
+from .auth import require_admin, get_current_user, create_purpose_token  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -533,8 +533,21 @@ def list_jobs_admin() -> list[JobOut]:
         rows = cur.fetchall()
     return [_job_row_to_out(r) for r in rows]
 
+def _send_job_alerts(recipients: list[str], job_title: str, company: str, job_id: str) -> None:
+    """Corre en background (ver create_job): manda la alerta a cada suscripto del
+    rubro. Best-effort — un fallo de mail individual no debe tumbar a los demás,
+    por eso el try/except está DENTRO del loop."""
+    job_url = f"{emailer.FRONTEND_URL}/ofertas/{job_id}"
+    for to in recipients:
+        try:
+            token = create_purpose_token(to, "alert_unsub", 60 * 24 * 180)
+            unsub_url = emailer.job_alert_unsub_link(token)
+            emailer.send_job_alert(to, job_title, company, job_url, unsub_url)
+        except Exception:
+            log.exception("Fallo enviando alerta de empleo a %s", to)
+
 @app.post("/admin/jobs", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
-def create_job(dto: JobUpsert) -> JobOut:
+def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
     posted = (dto.postedAt or "").strip() or None
     with get_db() as conn:
         cur = conn.cursor()
@@ -555,7 +568,23 @@ def create_job(dto: JobUpsert) -> JobOut:
         )
         row = cur.fetchone()
         conn.commit()
-    return _job_row_to_out(row)
+        out = _job_row_to_out(row)
+        if out.isPublished:
+            # Alertas: se juntan los destinatarios ahora (conexión viva) y el envío
+            # va a background para no demorar la respuesta del admin. Best-effort:
+            # un fallo de mail nunca rompe el alta del aviso.
+            cur.execute(
+                """
+                SELECT DISTINCT u.email FROM job_alert_subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.category = %s
+                """,
+                (out.category,),
+            )
+            recipients = [r[0] for r in cur.fetchall()]
+            if recipients:
+                background_tasks.add_task(_send_job_alerts, recipients, out.title, out.company, out.id)
+    return out
 
 @app.put("/admin/jobs/{job_id}", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
 def update_job(job_id: str, dto: JobUpsert) -> JobOut:
