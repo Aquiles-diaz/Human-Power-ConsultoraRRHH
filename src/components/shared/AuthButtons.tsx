@@ -18,18 +18,19 @@ export default function AuthButtons() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => abrir("login")}
-        className="hidden h-10 items-center rounded-full px-4 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white sm:inline-flex"
-      >
-        Iniciar sesión
-      </button>
       <Button
         type="button"
-        variant="brand"
+        variant="subtle"
+        onClick={() => abrir("login")}
+        className="hidden h-10 rounded-full px-4 text-sm font-medium sm:inline-flex"
+      >
+        Iniciar sesión
+      </Button>
+      <Button
+        type="button"
+        variant="subtle"
         onClick={() => abrir("register")}
-        className="h-10 rounded-full px-4 text-sm"
+        className="h-10 rounded-full px-4 text-sm font-semibold"
       >
         Registrarse
       </Button>
