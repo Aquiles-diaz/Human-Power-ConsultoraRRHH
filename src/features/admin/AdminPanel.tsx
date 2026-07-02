@@ -473,6 +473,7 @@ export default function AdminPanel() {
                               onView={() => setActive(cv)}
                               onDownload={() => downloadCv(cv.id, cv.original_name)}
                               onDelete={() => deleteCv(cv.id)}
+                              onStatusChange={(s) => updateStatus(cv.id, s)}
                               deleting={deleting === cv.id}
                             />
                           ))}
@@ -847,17 +848,19 @@ function TabButton({
   );
 }
 
-function ApplicantRow({
+export function ApplicantRow({
   cv,
   onView,
   onDownload,
   onDelete,
+  onStatusChange,
   deleting,
 }: {
   cv: ResumeRow;
   onView: () => void;
   onDownload: () => void;
   onDelete: () => void;
+  onStatusChange: (status: string) => void;
   deleting: boolean;
 }) {
   return (
@@ -878,6 +881,11 @@ function ApplicantRow({
       <span className="hidden whitespace-nowrap text-xs text-white/60 sm:inline">
         {formatDate(cv.created_at)}
       </span>
+      <PipelineSelect
+        value={cv.pipeline_status ?? "received"}
+        disabled={!!cv.withdrawn_at}
+        onChange={onStatusChange}
+      />
       <div className="flex items-center gap-1.5">
         <Button
           variant="brand"
