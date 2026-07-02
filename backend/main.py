@@ -25,7 +25,7 @@ from slowapi import _rate_limit_exceeded_handler
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (2º proyecto)
 from . import emailer  # envío de emails (consultas de contacto)
-from .auth import require_admin, get_current_user, create_purpose_token  # autorización por JWT + rol admin
+from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1290,6 +1290,28 @@ def put_my_alerts(
             )
         conn.commit()
     return AlertsOut(categories=cats)
+
+@app.get("/alerts/unsubscribe", tags=["default"])
+def alerts_unsubscribe(token: str = ""):
+    """Baja de un click desde el mail: sin login, el token firmado identifica al usuario."""
+    dest_ok = f"{emailer.FRONTEND_URL}/alertas/baja?ok=1"
+    dest_err = f"{emailer.FRONTEND_URL}/alertas/baja?ok=0"
+    try:
+        payload = decode_purpose_token(token, "alert_unsub")
+    except HTTPException:
+        return RedirectResponse(dest_err, status_code=302)
+    email = payload["sub"]
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            DELETE FROM job_alert_subscriptions
+            WHERE user_id IN (SELECT id FROM users WHERE LOWER(email) = LOWER(%s))
+            """,
+            (email,),
+        )
+        conn.commit()
+    return RedirectResponse(dest_ok, status_code=302)
 
 @app.get("/uploads/{key}", tags=["default"])
 def serve_upload(key: str):
