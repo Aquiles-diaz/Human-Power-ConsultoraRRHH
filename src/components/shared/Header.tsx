@@ -2,6 +2,7 @@
 import { Link } from "react-router-dom";
 import CargarCvButton from "@/components/shared/CargarCvButton";
 import UserMenu from "@/components/shared/UserMenu";
+import MobileMenu from "@/components/shared/MobileMenu";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { PAGE_SHELL } from "@/components/shared/PageContainer";
 
@@ -39,6 +40,7 @@ export const Header = () => (
       <div className="flex items-center gap-2 md:justify-self-end">
         <CargarCvButton className="hidden rounded-full px-5 sm:inline-flex" />
         <UserMenu />
+        <MobileMenu />
       </div>
     </div>
   </header>
