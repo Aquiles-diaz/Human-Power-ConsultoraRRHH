@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Camera,
   Save,
@@ -53,8 +54,16 @@ function initials(name?: string | null, last?: string | null) {
   return (a + b || n[0] || "?").toUpperCase();
 }
 
+type ProfileTab = "perfil" | "video" | "postulaciones";
+
+/** Lee la solapa inicial de `?tab=` (p. ej. al volver desde "Postulación enviada"). Inválido → "perfil". */
+function initialTab(param: string | null): ProfileTab {
+  return param === "video" || param === "postulaciones" ? param : "perfil";
+}
+
 export default function ProfilePage() {
   const { user, getAuthHeader } = useAuth();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<Partial<Profile>>({});
   const [loading, setLoading] = useState(true);
@@ -69,7 +78,7 @@ export default function ProfilePage() {
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
   const [pwOpen, setPwOpen] = useState(false);
-  const [tab, setTab] = useState<"perfil" | "video" | "postulaciones">("perfil");
+  const [tab, setTab] = useState<ProfileTab>(() => initialTab(searchParams.get("tab")));
 
   const completion = useMemo(
     () => computeProfileCompletion(profile),

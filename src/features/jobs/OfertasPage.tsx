@@ -47,6 +47,7 @@ import { timeAgo, initials, typeStyles } from "./job-ui";
 import { jobPostingLd } from "./job-seo";
 import { resolveJobRoute } from "./job-routing";
 import { JobListItem } from "./JobListItem";
+import ApplySuccess from "./ApplySuccess";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
 // Los filtros siguen operando en memoria sobre la lista completa.
@@ -330,22 +331,8 @@ const ApplyModal: React.FC<{
             </div>
           </>
         ) : done ? (
-          // ── Éxito ──
-          <>
-            <DialogHeader>
-              <div className="mx-auto mb-2 grid size-12 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-                <CheckCircle2 size={24} />
-              </div>
-              <DialogTitle className="text-center">¡Postulación enviada!</DialogTitle>
-              <DialogDescription className="text-center">
-                Recibimos tu CV para <strong>{job.title}</strong>. El equipo de RRHH se va a poner en
-                contacto.
-              </DialogDescription>
-            </DialogHeader>
-            <Button variant="brand" className="mt-2 w-full rounded-xl" onClick={handleClose}>
-              Listo
-            </Button>
-          </>
+          // ── Éxito: próximos pasos + cross-sell de alertas del rubro ──
+          <ApplySuccess job={job} authHeaders={getAuthHeader()} onClose={handleClose} />
         ) : (
           // ── Formulario de postulación ──
           <form onSubmit={handleSubmit}>
