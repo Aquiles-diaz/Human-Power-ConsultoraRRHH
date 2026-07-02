@@ -153,7 +153,12 @@ export function getVideoEmbed(url: string): VideoInfo {
   const st = toStreamableEmbed(clean);
   if (st) return { type: "streamable", src: st };
 
-  if (/\.(mp4|webm|ogg)(\?|$)/i.test(clean)) return { type: "file", src: clean };
+  // Archivo de video directo (.mp4/.webm/.ogg). Exigimos protocolo http(s):
+  // antes, un valor como "javascript:alert(1)//x.mp4" pasaba este gate y se
+  // renderizaba tal cual en un href del panel admin (stored XSS).
+  if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(clean) && /^https?:\/\//i.test(clean)) {
+    return { type: "file", src: clean };
+  }
 
   return null;
 }

@@ -3,17 +3,30 @@ import { MapPin } from "lucide-react";
 import { type Job } from "./jobs-data";
 import { timeAgo, initials, typeStyles } from "./job-ui";
 
+// Es un <a> (no <button>) para que Google descubra /ofertas/:id crawleando
+// estos href — no hay sitemap de avisos. El click navega vía SPA con
+// preventDefault (no se recarga la página).
+// React.memo: hoy solo evita re-render cuando las props son estables (job/active
+// iguales por referencia). OfertasPage pasa onSelect={() => handleSelect(job.id)}
+// (función nueva en cada render), lo que anula el memo en la práctica.
+// Mejora futura: callback estable (useCallback + id) para que el memo sirva de verdad.
 export const JobListItem: React.FC<{
   job: Job;
   active: boolean;
   onSelect: () => void;
-}> = ({ job, active, onSelect }) => (
-  <button
-    onClick={onSelect}
-    className={`w-full text-left rounded-2xl border p-4 transition-all ${
+}> = React.memo(({ job, active, onSelect }) => (
+  <a
+    href={`/ofertas/${job.id}`}
+    onClick={(e) => {
+      e.preventDefault();
+      onSelect();
+    }}
+    className={`block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-md ${
+      // El resaltado ámbar (activo) solo en desktop: ahí se ve el detalle al lado.
+      // En mobile el detalle es otra pantalla, así que todas las tarjetas se ven iguales.
       active
-        ? "border-amber-400 bg-amber-50/60 shadow-sm"
-        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+        ? "lg:border-l-4 lg:border-l-amber-500 lg:bg-amber-50 lg:shadow-sm lg:hover:border-l-amber-500 lg:hover:bg-amber-50"
+        : ""
     }`}
   >
     <div className="flex items-start gap-3">
@@ -30,14 +43,18 @@ export const JobListItem: React.FC<{
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              typeStyles[job.type] ?? "bg-slate-100 text-slate-600"
+              typeStyles[job.type] ?? "bg-blue-50 text-blue-700"
             }`}
           >
             {job.type}
           </span>
-          <span className="text-[11px] text-slate-400">{timeAgo(job.postedAt)}</span>
+          {timeAgo(job.postedAt) && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+              {timeAgo(job.postedAt)}
+            </span>
+          )}
         </div>
       </div>
     </div>
-  </button>
-);
+  </a>
+));

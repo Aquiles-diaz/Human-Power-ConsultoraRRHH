@@ -16,7 +16,7 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,74 +30,38 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Header } from "@/components/shared/Header";
+import { JsonLd } from "@/components/shared/JsonLd";
 import { useSeo } from "@/lib/use-seo";
+import { DEFAULT_DESCRIPTION } from "@/lib/seo";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import { type Job } from "./jobs-data";
+import { ShareJobButton } from "./ShareJobButton";
 import { useJobs } from "./use-jobs";
 import { filterJobs } from "./job-filter";
 import { CATEGORIES, isValidCategory } from "./categories";
 import { Skeleton } from "@/components/ui/skeleton";
-import { timeAgo, initials, typeStyles } from "./job-ui";
+import { timeAgo, initials } from "./job-ui";
+import { jobPostingLd } from "./job-seo";
+import { resolveJobRoute } from "./job-routing";
+import { JobListItem } from "./JobListItem";
+import ApplySuccess from "./ApplySuccess";
+import SlowLoadingHint from "@/components/shared/SlowLoadingHint";
 
 // Cuántas tarjetas de la lista se renderizan de entrada; el resto se trae con "Ver más".
 // Los filtros siguen operando en memoria sobre la lista completa.
 const PAGE_SIZE = 20;
 
+// Límite real del textarea de mensaje del modal de postulación (atributo maxLength).
+const MESSAGE_MAX_LENGTH = 10000;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades
 // ─────────────────────────────────────────────────────────────────────────────
-// timeAgo, initials y typeStyles viven en job-ui.ts (única fuente; compartidos con JobListItem/JobDetail).
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tarjeta de la lista (columna izquierda)
-// ─────────────────────────────────────────────────────────────────────────────
-const JobListItem: React.FC<{
-  job: Job;
-  active: boolean;
-  onSelect: () => void;
-}> = ({ job, active, onSelect }) => (
-  <button
-    onClick={onSelect}
-    className={`w-full cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-md ${
-      // El resaltado ámbar (activo) solo en desktop: ahí se ve el detalle al lado.
-      // En mobile el detalle es otra pantalla, así que todas las tarjetas se ven iguales.
-      active
-        ? "lg:border-l-4 lg:border-l-amber-500 lg:bg-amber-50 lg:shadow-sm lg:hover:border-l-amber-500 lg:hover:bg-amber-50"
-        : ""
-    }`}
-  >
-    <div className="flex items-start gap-3">
-      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-sm font-bold text-white">
-        {initials(job.company)}
-      </span>
-      <div className="min-w-0 flex-1">
-        <h3 className="truncate font-semibold text-slate-900">{job.title}</h3>
-        <p className="truncate text-sm text-slate-500">{job.company}</p>
-        <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-          <MapPin size={13} />
-          <span className="truncate">{job.location}</span>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              typeStyles[job.type] ?? "bg-blue-50 text-blue-700"
-            }`}
-          >
-            {job.type}
-          </span>
-          {timeAgo(job.postedAt) && (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-              {timeAgo(job.postedAt)}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  </button>
-);
+// timeAgo e initials viven en job-ui.ts (única fuente; typeStyles lo usa JobListItem).
+// JobListItem (tarjeta de la lista, columna izquierda) vive en ./JobListItem.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Panel de detalle (columna derecha)
@@ -115,7 +79,7 @@ const JobDetail: React.FC<{
         {onBack && (
           <button
             onClick={onBack}
-            className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 lg:hidden"
+            className="-ml-3 mb-3 inline-flex h-10 items-center gap-1 rounded-lg px-3 text-sm text-slate-500 lg:hidden"
           >
             <ChevronLeft size={16} /> Volver
           </button>
@@ -130,6 +94,11 @@ const JobDetail: React.FC<{
               <Building2 size={15} /> {job.company}
             </p>
           </div>
+        </div>
+
+        {/* Compartir aviso — debajo del título/empresa, antes de los metadatos */}
+        <div className="mt-4">
+          <ShareJobButton job={job} />
         </div>
 
         {/* Chips de datos clave — fila homogénea, con borde e íconos definidos */}
@@ -366,22 +335,8 @@ const ApplyModal: React.FC<{
             </div>
           </>
         ) : done ? (
-          // ── Éxito ──
-          <>
-            <DialogHeader>
-              <div className="mx-auto mb-2 grid size-12 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-                <CheckCircle2 size={24} />
-              </div>
-              <DialogTitle className="text-center">¡Postulación enviada!</DialogTitle>
-              <DialogDescription className="text-center">
-                Recibimos tu CV para <strong>{job.title}</strong>. El equipo de RRHH se va a poner en
-                contacto.
-              </DialogDescription>
-            </DialogHeader>
-            <Button variant="brand" className="mt-2 w-full rounded-xl" onClick={handleClose}>
-              Listo
-            </Button>
-          </>
+          // ── Éxito: próximos pasos + cross-sell de alertas del rubro ──
+          <ApplySuccess job={job} authHeaders={getAuthHeader()} onClose={handleClose} />
         ) : (
           // ── Formulario de postulación ──
           <form onSubmit={handleSubmit}>
@@ -491,12 +446,15 @@ const ApplyModal: React.FC<{
                 </label>
                 <textarea
                   rows={3}
-                  maxLength={10000}
+                  maxLength={MESSAGE_MAX_LENGTH}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Contanos por qué sos ideal para este puesto…"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                 />
+                <p className="mt-1 text-right text-xs text-slate-400">
+                  {message.length}/{MESSAGE_MAX_LENGTH}
+                </p>
               </div>
             </div>
 
@@ -518,6 +476,11 @@ const ApplyModal: React.FC<{
                 {submitting ? "Enviando…" : "Enviar postulación"}
               </Button>
             </div>
+            {!profileLoading && !hasCv && !file && (
+              <p className="mt-2 text-center text-xs text-slate-400">
+                Subí tu CV para continuar
+              </p>
+            )}
           </form>
         )}
       </DialogContent>
@@ -529,16 +492,11 @@ const ApplyModal: React.FC<{
 // Página principal
 // ─────────────────────────────────────────────────────────────────────────────
 const OfertasPage: React.FC = () => {
-  useSeo({
-    title: "Ofertas de empleo | Human Power",
-    description:
-      "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
-    path: "/ofertas",
-  });
-
   // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
   // y se revalidan en background (suaviza el cold start del backend).
   const { jobs, loading, error: loadError } = useJobs();
+  const { jobId } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [locationFilter, setLocationFilter] = useState("");
@@ -585,9 +543,43 @@ const OfertasPage: React.FC = () => {
     );
   }, [filteredJobs, selectedId]);
 
+  // Deep-link /ofertas/:jobId → seleccionar ese aviso (y abrir el detalle en
+  // mobile). Id inexistente una vez cargados los jobs → volver al listado.
+  const routeRes = resolveJobRoute(jobId, jobs, loading);
+  useEffect(() => {
+    if (routeRes.kind === "found") {
+      setSelectedId(routeRes.id);
+      setMobileDetail(true);
+    } else if (routeRes.kind === "redirect") {
+      navigate("/ofertas", { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, jobs, loading]);
+
+  // SEO por aviso SOLO con deep-link real: jobForSeo exige que el aviso de la
+  // URL sea el efectivamente seleccionado (los filtros podrían excluirlo y
+  // selectedJob caería en el primero de la lista, que no corresponde).
+  const jobForSeo =
+    routeRes.kind === "found" && selectedJob?.id === routeRes.id ? selectedJob : null;
+  useSeo(
+    jobForSeo
+      ? {
+          title: `${jobForSeo.title} en ${jobForSeo.company} | Human Power`,
+          description: jobForSeo.shortDescription || DEFAULT_DESCRIPTION,
+          path: `/ofertas/${jobForSeo.id}`,
+        }
+      : {
+          title: "Ofertas de empleo | Human Power",
+          description:
+            "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
+          path: "/ofertas",
+        }
+  );
+
   function handleSelect(id: string) {
     setSelectedId(id);
     setMobileDetail(true);
+    navigate(`/ofertas/${id}`);
   }
 
   return (
@@ -689,6 +681,7 @@ const OfertasPage: React.FC = () => {
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-28 w-full rounded-2xl" />
                 ))}
+                <SlowLoadingHint />
               </div>
               <Skeleton className="hidden h-[420px] w-full rounded-2xl lg:block" />
             </div>
@@ -754,10 +747,14 @@ const OfertasPage: React.FC = () => {
                     mobileDetail ? "block" : "hidden"
                   }`}
                 >
+                  {jobForSeo && <JsonLd data={jobPostingLd(jobForSeo)} />}
                   <JobDetail
                     job={selectedJob}
                     onApply={() => setApplyOpen(true)}
-                    onBack={() => setMobileDetail(false)}
+                    onBack={() => {
+                      setMobileDetail(false);
+                      navigate("/ofertas");
+                    }}
                   />
                 </div>
               )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Camera,
   Save,
@@ -13,6 +14,13 @@ import {
 import { toast } from "sonner";
 import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { API, authFetch, parseApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
@@ -21,7 +29,9 @@ import ProfileCompletion from "./ProfileCompletion";
 import VideoTab from "./VideoTab";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import MyApplications from "./MyApplications";
+import AlertsCard from "./AlertsCard";
 import { computeProfileCompletion } from "./completion";
+import SlowLoadingHint from "@/components/shared/SlowLoadingHint";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
   AGE_RANGES,
@@ -52,8 +62,16 @@ function initials(name?: string | null, last?: string | null) {
   return (a + b || n[0] || "?").toUpperCase();
 }
 
+type ProfileTab = "perfil" | "video" | "postulaciones";
+
+/** Lee la solapa inicial de `?tab=` (p. ej. al volver desde "Postulación enviada"). Inválido → "perfil". */
+function initialTab(param: string | null): ProfileTab {
+  return param === "video" || param === "postulaciones" ? param : "perfil";
+}
+
 export default function ProfilePage() {
   const { user, getAuthHeader } = useAuth();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<Partial<Profile>>({});
   const [loading, setLoading] = useState(true);
@@ -63,12 +81,13 @@ export default function ProfilePage() {
   const [cvUploading, setCvUploading] = useState(false);
   const [langName, setLangName] = useState("");
   const [langLevel, setLangLevel] = useState("");
+  const [cvDeleteOpen, setCvDeleteOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
   const [pwOpen, setPwOpen] = useState(false);
-  const [tab, setTab] = useState<"perfil" | "video" | "postulaciones">("perfil");
+  const [tab, setTab] = useState<ProfileTab>(() => initialTab(searchParams.get("tab")));
 
   const completion = useMemo(
     () => computeProfileCompletion(profile),
@@ -201,8 +220,7 @@ export default function ProfilePage() {
     }
   }
 
-  async function deleteCv() {
-    if (!confirm("¿Eliminar tu CV?")) return;
+  async function confirmDeleteCv() {
     try {
       const res = await authFetch(`/me/profile/cv`, authHeaders, { method: "DELETE" });
       if (!res.ok) throw new Error(await parseApiError(res));
@@ -211,6 +229,8 @@ export default function ProfilePage() {
       toast.success("CV eliminado");
     } catch (e) {
       toast.error("No se pudo eliminar", { description: getErrorMessage(e) });
+    } finally {
+      setCvDeleteOpen(false);
     }
   }
 
@@ -241,8 +261,9 @@ export default function ProfilePage() {
       <main className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-4xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
           {loading ? (
-            <div className="grid place-items-center py-24 text-slate-400">
+            <div className="grid place-items-center gap-3 py-24 text-slate-400">
               <Loader2 className="size-7 animate-spin" />
+              <SlowLoadingHint />
             </div>
           ) : loadError && !profile ? (
             <div className="mx-auto mt-12 max-w-md rounded-xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm">
@@ -290,6 +311,8 @@ export default function ProfilePage() {
                     <img
                       src={`${API}${profile.photo_url}`}
                       alt="Foto de perfil"
+                      width={80}
+                      height={80}
                       className="size-20 rounded-full border border-slate-200 object-cover"
                     />
                   ) : (
@@ -387,7 +410,7 @@ export default function ProfilePage() {
                         </button>
                         <button
                           type="button"
-                          onClick={deleteCv}
+                          onClick={() => setCvDeleteOpen(true)}
                           title="Eliminar"
                           aria-label="Eliminar CV"
                           className="grid size-8 place-items-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
@@ -422,6 +445,9 @@ export default function ProfilePage() {
                   />
                 </Row>
 
+                {/* Alertas de empleo por rubro */}
+                <AlertsCard authHeaders={authHeaders} />
+
                 {/* Datos personales */}
                 <Row
                   id="sec-personal"
@@ -430,7 +456,15 @@ export default function ProfilePage() {
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
-                    <TextField label="Teléfono" value={form.phone} placeholder="+54 9 341 ..." maxLength={40} onChange={(v) => setField("phone", v)} />
+                    <TextField
+                      label="Teléfono"
+                      value={form.phone}
+                      placeholder="+54 9 341 ..."
+                      maxLength={40}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      onChange={(v) => setField("phone", v)}
+                    />
                     <TextField label="Fecha de nacimiento" type="date" value={form.birthdate} onChange={(v) => setField("birthdate", v)} />
                     <SelectField label="Edad (rango)" value={form.age_range} options={AGE_RANGES} onChange={(v) => setField("age_range", v)} />
                     <SelectField label="País" value={form.country} options={COUNTRIES} onChange={(v) => setField("country", v)} />
@@ -495,7 +529,13 @@ export default function ProfilePage() {
                           ))}
                         </select>
                       </div>
-                      <Button type="button" variant="outline" className="rounded-lg sm:w-auto" onClick={addLanguage}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-lg sm:w-auto"
+                        onClick={addLanguage}
+                        disabled={!langName}
+                      >
                         Agregar
                       </Button>
                     </div>
@@ -557,6 +597,27 @@ export default function ProfilePage() {
                     onOpenChange={setPwOpen}
                     authHeaders={authHeaders}
                   />
+
+                  {/* Confirmación de borrado de CV (reemplaza window.confirm) */}
+                  <Dialog open={cvDeleteOpen} onOpenChange={setCvDeleteOpen}>
+                    <DialogContent className="sm:max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle>Eliminar tu CV</DialogTitle>
+                        <DialogDescription>¿Eliminar tu CV?</DialogDescription>
+                      </DialogHeader>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="ghost" onClick={() => setCvDeleteOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={confirmDeleteCv}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </>
               )}
             </>
@@ -601,6 +662,7 @@ function TextField({
   type = "text",
   suggestions,
   maxLength = 500,
+  ...rest
 }: {
   label: string;
   value?: string | null;
@@ -609,7 +671,10 @@ function TextField({
   type?: string;
   suggestions?: string[];
   maxLength?: number;
-}) {
+} & Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "id" | "value" | "onChange" | "placeholder" | "type" | "list" | "maxLength" | "className"
+>) {
   const id = React.useId();
   const listId = suggestions
     ? `dl-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
@@ -626,6 +691,7 @@ function TextField({
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         className={INPUT_CLS}
+        {...rest}
       />
       {suggestions && (
         <datalist id={listId}>

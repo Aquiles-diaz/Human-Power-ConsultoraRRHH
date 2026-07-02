@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from starlette.responses import Response, RedirectResponse
@@ -25,7 +25,7 @@ from slowapi import _rate_limit_exceeded_handler
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (2º proyecto)
 from . import emailer  # envío de emails (consultas de contacto)
-from .auth import require_admin, get_current_user  # autorización por JWT + rol admin
+from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -51,6 +51,11 @@ settings = Settings()
 #   "redirect" -> responde 307 a una URL firmada de Supabase (más liviano para
 #                 serverless/Vercel). Requiere que el cliente siga el redirect.
 CV_DELIVERY = os.getenv("CV_DELIVERY", "stream").lower()
+
+# Docs interactivos (/docs, /redoc, /openapi.json): apagados por defecto. En prod
+# enumeran toda la API (incluidos endpoints admin) sin aportar valor. Encendelos
+# en desarrollo con ENABLE_DOCS=1.
+ENABLE_DOCS = os.getenv("ENABLE_DOCS", "0") == "1"
 
 # Destinatario de las consultas del formulario de contacto público.
 CONTACT_TO = os.getenv("CONTACT_TO", "humanpower.rrhh@gmail.com")
@@ -96,7 +101,14 @@ async def lifespan(app: FastAPI):
         log.info("RUN_INIT_DB!=1; salteo init_db() (esquema gestionado por migraciones).")
     yield
 
-app = FastAPI(title="HumanPower API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="HumanPower API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_DOCS else None,
+)
 
 # Rate limiting (slowapi): registra el limiter y el handler del error 429.
 app.state.limiter = limiter
@@ -120,6 +132,10 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Render termina TLS siempre: forzar HTTPS en el navegador por 2 años.
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    # La API no usa cámara/mic/geoloc: negarlas por defecto.
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 
 # Las fotos de perfil se sirven vía la ruta GET /uploads/{key} (más abajo),
@@ -167,6 +183,7 @@ class ResumeItem(BaseModel):
     job_title: Optional[str] = None
     withdrawn_at: Optional[str] = None
     video_url: Optional[str] = None  # video de presentación del perfil del candidato (si tiene)
+    pipeline_status: str = "received"  # pipeline visible (received|viewed|in_process|finished)
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
@@ -178,9 +195,13 @@ class ApplicationItem(BaseModel):
     created_at: str
     withdrawn_at: Optional[str] = None
     status: str  # "active" | "withdrawn"
+    pipeline_status: str = "received"
 
 class ApplicationsOut(BaseModel):
     items: list[ApplicationItem]
+
+# Estados de pipeline visibles (candidato + admin); reusado por el PATCH de la Task 3.
+_PIPELINE_STATUSES = {"received", "viewed", "in_process", "finished"}
 
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
@@ -188,6 +209,16 @@ PROFILE_TEXT_FIELDS = [
     "professional_area", "education_level", "experience_years",
     "availability", "salary_expectation", "headline", "video_url",
 ]
+
+# Hosts de video permitidos para el link pegado (video_url). Espeja
+# isAllowedVideoUrl del frontend (src/lib/video-embeds.ts). Exige el dominio real
+# al final para no aceptar suplantaciones tipo "tiktok.com.evil.com", y solo
+# http(s): así un valor peligroso (javascript:, data:) nunca llega a la DB ni al
+# href que el panel admin renderiza (defensa server-side contra stored XSS).
+_ALLOWED_VIDEO_HOST = re.compile(
+    r"^https?://([a-z0-9-]+\.)*(tiktok\.com|youtube\.com|youtu\.be|instagram\.com|vimeo\.com)/",
+    re.IGNORECASE,
+)
 
 class ProfileUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=40)
@@ -204,6 +235,18 @@ class ProfileUpdate(BaseModel):
     salary_expectation: Optional[str] = Field(None, max_length=120)
     headline: Optional[str] = Field(None, max_length=200)
     video_url: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("video_url")
+    @classmethod
+    def _validate_video_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if v == "":
+            return ""  # cadena vacía = limpiar el link
+        if not _ALLOWED_VIDEO_HOST.match(v):
+            raise ValueError("El link de video debe ser de YouTube, TikTok, Instagram o Vimeo.")
+        return v
 
 class ProfileOut(BaseModel):
     user_id: int
@@ -309,6 +352,36 @@ def _ext_ok(filename: str) -> bool:
 def _detect_mimetype(name, fallback: str = "application/octet-stream") -> str:
     mt, _ = mimetypes.guess_type(str(name))
     return mt or fallback
+
+def _like_escape(s: str) -> str:
+    r"""Neutraliza los comodines de LIKE (`%`, `_`) y el escape `\` en una búsqueda.
+    Postgres usa `\` como carácter de escape por defecto en LIKE."""
+    return s.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+
+# Firmas por bytes mágicos aceptadas por categoría de subida. La validación por
+# extensión / Content-Type del cliente es falsificable; esto mira el contenido
+# real para que no se puedan subir bytes arbitrarios etiquetados como otra cosa
+# (p. ej. un HTML disfrazado de video en un bucket público).
+def _sniff_ok(data: bytes, kind: str) -> bool:
+    head = data[:16]
+    if kind == "cv":
+        return (
+            head.startswith(b"%PDF")                      # PDF
+            or head.startswith(b"PK\x03\x04")             # docx (zip)
+            or head.startswith(b"\xd0\xcf\x11\xe0")       # doc legacy (OLE2)
+        )
+    if kind == "image":
+        return (
+            head.startswith(b"\xff\xd8\xff")              # JPEG
+            or head.startswith(b"\x89PNG\r\n\x1a\n")      # PNG
+            or (head[:4] == b"RIFF" and data[8:12] == b"WEBP")  # WEBP
+        )
+    if kind == "video":
+        return (
+            data[4:8] == b"ftyp"                          # MP4 / MOV (ISO-BMFF)
+            or head.startswith(b"\x1a\x45\xdf\xa3")       # WEBM / Matroska (EBML)
+        )
+    return False
 
 # ── Helpers de puestos ──
 def _slugify(text: str) -> str:
@@ -460,8 +533,21 @@ def list_jobs_admin() -> list[JobOut]:
         rows = cur.fetchall()
     return [_job_row_to_out(r) for r in rows]
 
+def _send_job_alerts(recipients: list[str], job_title: str, company: str, job_id: str) -> None:
+    """Corre en background (ver create_job): manda la alerta a cada suscripto del
+    rubro. Best-effort — un fallo de mail individual no debe tumbar a los demás,
+    por eso el try/except está DENTRO del loop."""
+    job_url = f"{emailer.FRONTEND_URL}/ofertas/{job_id}"
+    for to in recipients:
+        try:
+            token = create_purpose_token(to, "alert_unsub", 60 * 24 * 180)
+            unsub_url = emailer.job_alert_unsub_link(token)
+            emailer.send_job_alert(to, job_title, company, job_url, unsub_url)
+        except Exception:
+            log.exception("Fallo enviando alerta de empleo a %s", to)
+
 @app.post("/admin/jobs", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
-def create_job(dto: JobUpsert) -> JobOut:
+def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
     posted = (dto.postedAt or "").strip() or None
     with get_db() as conn:
         cur = conn.cursor()
@@ -482,7 +568,23 @@ def create_job(dto: JobUpsert) -> JobOut:
         )
         row = cur.fetchone()
         conn.commit()
-    return _job_row_to_out(row)
+        out = _job_row_to_out(row)
+        if out.isPublished:
+            # Alertas: se juntan los destinatarios ahora (conexión viva) y el envío
+            # va a background para no demorar la respuesta del admin. Best-effort:
+            # un fallo de mail nunca rompe el alta del aviso.
+            cur.execute(
+                """
+                SELECT DISTINCT u.email FROM job_alert_subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.category = %s
+                """,
+                (out.category,),
+            )
+            recipients = [r[0] for r in cur.fetchall()]
+            if recipients:
+                background_tasks.add_task(_send_job_alerts, recipients, out.title, out.company, out.id)
+    return out
 
 @app.put("/admin/jobs/{job_id}", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
 def update_job(job_id: str, dto: JobUpsert) -> JobOut:
@@ -589,6 +691,9 @@ async def _store_resume(
         await file.close()
     except Exception:
         pass
+
+    if not _sniff_ok(data, "cv"):
+        raise HTTPException(status_code=400, detail="El archivo no es un PDF/DOC/DOCX válido")
 
     mimetype = file.content_type or _detect_mimetype(original)
     _upload_or_502(storage.CV_BUCKET, key, data, mimetype)
@@ -697,11 +802,20 @@ async def apply_to_job(
 def download_cv(cv_id: int):
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT filename, original_name FROM resumes WHERE id = %s", (cv_id,))
+        cur.execute("SELECT filename, original_name, status FROM resumes WHERE id = %s", (cv_id,))
         row = cur.fetchone()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="No encontrado")
+        if not row:
+            raise HTTPException(status_code=404, detail="No encontrado")
+
+        if row and (row[2] or "received") == "received":
+            # Vista automática: la primera descarga del admin marca la postulación como vista.
+            # El guard en el WHERE evita degradar estados posteriores ante carreras.
+            cur.execute(
+                "UPDATE resumes SET status = 'viewed' WHERE id = %s AND status = 'received'",
+                (cv_id,),
+            )
+            conn.commit()
 
     return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
 
@@ -713,7 +827,7 @@ def list_cvs_admin() -> ListCvOut:
             """
             SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, ''),
                    r.created_at, r.job_id, r.job_title, r.withdrawn_at,
-                   p.video_filename, p.video_url
+                   p.video_filename, p.video_url, r.status
             FROM resumes r
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
@@ -733,10 +847,34 @@ def list_cvs_admin() -> ListCvOut:
                 withdrawn_at=_legacy_ts(r[8]),
                 # video del perfil: archivo subido (precede) o link viejo
                 video_url=storage_video.public_url(r[9]) or r[10],
+                pipeline_status=(r[11] or "received"),
             )
             for r in cur.fetchall()
         ]
     return ListCvOut(items=rows)
+
+class CvStatusUpdate(BaseModel):
+    status: str
+
+class CvStatusOut(BaseModel):
+    id: int
+    pipeline_status: str
+
+@app.patch("/admin/cv/{cv_id}/status", response_model=CvStatusOut,
+           dependencies=[Depends(require_admin)], tags=["admin"])
+def update_cv_status(cv_id: int, dto: CvStatusUpdate) -> CvStatusOut:
+    # 400 explícito (no 422): el enum es contrato de la API, no forma del body.
+    status = (dto.status or "").strip().lower()
+    if status not in _PIPELINE_STATUSES:
+        raise HTTPException(status_code=400, detail="Estado inválido")
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM resumes WHERE id = %s", (cv_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="No encontrado")
+        cur.execute("UPDATE resumes SET status = %s WHERE id = %s", (status, cv_id))
+        conn.commit()
+    return CvStatusOut(id=cv_id, pipeline_status=status)
 
 @app.delete("/admin/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])
 def delete_cv_admin(cv_id: int):
@@ -854,6 +992,8 @@ async def upload_my_cv(
         await file.close()
     except Exception:
         pass
+    if not _sniff_ok(data, "cv"):
+        raise HTTPException(status_code=400, detail="El archivo no es un PDF/DOC/DOCX válido")
     _upload_or_502(storage.CV_BUCKET, key, data, file.content_type or _detect_mimetype(original))
 
     # Si la DB falla tras subir el archivo, borramos el objeto nuevo (compensación).
@@ -913,6 +1053,8 @@ async def upload_my_photo(
         await file.close()
     except Exception:
         pass
+    if not _sniff_ok(data, "image"):
+        raise HTTPException(status_code=400, detail="El archivo no es una imagen JPG/PNG/WEBP válida")
     _upload_or_502(storage.PHOTO_BUCKET, key, data, file.content_type or _detect_mimetype(original))
 
     # Si la DB falla tras subir la imagen, borramos el objeto nuevo (compensación).
@@ -967,6 +1109,8 @@ async def upload_my_video(
         await file.close()
     except Exception:
         pass
+    if not _sniff_ok(data, "video"):
+        raise HTTPException(status_code=400, detail="El archivo no es un video MP4/WEBM válido")
     key = f"{current_user['id']}/{uuid.uuid4().hex}{ext}"
     try:
         storage_video.upload(key, data, ct)
@@ -1053,7 +1197,7 @@ def list_my_applications(current_user: dict = Depends(get_current_user)) -> Appl
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, job_id, job_title, created_at, withdrawn_at
+            SELECT id, job_id, job_title, created_at, withdrawn_at, status
             FROM resumes
             WHERE email = %s
             ORDER BY created_at DESC, id DESC
@@ -1069,6 +1213,7 @@ def list_my_applications(current_user: dict = Depends(get_current_user)) -> Appl
             created_at=_legacy_ts(r[3]),
             withdrawn_at=_legacy_ts(r[4]),
             status="withdrawn" if r[4] else "active",
+            pipeline_status=(r[5] or "received"),
         )
         for r in rows
     ])
@@ -1104,6 +1249,69 @@ def withdraw_my_application(
         withdrawn_at=_legacy_ts(row[4]),
         status="withdrawn" if row[4] else "active",
     )
+
+class AlertsOut(BaseModel):
+    categories: list[str]
+
+class AlertsUpdate(BaseModel):
+    categories: list[str]
+
+@app.get("/me/alerts", response_model=AlertsOut, tags=["profile"])
+def get_my_alerts(current_user: dict = Depends(get_current_user)) -> AlertsOut:
+    """Rubros a los que el usuario logueado está suscripto para alertas de empleo."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT category FROM job_alert_subscriptions WHERE user_id = %s ORDER BY category",
+            (current_user["id"],),
+        )
+        return AlertsOut(categories=[r[0] for r in cur.fetchall()])
+
+@app.put("/me/alerts", response_model=AlertsOut, tags=["profile"])
+def put_my_alerts(
+    dto: AlertsUpdate,
+    current_user: dict = Depends(get_current_user),
+) -> AlertsOut:
+    """Reemplaza el set completo de rubros suscriptos por el usuario logueado."""
+    # 400 explícito: el set de rubros es contrato de la API (misma lógica que el PATCH de estado).
+    cats = [(c or "").strip().lower() for c in dto.categories]
+    for c in cats:
+        if c not in JOB_CATEGORIES:
+            raise HTTPException(status_code=400, detail=f"Rubro inválido: {c}")
+    cats = sorted(set(cats))
+    with get_db() as conn:
+        cur = conn.cursor()
+        # Reemplazo completo del set: más simple que diff y es idempotente.
+        cur.execute("DELETE FROM job_alert_subscriptions WHERE user_id = %s", (current_user["id"],))
+        for c in cats:
+            cur.execute(
+                "INSERT INTO job_alert_subscriptions (user_id, category) VALUES (%s, %s)",
+                (current_user["id"], c),
+            )
+        conn.commit()
+    return AlertsOut(categories=cats)
+
+@app.get("/alerts/unsubscribe", tags=["default"])
+def alerts_unsubscribe(token: str = ""):
+    """Baja de un click desde el mail: sin login, el token firmado identifica al usuario."""
+    dest_ok = f"{emailer.FRONTEND_URL}/alertas/baja?ok=1"
+    dest_err = f"{emailer.FRONTEND_URL}/alertas/baja?ok=0"
+    try:
+        payload = decode_purpose_token(token, "alert_unsub")
+    except HTTPException:
+        return RedirectResponse(dest_err, status_code=302)
+    email = payload["sub"]
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            DELETE FROM job_alert_subscriptions
+            WHERE user_id IN (SELECT id FROM users WHERE LOWER(email) = LOWER(%s))
+            """,
+            (email,),
+        )
+        conn.commit()
+    return RedirectResponse(dest_ok, status_code=302)
 
 @app.get("/uploads/{key}", tags=["default"])
 def serve_upload(key: str):
@@ -1151,14 +1359,14 @@ def list_candidates(
     params: list = []
     if q:
         sql += " AND (LOWER(u.name) LIKE %s OR LOWER(u.last_name) LIKE %s OR LOWER(u.email) LIKE %s)"
-        needle = f"%{q.lower()}%"
+        needle = f"%{_like_escape(q.lower())}%"
         params += [needle, needle, needle]
     if area:
         sql += " AND LOWER(COALESCE(p.professional_area,'')) LIKE %s"
-        params.append(f"%{area.lower()}%")
+        params.append(f"%{_like_escape(area.lower())}%")
     if education:
         sql += " AND LOWER(COALESCE(p.education_level,'')) LIKE %s"
-        params.append(f"%{education.lower()}%")
+        params.append(f"%{_like_escape(education.lower())}%")
     if only_with_cv:
         sql += " AND p.cv_filename IS NOT NULL"
     if only_with_video:

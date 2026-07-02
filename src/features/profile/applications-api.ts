@@ -9,6 +9,7 @@ export type Application = {
   created_at: string;
   withdrawn_at: string | null;
   status: ApplicationStatus;
+  pipeline_status: string;
 };
 
 /** Lista las postulaciones del usuario logueado. */

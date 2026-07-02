@@ -32,6 +32,7 @@ import VideoPreview from "./VideoPreview";
 import { getVideoEmbed } from "@/lib/video-embeds";
 import JobsManager from "./JobsManager";
 import ResumenDashboard from "./ResumenDashboard";
+import { PipelineSelect } from "./PipelineSelect";
 
 type ResumeRow = {
   id: number;
@@ -44,6 +45,7 @@ type ResumeRow = {
   job_title?: string | null;
   withdrawn_at?: string | null;
   video_url?: string | null;
+  pipeline_status?: string;
 };
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
@@ -205,6 +207,22 @@ export default function AdminPanel() {
       toast.error("Error al eliminar", { description: getErrorMessage(e) });
     } finally {
       setDeleting(null);
+    }
+  }
+
+  // Cambia el estado del pipeline de una postulación (PATCH /admin/cv/{id}/status).
+  async function updateStatus(id: number, status: string) {
+    try {
+      const res = await authFetch(`/admin/cv/${id}/status`, getAuthHeader(), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      setCvs((prev) => prev.map((c) => (c.id === id ? { ...c, pipeline_status: status } : c)));
+      toast.success("Estado actualizado");
+    } catch (e) {
+      toast.error(getErrorMessage(e));
     }
   }
 
@@ -455,6 +473,7 @@ export default function AdminPanel() {
                               onView={() => setActive(cv)}
                               onDownload={() => downloadCv(cv.id, cv.original_name)}
                               onDelete={() => deleteCv(cv.id)}
+                              onStatusChange={(s) => updateStatus(cv.id, s)}
                               deleting={deleting === cv.id}
                             />
                           ))}
@@ -536,6 +555,11 @@ export default function AdminPanel() {
                   <ExternalLink className="size-4" />
                   Ver
                 </Button>
+                <PipelineSelect
+                  value={cv.pipeline_status ?? "received"}
+                  disabled={!!cv.withdrawn_at}
+                  onChange={(s) => updateStatus(cv.id, s)}
+                />
                 <Button
                   variant="ghost"
                   size="icon"
@@ -567,6 +591,7 @@ export default function AdminPanel() {
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Archivo</th>
                 <th className="px-4 py-3 font-semibold">Fecha</th>
+                <th className="px-4 py-3 font-semibold">Estado</th>
                 <th className="px-4 py-3 text-center font-semibold">Acciones</th>
               </tr>
             </thead>
@@ -612,6 +637,13 @@ export default function AdminPanel() {
                     {formatDate(cv.created_at)}
                   </td>
                   <td className="px-4 py-3">
+                    <PipelineSelect
+                      value={cv.pipeline_status ?? "received"}
+                      disabled={!!cv.withdrawn_at}
+                      onChange={(s) => updateStatus(cv.id, s)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1.5">
                       <Button
                         variant="brand"
@@ -652,7 +684,7 @@ export default function AdminPanel() {
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <EmptyState />
                   </td>
                 </tr>
@@ -804,6 +836,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
           ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow"
@@ -816,17 +849,19 @@ function TabButton({
   );
 }
 
-function ApplicantRow({
+export function ApplicantRow({
   cv,
   onView,
   onDownload,
   onDelete,
+  onStatusChange,
   deleting,
 }: {
   cv: ResumeRow;
   onView: () => void;
   onDownload: () => void;
   onDelete: () => void;
+  onStatusChange: (status: string) => void;
   deleting: boolean;
 }) {
   return (
@@ -847,6 +882,11 @@ function ApplicantRow({
       <span className="hidden whitespace-nowrap text-xs text-white/60 sm:inline">
         {formatDate(cv.created_at)}
       </span>
+      <PipelineSelect
+        value={cv.pipeline_status ?? "received"}
+        disabled={!!cv.withdrawn_at}
+        onChange={onStatusChange}
+      />
       <div className="flex items-center gap-1.5">
         <Button
           variant="brand"

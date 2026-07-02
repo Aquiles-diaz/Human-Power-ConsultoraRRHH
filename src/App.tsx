@@ -13,14 +13,19 @@ const ProfilePage = React.lazy(() => import("@/features/profile/ProfilePage"));
 const ForgotPasswordPage = React.lazy(() => import("@/features/auth/ForgotPasswordPage"));
 const ResetPasswordPage = React.lazy(() => import("@/features/auth/ResetPasswordPage"));
 const VerifyEmailPage = React.lazy(() => import("@/features/auth/VerifyEmailPage"));
+const AlertUnsubscribedPage = React.lazy(() => import("@/features/profile/AlertUnsubscribedPage"));
 const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
 
 // Cada vez que cambia la ruta, vuelve el scroll al tope: sin esto las páginas
 // nuevas heredan la posición de scroll de la anterior.
 function ScrollToTop() {
   const { pathname } = useLocation();
+  const prev = React.useRef<string | null>(null);
   React.useEffect(() => {
-    window.scrollTo(0, 0);
+    const dentroDeOfertas =
+      prev.current?.startsWith("/ofertas") && pathname.startsWith("/ofertas");
+    prev.current = pathname;
+    if (!dentroDeOfertas) window.scrollTo(0, 0);
   }, [pathname]);
   return null;
 }
@@ -32,7 +37,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
-          path="/ofertas"
+          path="/ofertas/:jobId?"
           element={
             <React.Suspense fallback={<LoadingScreen />}>
               <OfertasPage />
@@ -68,6 +73,14 @@ export default function App() {
           element={
             <React.Suspense fallback={<LoadingScreen />}>
               <VerifyEmailPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/alertas/baja"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <AlertUnsubscribedPage />
             </React.Suspense>
           }
         />

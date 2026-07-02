@@ -12,6 +12,10 @@ services:
     # app es su proxy de borde, así que uvicorn puede derivar la IP real del
     # cliente desde X-Forwarded-For (necesario para que el rate limiting por IP
     # funcione de verdad y no agrupe a todos bajo la IP del proxy).
+    # NOTA anti-spoofing: el rate limiter NO confía en la 1ª IP del XFF (la puede
+    # falsificar el cliente); usa la ÚLTIMA hop, que la agrega el proxy de Render
+    # (ver client_ip_key en backend/ratelimit.py). Válido porque hay un solo hop
+    # confiable; si en el futuro se agrega otro proxy/CDN al frente, revisar eso.
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /
     envVars:

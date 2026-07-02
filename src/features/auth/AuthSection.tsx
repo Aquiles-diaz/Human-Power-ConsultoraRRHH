@@ -24,8 +24,12 @@ const TABS = [
   { key: "register", label: "Crear cuenta" },
 ] as const;
 
-export default function AuthSection() {
-  const [mode, setMode] = useState<"login" | "register">("login");
+export default function AuthSection({
+  initialMode = "login",
+}: {
+  initialMode?: "login" | "register";
+}) {
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
   const { login, register, loading, isAuthenticated, user, logout } = useAuth();
   const [error, setError] = useState<string | null>(null);
 

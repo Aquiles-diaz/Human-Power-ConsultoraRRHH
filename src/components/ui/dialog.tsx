@@ -42,7 +42,8 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+      {/* size-9 = hit target ≥36px (con el padding visual del ring queda ~40px); offset ajustado para no pisar el título */}
+      <DialogPrimitive.Close className="absolute right-2.5 top-2.5 grid size-9 place-items-center rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -57,7 +58,10 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      // pr-6: el botón cerrar (size-9=36px, right-2.5=10px) invade 22px del
+      // padding p-6 (24px) del content; pr-6 agrega 24px de aire y despeja
+      // títulos largos alineados a la izquierda (sm:text-left) sin tocar el layout centrado en mobile.
+      "flex flex-col space-y-1.5 text-center sm:text-left pr-6",
       className
     )}
     {...props}

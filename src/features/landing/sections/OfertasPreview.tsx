@@ -168,7 +168,7 @@ export default function OfertasPreview() {
                       {j.location}
                     </div>
                     <Button variant="brand" className="mt-auto w-full rounded-2xl" asChild>
-                      <a href="/ofertas">Postularme</a>
+                      <a href={`/ofertas/${j.id}`}>Postularme</a>
                     </Button>
                   </CardContent>
                 </Card>
