@@ -73,12 +73,13 @@ class FakeConn:
     def __init__(self, state, executed):
         self.state = state
         self.executed = executed
+        self.commits = 0
 
     def cursor(self):
         return FakeCursor(self.state, self.executed)
 
     def commit(self):
-        pass
+        self.commits += 1
 
     def close(self):
         pass
@@ -88,29 +89,33 @@ def make_client(state, executed):
     main.app.dependency_overrides[main.get_current_user] = lambda: {
         "id": 1, "email": "admin@test.com", "name": "Admin", "role": "admin",
     }
-    main._get_conn = lambda: FakeConn(state, executed)
+    conn = FakeConn(state, executed)
+    main._get_conn = lambda: conn
     # No tocar Storage real: la descarga se stubea a una Response mínima.
     main._serve_private_file = lambda bucket, key, download_name: {"ok": True}
-    return TestClient(main.app)
+    return TestClient(main.app), conn
 
 
 def test_patch_valid_status():
     """PATCH in_process sobre fila existente → 200 + UPDATE ejecutado."""
     state = {"resumes": {1: {"id": 1, "status": "received", "filename": "a.pdf", "original_name": "a.pdf"}}}
     executed = []
-    client = make_client(state, executed)
+    client, conn = make_client(state, executed)
     r = client.patch("/admin/cv/1/status", json={"status": "in_process"})
     assert r.status_code == 200, (r.status_code, r.text)
     body = r.json()
     assert body == {"id": 1, "pipeline_status": "in_process"}, body
     assert any(sql.startswith("update resumes set status") for sql, _ in executed), executed
+    # Sin este commit el UPDATE queda en la transacción abierta y se pierde al cerrar
+    # la conexión (autocommit=False): el PATCH devolvería 200 pero no persistiría.
+    assert conn.commits >= 1, "falta conn.commit() tras el UPDATE de status"
 
 
 def test_patch_invalid_status_400():
     """Estado fuera de _PIPELINE_STATUSES → 400 explícito (no 422)."""
     state = {"resumes": {1: {"id": 1, "status": "received", "filename": "a.pdf", "original_name": "a.pdf"}}}
     executed = []
-    client = make_client(state, executed)
+    client, _conn = make_client(state, executed)
     r = client.patch("/admin/cv/1/status", json={"status": "banana"})
     assert r.status_code == 400, (r.status_code, r.text)
 
@@ -119,7 +124,7 @@ def test_patch_missing_cv_404():
     """Fila inexistente → 404."""
     state = {"resumes": {}}
     executed = []
-    client = make_client(state, executed)
+    client, _conn = make_client(state, executed)
     r = client.patch("/admin/cv/999/status", json={"status": "in_process"})
     assert r.status_code == 404, (r.status_code, r.text)
 
@@ -128,20 +133,22 @@ def test_download_marks_viewed():
     """GET /cv/{id} con status='received' → UPDATE a 'viewed' con guard AND status = 'received'."""
     state = {"resumes": {1: {"id": 1, "status": "received", "filename": "a.pdf", "original_name": "a.pdf"}}}
     executed = []
-    client = make_client(state, executed)
+    client, conn = make_client(state, executed)
     r = client.get("/cv/1")
     assert r.status_code == 200, (r.status_code, r.text)
     update_sqls = [sql for sql, _ in executed if sql.startswith("update resumes set status")]
     assert update_sqls, executed
     assert "and status = 'received'" in update_sqls[0], update_sqls
     assert state["resumes"][1]["status"] == "viewed"
+    # Idem: sin commit, la Vista automática no persistiría (autocommit=False).
+    assert conn.commits >= 1, "falta conn.commit() tras marcar 'viewed'"
 
 
 def test_download_does_not_downgrade():
     """Fila 'in_process' → NO se ejecuta UPDATE de status (no degrada estados posteriores)."""
     state = {"resumes": {1: {"id": 1, "status": "in_process", "filename": "a.pdf", "original_name": "a.pdf"}}}
     executed = []
-    client = make_client(state, executed)
+    client, _conn = make_client(state, executed)
     r = client.get("/cv/1")
     assert r.status_code == 200, (r.status_code, r.text)
     update_sqls = [sql for sql, _ in executed if sql.startswith("update resumes set status")]

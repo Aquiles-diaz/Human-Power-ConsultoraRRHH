@@ -786,6 +786,7 @@ def download_cv(cv_id: int):
                 "UPDATE resumes SET status = 'viewed' WHERE id = %s AND status = 'received'",
                 (cv_id,),
             )
+            conn.commit()
 
     return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
 
@@ -843,6 +844,7 @@ def update_cv_status(cv_id: int, dto: CvStatusUpdate) -> CvStatusOut:
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="No encontrado")
         cur.execute("UPDATE resumes SET status = %s WHERE id = %s", (status, cv_id))
+        conn.commit()
     return CvStatusOut(id=cv_id, pipeline_status=status)
 
 @app.delete("/admin/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])
