@@ -477,6 +477,13 @@ def _serve_private_file(bucket: str, key: str, download_name: str):
 def root() -> RootOut:
     return RootOut(ok=True, service="HumanPower API")
 
+@app.head("/", include_in_schema=False)
+def root_head() -> Response:
+    # FastAPI no agrega HEAD automáticamente a rutas @app.get (a diferencia de
+    # Starlette puro) — sin esto, monitores de uptime que usan HEAD (ej.
+    # UptimeRobot) reciben 405 aunque GET / ande perfecto.
+    return Response(status_code=200)
+
 @app.post("/contacto", response_model=ContactOut, tags=["default"])
 @limiter.limit("5/minute")
 def contacto(request: Request, dto: ContactDTO) -> ContactOut:
