@@ -19,11 +19,14 @@ from backend.ratelimit import limiter
 
 limiter.enabled = False
 
-COLS = ["id", "job_id", "job_title", "created_at", "withdrawn_at"]
+COLS = ["id", "job_id", "job_title", "created_at", "withdrawn_at", "status"]
 
 
 def _row(r):
-    return DualRow(COLS, [r["id"], r["job_id"], r["job_title"], r["created_at"], r["withdrawn_at"]])
+    return DualRow(COLS, [
+        r["id"], r["job_id"], r["job_title"], r["created_at"], r["withdrawn_at"],
+        r.get("status"),
+    ])
 
 
 class FakeCursor:

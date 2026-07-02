@@ -183,6 +183,7 @@ class ResumeItem(BaseModel):
     job_title: Optional[str] = None
     withdrawn_at: Optional[str] = None
     video_url: Optional[str] = None  # video de presentación del perfil del candidato (si tiene)
+    pipeline_status: str = "received"  # pipeline visible (received|viewed|in_process|finished)
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
@@ -194,9 +195,13 @@ class ApplicationItem(BaseModel):
     created_at: str
     withdrawn_at: Optional[str] = None
     status: str  # "active" | "withdrawn"
+    pipeline_status: str = "received"
 
 class ApplicationsOut(BaseModel):
     items: list[ApplicationItem]
+
+# Estados de pipeline visibles (candidato + admin); reusado por el PATCH de la Task 3.
+_PIPELINE_STATUSES = {"received", "viewed", "in_process", "finished"}
 
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
@@ -784,7 +789,7 @@ def list_cvs_admin() -> ListCvOut:
             """
             SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, ''),
                    r.created_at, r.job_id, r.job_title, r.withdrawn_at,
-                   p.video_filename, p.video_url
+                   p.video_filename, p.video_url, r.status
             FROM resumes r
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
@@ -804,6 +809,7 @@ def list_cvs_admin() -> ListCvOut:
                 withdrawn_at=_legacy_ts(r[8]),
                 # video del perfil: archivo subido (precede) o link viejo
                 video_url=storage_video.public_url(r[9]) or r[10],
+                pipeline_status=(r[11] or "received"),
             )
             for r in cur.fetchall()
         ]
@@ -1130,7 +1136,7 @@ def list_my_applications(current_user: dict = Depends(get_current_user)) -> Appl
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, job_id, job_title, created_at, withdrawn_at
+            SELECT id, job_id, job_title, created_at, withdrawn_at, status
             FROM resumes
             WHERE email = %s
             ORDER BY created_at DESC, id DESC
@@ -1146,6 +1152,7 @@ def list_my_applications(current_user: dict = Depends(get_current_user)) -> Appl
             created_at=_legacy_ts(r[3]),
             withdrawn_at=_legacy_ts(r[4]),
             status="withdrawn" if r[4] else "active",
+            pipeline_status=(r[5] or "received"),
         )
         for r in rows
     ])
