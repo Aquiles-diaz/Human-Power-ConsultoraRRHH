@@ -21,6 +21,7 @@ import ProfileCompletion from "./ProfileCompletion";
 import VideoTab from "./VideoTab";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import MyApplications from "./MyApplications";
+import AlertsCard from "./AlertsCard";
 import { computeProfileCompletion } from "./completion";
 import { requestEmailVerify } from "@/features/auth/auth-api";
 import {
@@ -421,6 +422,9 @@ export default function ProfilePage() {
                     onChange={onCvChange}
                   />
                 </Row>
+
+                {/* Alertas de empleo por rubro */}
+                <AlertsCard authHeaders={authHeaders} />
 
                 {/* Datos personales */}
                 <Row
