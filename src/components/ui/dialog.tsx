@@ -58,7 +58,10 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      // pr-6: el botón cerrar (size-9=36px, right-2.5=10px) invade 22px del
+      // padding p-6 (24px) del content; pr-6 agrega 24px de aire y despeja
+      // títulos largos alineados a la izquierda (sm:text-left) sin tocar el layout centrado en mobile.
+      "flex flex-col space-y-1.5 text-center sm:text-left pr-6",
       className
     )}
     {...props}
