@@ -6,7 +6,7 @@ import type { Profile } from "./types";
 import { uploadVideo } from "./video-api";
 import { validateVideoFile, MAX_VIDEO_SECONDS, pickRecorderMime } from "./video-upload";
 
-type Phase = "welcome" | "ready" | "countdown" | "recording" | "review" | "saving" | "done";
+type Phase = "welcome" | "ready" | "countdown" | "recording" | "cutting" | "review" | "saving" | "done";
 
 type Props = {
   authHeaders: Record<string, string>;
@@ -39,6 +39,12 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
   const [countdown, setCountdown] = useState(3);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Traza de eventos del recorder, visible SOLO en dev: permite diagnosticar en un
+  // celular real (captura de pantalla) sin remote debugging. En prod es no-op.
+  const [trail, setTrail] = useState<string[]>([]);
+  function dbg(m: string) {
+    if (import.meta.env.DEV) setTrail((t) => [...t.slice(-9), m]);
+  }
 
   const rootRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -181,17 +187,23 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
       stopRequestedRef.current = false;
       rec.ondataavailable = (e) => {
         if (e.data.size) chunksRef.current.push(e.data);
+        dbg(`data ${e.data.size}b (total ${chunksRef.current.length})`);
         // iOS puede entregar el ÚNICO chunk bastante después de stop() (y sin onstop):
         // si ya se pidió cortar y el recorder está parado, finalizamos apenas cae.
         if (e.data.size && stopRequestedRef.current && rec.state === "inactive") finalizeRecording();
       };
       // En iOS, onstop suele NO dispararse: por eso finalizar no depende de él
       // (lo hace también el watchdog desde los chunks ya acumulados por el timeslice).
-      rec.onstop = finalizeRecording;
+      rec.onstop = () => {
+        dbg("onstop");
+        finalizeRecording();
+      };
       recRef.current = rec;
       // timeslice: clave en iOS para que entregue datos durante la grabación.
       rec.start(1000);
+      dbg(`start mime="${rec.mimeType || mime || "(default)"}"`);
     } catch {
+      dbg("start LANZÓ ERROR");
       setError("Tu teléfono no dejó iniciar la grabación. Probá subir un archivo 👇");
       setPhase("ready");
       return;
@@ -215,6 +227,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     const real = (recRef.current?.mimeType || mimeRef.current || "video/mp4").split(";")[0].trim().toLowerCase();
     const type = real === "video/webm" ? "video/webm" : "video/mp4";
     const blob = new Blob(chunksRef.current, { type });
+    dbg(`finalize chunks=${chunksRef.current.length} bytes=${blob.size} type=${type}`);
     if (!blob.size) {
       setError("No se grabó nada. Probá de nuevo o subí un archivo 👇");
       setPhase("ready");
@@ -230,11 +243,18 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     const rec = recRef.current;
     if (!rec || rec.state === "inactive") return;
     stopRequestedRef.current = true; // el próximo dataavailable post-stop finaliza al toque
+    // Feedback INMEDIATO: el corte puede tardar unos segundos en iOS (el video se
+    // suelta tarde) y sin esto el botón parece muerto. Congela el contador y muestra
+    // "Cortando…" ya mismo; finalizeRecording después lleva a revisión (o error).
+    clearInterval(tickRef.current);
+    clearTimeout(stopTimerRef.current);
+    setPhase("cutting");
+    dbg(`corte pedido a los ${elapsed}s (chunks=${chunksRef.current.length})`);
     // iOS a veces no suelta el último pedazo solo: lo pedimos antes de stop().
     try {
       rec.requestData?.();
     } catch {
-      /* no-op: algunos navegadores no lo soportan */
+      dbg("requestData no soportado");
     }
     // Red de seguridad: si en este dispositivo stop() no dispara onstop (bug de iOS),
     // NO perdemos la grabación — finalizamos igual con los chunks que el timeslice ya
@@ -244,6 +264,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     watchdogRef.current = setTimeout(() => {
       if (finalizedRef.current) return;
       if (chunksRef.current.length === 0) {
+        dbg("1.5s sin datos: espero 3.5s más");
         watchdogRef.current = setTimeout(finalizeRecording, 3500);
       } else {
         finalizeRecording();
@@ -252,6 +273,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     try {
       rec.stop();
     } catch {
+      dbg("stop() LANZÓ ERROR");
       finalizeRecording();
     }
   }
@@ -452,7 +474,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
                     type="button"
                     onClick={stopRecording}
                     aria-label="Detener"
-                    className="grid size-16 place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
+                    className="grid size-16 touch-manipulation place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
                   >
                     <Square size={24} className="fill-current" />
                   </button>
@@ -504,6 +526,14 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
           </div>
         )}
 
+        {/* ── Cortando (feedback inmediato al detener) ── */}
+        {phase === "cutting" && (
+          <div className="text-center text-white/80">
+            <Loader2 className="mx-auto size-8 animate-spin text-amber-500" />
+            <p className="mt-3 text-sm">Cortando el video…</p>
+          </div>
+        )}
+
         {/* ── Guardando ── */}
         {phase === "saving" && (
           <div className="text-center text-white/80">
@@ -525,6 +555,14 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
         {error && (
           <p role="alert" className="mt-5 max-w-sm text-center text-sm font-medium text-rose-400">
             {error}
+          </p>
+        )}
+
+        {/* Diagnóstico en pantalla SOLO en dev: qué hizo el recorder, para poder
+            debuggear desde la captura de un celular real. En prod no se renderiza. */}
+        {import.meta.env.DEV && trail.length > 0 && (
+          <p className="mt-3 max-w-sm break-words text-center text-[10px] leading-relaxed text-white/40">
+            DEV · {trail.join(" · ")}
           </p>
         )}
       </div>

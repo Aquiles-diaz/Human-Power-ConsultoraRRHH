@@ -208,6 +208,31 @@ describe("VideoStudio", () => {
     expect(file.type).toBe("video/mp4");
   });
 
+  // El corte puede tardar segundos en iOS (el video se suelta tarde): al tocar
+  // Detener tiene que haber feedback INMEDIATO — si no, el botón parece muerto.
+  it("al tocar Detener muestra 'Cortando…' al instante (aunque los datos tarden)", async () => {
+    vi.useFakeTimers();
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = LateDataRecorder;
+    FakeRecorder.supported = false;
+    stubCamera(() => Promise.resolve({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+
+    render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await recordUntilRecording();
+    await vi.advanceTimersByTimeAsync(10_000); // grabó 10s
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /detener/i }));
+      await flush(); // SIN dejar pasar el tiempo: el feedback debe ser instantáneo
+    });
+    expect(screen.getByText(/cortando/i)).toBeInTheDocument();
+    expect(screen.queryByText(/REC /)).not.toBeInTheDocument(); // el contador se congela/oculta
+    // ...y cuando el chunk tardío por fin cae, termina en revisión igual.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(screen.getByRole("button", { name: /usar este video/i })).toBeInTheDocument();
+  });
+
   it("iOS: si el único dataavailable llega tarde (2.5s tras stop), NO tira la grabación y va a revisión", async () => {
     vi.useFakeTimers();
     (globalThis as { MediaRecorder?: unknown }).MediaRecorder = LateDataRecorder;
