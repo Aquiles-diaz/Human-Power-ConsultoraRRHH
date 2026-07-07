@@ -208,6 +208,23 @@ describe("VideoStudio", () => {
     expect(file.type).toBe("video/mp4");
   });
 
+  // El anillo de progreso es un SVG absolute ENCIMA del botón Detener (los
+  // posicionados pintan arriba): en iOS se quedaba con el tap y el botón quedaba
+  // muerto. Tiene que ser transparente al puntero. jsdom no hace hit-testing
+  // (fireEvent va directo al botón), así que el contrato se verifica por clase.
+  it("el anillo de progreso no intercepta el tap del botón Detener", async () => {
+    vi.useFakeTimers();
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = FakeRecorder;
+    FakeRecorder.supported = false;
+    stubCamera(() => Promise.resolve({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const { container } = render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await recordUntilRecording();
+    const ring = container.querySelector("svg.absolute");
+    expect(ring).not.toBeNull();
+    expect(ring!.classList.contains("pointer-events-none")).toBe(true);
+  });
+
   // El corte puede tardar segundos en iOS (el video se suelta tarde): al tocar
   // Detener tiene que haber feedback INMEDIATO — si no, el botón parece muerto.
   it("al tocar Detener muestra 'Cortando…' al instante (aunque los datos tarden)", async () => {

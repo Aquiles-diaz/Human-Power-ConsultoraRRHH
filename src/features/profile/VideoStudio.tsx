@@ -453,7 +453,9 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
             <div className="flex shrink-0 flex-col items-center pt-4">
               <div className="relative grid size-20 place-items-center">
                 {phase === "recording" && (
-                  <svg className="absolute inset-0 -rotate-90" viewBox="0 0 80 80">
+                  // pointer-events-none es CRÍTICO: este svg posicionado pinta ENCIMA
+                  // del botón Detener y en iOS se quedaba con el tap (botón "muerto").
+                  <svg className="pointer-events-none absolute inset-0 -rotate-90" viewBox="0 0 80 80" aria-hidden="true">
                     <circle cx="40" cy="40" r={RING_R} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
                     <circle
                       cx="40"
@@ -474,7 +476,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
                     type="button"
                     onClick={stopRecording}
                     aria-label="Detener"
-                    className="grid size-16 touch-manipulation place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
+                    className="relative grid size-16 touch-manipulation place-items-center rounded-2xl bg-rose-500 text-white transition hover:bg-rose-600"
                   >
                     <Square size={24} className="fill-current" />
                   </button>
