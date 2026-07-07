@@ -1,3 +1,5 @@
+import { CATEGORIES } from "@/features/jobs/categories";
+
 export type Profile = {
   user_id: number;
   name: string;
@@ -43,19 +45,8 @@ export const PROFILE_TEXT_FIELDS = [
 // Opciones para los selects (reutilizadas también por los filtros del admin)
 export const AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+"];
 
-export const PROFESSIONAL_AREAS = [
-  "Administración / Contabilidad",
-  "Ventas / Comercial",
-  "Marketing / Comunicación",
-  "Tecnología / IT",
-  "Recursos Humanos",
-  "Producción / Logística",
-  "Atención al cliente",
-  "Salud",
-  "Educación",
-  "Oficios",
-  "Otro",
-];
+// Mismas áreas que los rubros de los avisos (fuente única: features/jobs/categories.ts)
+export const PROFESSIONAL_AREAS = CATEGORIES.map((c) => c.label);
 
 export const EDUCATION_LEVELS = [
   "Secundario incompleto",
