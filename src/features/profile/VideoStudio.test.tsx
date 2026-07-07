@@ -26,6 +26,7 @@ function stubCamera(impl: () => Promise<MediaStream>) {
 class FakeRecorder {
   static supported = false;
   static lastTimeslice: number | undefined = undefined;
+  static started = 0; // cuántos recorders arrancaron (detecta doble-start de StrictMode)
   state: "inactive" | "recording" = "inactive";
   mimeType = "video/mp4;codecs=avc1.42E01E";
   ondataavailable: ((e: { data: Blob }) => void) | null = null;
@@ -36,6 +37,7 @@ class FakeRecorder {
   start(timeslice?: number) {
     this.state = "recording";
     FakeRecorder.lastTimeslice = timeslice;
+    FakeRecorder.started += 1;
   }
   stop() {
     this.state = "inactive";
@@ -48,6 +50,14 @@ class FakeRecorder {
 class HangRecorder extends FakeRecorder {
   stop() {
     this.state = "inactive";
+  }
+}
+// iOS peor caso: el timeslice NO entregó nada durante la grabación y el ÚNICO
+// dataavailable llega TARDE (2.5s después de stop(), más que el watchdog). Sin onstop.
+class LateDataRecorder extends FakeRecorder {
+  stop() {
+    this.state = "inactive";
+    setTimeout(() => this.ondataavailable?.({ data: new Blob(["late-ios-bytes"]) }), 2500);
   }
 }
 // iOS real: el timeslice SÍ entrega chunks durante la grabación, pero stop() no
@@ -198,6 +208,24 @@ describe("VideoStudio", () => {
     expect(file.type).toBe("video/mp4");
   });
 
+  it("iOS: si el único dataavailable llega tarde (2.5s tras stop), NO tira la grabación y va a revisión", async () => {
+    vi.useFakeTimers();
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = LateDataRecorder;
+    FakeRecorder.supported = false;
+    stubCamera(() => Promise.resolve({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+
+    render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await recordUntilRecording();
+    await vi.advanceTimersByTimeAsync(5000); // grabó 5s y corta
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /detener/i }));
+      await vi.advanceTimersByTimeAsync(3000); // pasa el watchdog (1.5s) y recién ahí cae el chunk (2.5s)
+    });
+    expect(screen.getByRole("button", { name: /usar este video/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no se grabó nada/i)).not.toBeInTheDocument();
+  });
+
   it("si stop() cuelga y no hubo datos, avisa y vuelve a 'listo' para subir archivo", async () => {
     vi.useFakeTimers();
     (globalThis as { MediaRecorder?: unknown }).MediaRecorder = HangRecorder;
@@ -209,7 +237,8 @@ describe("VideoStudio", () => {
     await recordUntilRecording();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /detener/i }));
-      await vi.advanceTimersByTimeAsync(1500); // watchdog finaliza, pero no hay chunks
+      // watchdog (1.5s) + segunda espera por datos tardíos (3.5s): recién ahí se rinde
+      await vi.advanceTimersByTimeAsync(5000);
     });
     expect(screen.getByText(/no se grabó nada/i)).toBeInTheDocument();
     expect(screen.getByTestId("studio-file-input")).toBeInTheDocument();
@@ -230,6 +259,27 @@ describe("VideoStudio", () => {
     fireEvent.click(screen.getByRole("button", { name: /activar cámara/i }));
     expect(await screen.findByText(/tocá grabar/i)).toBeInTheDocument();
     expect(track.stop).not.toHaveBeenCalled();
+  });
+
+  // "Los segundos se suman de a 2": StrictMode doble-invoca los updaters de setState
+  // en dev; si beginRecording() vive dentro del updater del countdown, arrancan DOS
+  // recorders sobre la misma cámara (iOS no lo banca → el corte se rompe) y DOS ticks.
+  it("dev/StrictMode: arranca UN solo recorder y el contador avanza de a 1", async () => {
+    vi.useFakeTimers();
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = FakeRecorder;
+    FakeRecorder.supported = false;
+    FakeRecorder.started = 0;
+    stubCamera(() => Promise.resolve({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const { container } = render(
+      <StrictMode>
+        <VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />
+      </StrictMode>,
+    );
+    await recordUntilRecording();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(FakeRecorder.started).toBe(1); // con el bug arrancaban 2
+    expect(container.textContent).toMatch(/REC 0:02/); // con doble tick marcaba 0:04
   });
 
   it("dev/StrictMode: cortar a los 20s (antes de los 30) lleva a revisión", async () => {

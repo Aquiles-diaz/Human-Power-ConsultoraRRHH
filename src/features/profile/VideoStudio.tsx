@@ -47,6 +47,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
   const chunksRef = useRef<Blob[]>([]); // datos acumulados por el timeslice
   const mimeRef = useRef<string>(""); // mimeType elegido al iniciar el recorder
   const finalizedRef = useRef(false); // evita finalizar dos veces (onstop + watchdog)
+  const stopRequestedRef = useRef(false); // ya se pidió cortar: el próximo chunk finaliza al toque
   const fileRef = useRef<File | null>(null);
   const recordedUrlRef = useRef<string | null>(null);
   const closedRef = useRef(false); // evita callbacks/setState tras cerrar/desmontar
@@ -142,21 +143,25 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
 
   function startCountdown() {
     setError(null);
+    clearInterval(cdRef.current); // por si quedó un countdown previo corriendo (doble tap)
     setCountdown(3);
     setPhase("countdown");
+    // La cuenta vive en el closure y los efectos (beginRecording) salen del callback
+    // del intervalo, NUNCA del updater de setState: StrictMode doble-invoca los
+    // updaters en dev y eso arrancaba DOS recorders + DOS ticks (contador de a 2).
+    let c = 3;
     cdRef.current = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(cdRef.current);
-          beginRecording();
-          return 0;
-        }
-        return c - 1;
-      });
+      c -= 1;
+      setCountdown(c);
+      if (c <= 0) {
+        clearInterval(cdRef.current);
+        beginRecording();
+      }
     }, 1000);
   }
 
   function beginRecording() {
+    if (recRef.current?.state === "recording") return; // idempotente: nada debe duplicar recorder/timers
     const stream = streamRef.current;
     if (!stream) return;
     if (typeof MediaRecorder === "undefined") {
@@ -173,8 +178,12 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
       chunksRef.current = [];
       mimeRef.current = mime;
       finalizedRef.current = false;
+      stopRequestedRef.current = false;
       rec.ondataavailable = (e) => {
         if (e.data.size) chunksRef.current.push(e.data);
+        // iOS puede entregar el ÚNICO chunk bastante después de stop() (y sin onstop):
+        // si ya se pidió cortar y el recorder está parado, finalizamos apenas cae.
+        if (e.data.size && stopRequestedRef.current && rec.state === "inactive") finalizeRecording();
       };
       // En iOS, onstop suele NO dispararse: por eso finalizar no depende de él
       // (lo hace también el watchdog desde los chunks ya acumulados por el timeslice).
@@ -220,6 +229,7 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
   function stopRecording() {
     const rec = recRef.current;
     if (!rec || rec.state === "inactive") return;
+    stopRequestedRef.current = true; // el próximo dataavailable post-stop finaliza al toque
     // iOS a veces no suelta el último pedazo solo: lo pedimos antes de stop().
     try {
       rec.requestData?.();
@@ -228,9 +238,17 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
     }
     // Red de seguridad: si en este dispositivo stop() no dispara onstop (bug de iOS),
     // NO perdemos la grabación — finalizamos igual con los chunks que el timeslice ya
-    // acumuló. Si onstop sí dispara, corre antes y el guard evita el doble finalize.
+    // acumuló. Si todavía no llegó NINGÚN dato, esperamos una vez más (iOS puede tardar
+    // varios segundos en soltar el único dataavailable) antes de darla por perdida.
     clearTimeout(watchdogRef.current);
-    watchdogRef.current = setTimeout(finalizeRecording, 1500);
+    watchdogRef.current = setTimeout(() => {
+      if (finalizedRef.current) return;
+      if (chunksRef.current.length === 0) {
+        watchdogRef.current = setTimeout(finalizeRecording, 3500);
+      } else {
+        finalizeRecording();
+      }
+    }, 1500);
     try {
       rec.stop();
     } catch {
