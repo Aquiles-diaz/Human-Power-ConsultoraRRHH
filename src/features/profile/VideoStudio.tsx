@@ -58,6 +58,10 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
 
   // Bloqueo de scroll del body + foco inicial dentro del overlay + limpieza.
   useEffect(() => {
+    // StrictMode (vite dev) monta→desmonta→remonta: el teardown del primer ciclo
+    // deja closedRef en true y sin este reset el estudio queda muerto en desarrollo
+    // (la cámara se apaga al activarla y el botón de cortar no hace nada).
+    closedRef.current = false;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     rootRef.current?.focus();

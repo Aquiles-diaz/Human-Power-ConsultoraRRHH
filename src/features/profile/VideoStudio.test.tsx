@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import VideoStudio from "./VideoStudio";
@@ -212,6 +213,43 @@ describe("VideoStudio", () => {
     });
     expect(screen.getByText(/no se grabó nada/i)).toBeInTheDocument();
     expect(screen.getByTestId("studio-file-input")).toBeInTheDocument();
+  });
+
+  // StrictMode (= vite dev) monta→desmonta→remonta el estudio. El teardown del
+  // primer ciclo NO debe dejar closedRef en true, o el estudio queda muerto en dev
+  // (la cámara se apaga al activarla y el botón de cortar no responde).
+  it("dev/StrictMode: activar la cámara llega a 'listo' y no apaga el stream", async () => {
+    const track = { stop: vi.fn() };
+    stubCamera(() => Promise.resolve({ getTracks: () => [track] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    render(
+      <StrictMode>
+        <VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />
+      </StrictMode>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /activar cámara/i }));
+    expect(await screen.findByText(/tocá grabar/i)).toBeInTheDocument();
+    expect(track.stop).not.toHaveBeenCalled();
+  });
+
+  it("dev/StrictMode: cortar a los 20s (antes de los 30) lleva a revisión", async () => {
+    vi.useFakeTimers();
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = FakeRecorder;
+    FakeRecorder.supported = false;
+    stubCamera(() => Promise.resolve({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    render(
+      <StrictMode>
+        <VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />
+      </StrictMode>,
+    );
+    await recordUntilRecording();
+    await vi.advanceTimersByTimeAsync(20_000); // grabó 20 de los 30s permitidos
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /detener/i }));
+      await flush();
+    });
+    expect(screen.getByRole("button", { name: /usar este video/i })).toBeInTheDocument();
   });
 
   it("subir un archivo válido llama a uploadVideo", async () => {
