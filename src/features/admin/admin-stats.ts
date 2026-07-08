@@ -25,6 +25,15 @@ const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "o
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 
+// Año-mes LOCAL de un timestamp, para agrupar por mes en la zona del usuario y no
+// en UTC. Con la Z que ahora emite el backend, new Date() interpreta el instante
+// en UTC y getMonth() lo baja a local (un slice del string tomaba el mes UTC, que
+// difiere cerca del cambio de mes).
+const monthKey = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
 export function resolveRange(key: RangeKey, now: Date, custom?: { from: Date | null; to: Date | null }): Range {
   switch (key) {
     case "today":
@@ -102,7 +111,7 @@ export function computeStats(input: {
   const byMonth = lastTwelveMonths(now).map(({ ym, label }) => ({
     ym,
     label,
-    count: cvs.filter((c) => (c.created_at || "").slice(0, 7) === ym).length,
+    count: cvs.filter((c) => monthKey(c.created_at) === ym).length,
   }));
 
   const areaMap = new Map<string, number>();

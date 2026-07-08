@@ -789,8 +789,17 @@ async def apply_to_job(
         cur = conn.cursor()
         cur.execute("SELECT title FROM jobs WHERE id = %s AND is_published = true", (job_id,))
         row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="El puesto no existe o ya no está disponible")
+        if not row:
+            raise HTTPException(status_code=404, detail="El puesto no existe o ya no está disponible")
+        # Una sola postulación activa por usuario+puesto: evita duplicados en el
+        # pipeline del admin y el abuso de storage (cada intento guardaba un
+        # snapshot de CV nuevo en el bucket, ~15 MB c/u).
+        cur.execute(
+            "SELECT 1 FROM resumes WHERE email = %s AND job_id = %s AND withdrawn_at IS NULL LIMIT 1",
+            (current_user["email"], job_id),
+        )
+        if cur.fetchone():
+            raise HTTPException(status_code=409, detail="Ya te postulaste a este puesto.")
 
     full_name = current_user.get("name") or current_user.get("email", "")
     if file is not None and file.filename:
@@ -914,12 +923,14 @@ def _photo_url(filename: Optional[str]) -> Optional[str]:
     return f"/uploads/{filename}" if filename else None
 
 def _legacy_ts(v):
-    """timestamptz (datetime de Postgres) -> string 'YYYY-MM-DD HH:MM:SS' en UTC.
+    """timestamptz (datetime de Postgres) -> ISO-8601 UTC con sufijo Z.
 
-    Replica exactamente el formato que devolvía SQLite (created_at/updated_at eran
-    TEXT), para no cambiar el contrato de la API ni el parseo del frontend."""
+    El sufijo Z es imprescindible: sin él, `new Date("2026-07-08 22:15:03")` en el
+    front parsea el string como hora LOCAL en vez de UTC, con un desfase de 3h en
+    Argentina (fechas corridas en el panel, "Recibidos hoy" mal, filtros
+    off-by-one). Antes se emitía sin Z replicando el TEXT de SQLite."""
     if isinstance(v, datetime):
-        return v.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return v
 
 def _profile_row_to_out(user: dict, row=None) -> ProfileOut:

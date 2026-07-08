@@ -162,7 +162,12 @@ export default function AdminPanel() {
   // Recibidos hoy (para tarjeta de stats)
   const todayCount = useMemo(() => {
     const today = ymd();
-    return cvs.filter((r) => (r.created_at || "").slice(0, 10) === today).length;
+    // Localizamos el instante (created_at ahora viene en UTC con Z) antes de
+    // comparar contra "hoy" local; un slice del string comparaba la fecha UTC.
+    return cvs.filter((r) => {
+      const d = new Date(r.created_at);
+      return !Number.isNaN(d.getTime()) && ymd(d) === today;
+    }).length;
   }, [cvs]);
 
   const hasFilters = !!(dateFrom || dateTo || q.trim());

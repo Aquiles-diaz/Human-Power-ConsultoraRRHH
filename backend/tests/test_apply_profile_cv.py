@@ -36,6 +36,9 @@ class FakeCursor:
         s = " ".join(sql.split()).lower()
         if s.startswith("select title from jobs"):
             self._row = DualRow(["title"], ["Contador/a"]) if self.state.get("job_exists", True) else None
+        elif s.startswith("select 1 from resumes"):
+            # Chequeo de postulación duplicada (email+job_id, no dada de baja).
+            self._row = DualRow(["exists"], [1]) if self.state.get("already_applied") else None
         elif s.startswith("select") and "from profiles" in s and "cv_filename" in s:
             cv = self.state.get("profile_cv")  # (filename, original_name) o None
             self._row = DualRow(["cv_filename", "cv_original_name"], list(cv)) if cv else None
@@ -128,6 +131,17 @@ def test_apply_with_uploaded_file_still_works():
     assert not state.get("downloads"), "no debe leer el CV del perfil si suben uno"
     assert len(state.get("inserted", [])) == 1
     assert state["inserted"][0][4] == "nuevo.pdf"  # original_name del archivo subido
+
+
+def test_apply_duplicate_active_returns_409():
+    # Ya existe una postulación activa del usuario a este puesto → 409, sin crear
+    # otra (evita duplicados y el abuso de storage por snapshots repetidos de CV).
+    state = {"profile_cv": (PROFILE_KEY, PROFILE_NAME), "already_applied": True}
+    client = make_client(state)
+    r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
+    assert r.status_code == 409, (r.status_code, r.text)
+    assert not state.get("inserted"), "no debe crear una segunda postulación activa"
+    assert not state.get("uploads"), "no debe subir un snapshot de CV nuevo"
 
 
 def test_apply_unknown_job_returns_404():
