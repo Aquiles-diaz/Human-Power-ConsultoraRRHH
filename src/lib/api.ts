@@ -102,6 +102,8 @@ export async function parseApiError(res: Response): Promise<string> {
         .map((d: { msg?: string; detail?: string }) => d.msg || d.detail || JSON.stringify(d))
         .join(" · ");
     }
+    // slowapi (429 rate limit) responde { "error": "..." } en vez de "detail".
+    if (typeof data?.error === "string") return data.error;
   } catch {
     /* respuesta sin JSON */
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { API, photoSrc } from "./api";
+import { API, photoSrc, parseApiError } from "./api";
 
 describe("photoSrc", () => {
   it("deja las URLs absolutas tal cual (foto externa de Google)", () => {
@@ -18,5 +18,22 @@ describe("photoSrc", () => {
     expect(photoSrc(null)).toBeUndefined();
     expect(photoSrc(undefined)).toBeUndefined();
     expect(photoSrc("")).toBeUndefined();
+  });
+});
+
+describe("parseApiError", () => {
+  it("lee data.detail (formato FastAPI)", async () => {
+    const res = new Response(JSON.stringify({ detail: "Email o contraseña incorrectos" }), { status: 401 });
+    expect(await parseApiError(res)).toBe("Email o contraseña incorrectos");
+  });
+
+  it("lee data.error (respuesta 429 de slowapi, que no usa 'detail')", async () => {
+    const res = new Response(JSON.stringify({ error: "Rate limit exceeded: 10 per 1 minute" }), { status: 429 });
+    expect(await parseApiError(res)).toBe("Rate limit exceeded: 10 per 1 minute");
+  });
+
+  it("cae a 'Error <status>' si el body no tiene detail ni error", async () => {
+    const res = new Response("no-json", { status: 500 });
+    expect(await parseApiError(res)).toBe("Error 500");
   });
 });
