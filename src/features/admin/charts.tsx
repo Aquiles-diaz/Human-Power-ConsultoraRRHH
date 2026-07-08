@@ -1,5 +1,6 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie } from "recharts";
 import { COLORS, CATEGORY_COLORS, tooltipStyle } from "./dashboard-theme";
+import { barIndex } from "./chart-index";
 import type { AdminStats } from "./admin-stats";
 
 // Click en una barra → onBar con el identificador del dato (vía estado del chart de recharts).
@@ -10,9 +11,8 @@ export function MonthlyApplications({ data, onBar }: { data: AdminStats["byMonth
         data={data}
         margin={{ top: 10, right: 6, left: -22, bottom: 0 }}
         onClick={(state) => {
-          const idx = state?.activeIndex;
-          const row = typeof idx === "number" ? data[idx] : undefined;
-          if (row) onBar?.(row.ym);
+          const i = barIndex(state?.activeIndex, data.length);
+          if (i !== undefined) onBar?.(data[i].ym);
         }}
       >
         <XAxis dataKey="label" tick={{ fill: "#ffffff66", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -47,9 +47,8 @@ export function TopJobs({ data, onBar }: { data: AdminStats["topJobs"]; onBar?: 
         layout="vertical"
         margin={{ top: 0, right: 12, left: 0, bottom: 0 }}
         onClick={(state) => {
-          const idx = state?.activeIndex;
-          const row = typeof idx === "number" ? data[idx] : undefined;
-          if (row) onBar?.(row.jobId);
+          const i = barIndex(state?.activeIndex, data.length);
+          if (i !== undefined) onBar?.(data[i].jobId);
         }}
       >
         <XAxis type="number" hide />
