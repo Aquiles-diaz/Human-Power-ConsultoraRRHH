@@ -9,6 +9,7 @@ import os
 import re
 import unicodedata
 import uuid
+from urllib.parse import quote
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,7 @@ from typing import Optional
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from starlette.responses import Response, RedirectResponse
+from starlette.responses import JSONResponse, Response, RedirectResponse
 
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
@@ -113,6 +114,42 @@ app = FastAPI(
 # Rate limiting (slowapi): registra el limiter y el handler del error 429.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+def _content_length_from_scope(headers) -> Optional[int]:
+    """Content-Length (int) de una lista de headers ASGI, o None si falta/está mal."""
+    for k, v in headers:
+        if k == b"content-length":
+            try:
+                return int(v)
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+class MaxBodySizeMiddleware:
+    """Rechaza con 413 los POST/PUT/PATCH cuyo Content-Length supera un techo, ANTES
+    de leer el body — tope coarse para no ingerir uploads de varios GB (DoS de ancho
+    de banda/disco). El límite fino por endpoint sigue en _read_upload_limited. No
+    cubre requests sin Content-Length (chunked); para esos, el tope por chunk de
+    _read_upload_limited acota la memoria."""
+
+    def __init__(self, app, max_bytes: int):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope.get("method") in ("POST", "PUT", "PATCH"):
+            length = _content_length_from_scope(scope.get("headers", []))
+            if length is not None and length > self.max_bytes:
+                await JSONResponse({"detail": "Archivo demasiado grande"}, status_code=413)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+# Tope coarse de tamaño de body (DoS), registrado ANTES del CORS para que el 413
+# salga con los headers de CORS. Techo = mayor límite por endpoint (CV 15MB) + 1MB
+# de overhead del multipart.
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=settings.max_upload_bytes + 1024 * 1024)
 
 app.add_middleware(
     CORSMiddleware,
@@ -448,6 +485,22 @@ def _upload_or_502(bucket: str, key: str, data: bytes, content_type: str) -> Non
         log.exception("Fallo al subir a Storage %s/%s", bucket, key)
         raise HTTPException(status_code=502, detail="No se pudo guardar el archivo. Probá de nuevo en un momento.")
 
+def _content_disposition_attachment(filename: Optional[str], fallback: str = "descarga") -> str:
+    """Header Content-Disposition seguro para una descarga.
+
+    El nombre lo controla el usuario (file.filename), así que hay que sanearlo: si
+    va crudo dentro de filename="...", una comilla rompe el string citado y un CR/LF
+    intenta inyectar cabeceras. Emitimos un filename= ASCII saneado + un
+    filename*=UTF-8'' percent-encoded (RFC 6266) para conservar el nombre completo.
+    """
+    name = ((filename or "").strip() or fallback)[:200]
+    # ASCII sin comillas, backslash, barras ni caracteres de control.
+    ascii_name = re.sub(r'[\r\n"\\/\x00-\x1f\x7f]', "_", name)
+    ascii_name = ascii_name.encode("ascii", "ignore").decode("ascii").strip() or fallback
+    utf8_name = quote(name, safe="")
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{utf8_name}'
+
+
 def _serve_private_file(bucket: str, key: str, download_name: str):
     """Entrega un objeto privado del bucket según CV_DELIVERY (stream|redirect)."""
     if CV_DELIVERY == "redirect":
@@ -466,7 +519,7 @@ def _serve_private_file(bucket: str, key: str, download_name: str):
     except Exception:
         log.exception("No se pudo descargar %s/%s", bucket, key)
         raise HTTPException(status_code=502, detail="No se pudo entregar el archivo")
-    headers = {"Content-Disposition": f'attachment; filename="{download_name}"'}
+    headers = {"Content-Disposition": _content_disposition_attachment(download_name)}
     return Response(content=data, media_type=_detect_mimetype(key), headers=headers)
 
 # ──────────────────────────────────────────────────────────────────────────────
