@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateVideoFile, MAX_VIDEO_BYTES } from "./video-upload";
+import { validateVideoFile, videoDurationError, MAX_VIDEO_BYTES } from "./video-upload";
 
 function fakeFile(type: string, size: number): File {
   const f = new File([new Uint8Array(1)], "v", { type });
@@ -17,5 +17,20 @@ describe("validateVideoFile", () => {
   });
   it("rechaza si supera el tope de peso", () => {
     expect(validateVideoFile(fakeFile("video/webm", MAX_VIDEO_BYTES + 1))).toMatch(/8\s*MB|pesado|grande/i);
+  });
+});
+
+describe("videoDurationError", () => {
+  it("acepta videos dentro del límite (con tolerancia)", () => {
+    expect(videoDurationError(25)).toBeNull();
+    expect(videoDurationError(30)).toBeNull();
+    expect(videoDurationError(30.3)).toBeNull();
+  });
+  it("rechaza videos más largos que el máximo", () => {
+    expect(videoDurationError(45)).toMatch(/30 segundos/);
+  });
+  it("no bloquea si la duración no es finita (no se pudo leer)", () => {
+    expect(videoDurationError(NaN)).toBeNull();
+    expect(videoDurationError(Infinity)).toBeNull();
   });
 });

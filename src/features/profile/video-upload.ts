@@ -27,6 +27,18 @@ export function pickRecorderMime(): string {
   return "";
 }
 
+/**
+ * Mensaje de error si la duración supera el máximo, o null si está OK. Con una
+ * tolerancia chica para no rechazar por redondeo del encoder. Si la duración no
+ * es finita (no se pudo leer), no bloquea (fail-open).
+ */
+export function videoDurationError(durationSec: number, maxSec = MAX_VIDEO_SECONDS): string | null {
+  if (Number.isFinite(durationSec) && durationSec > maxSec + 0.5) {
+    return `El video es muy largo (máx ${maxSec} segundos). Probá grabar uno más corto.`;
+  }
+  return null;
+}
+
 /** Lee la duración (segundos) de un archivo de video cargándolo en un <video> temporal. */
 export function getVideoDuration(file: File): Promise<number> {
   return new Promise((resolve, reject) => {

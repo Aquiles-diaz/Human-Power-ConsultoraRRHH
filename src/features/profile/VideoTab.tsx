@@ -6,7 +6,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { getVideoEmbed, isAllowedVideoUrl } from "@/lib/video-embeds";
 import type { Profile } from "./types";
 import { uploadVideo, deleteVideo, saveVideoUrl } from "./video-api";
-import { validateVideoFile } from "./video-upload";
+import { validateVideoFile, getVideoDuration, videoDurationError } from "./video-upload";
 import VideoStudio from "./VideoStudio";
 
 type Props = {
@@ -36,6 +36,19 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
     const v = validateVideoFile(f);
     if (v) {
       toast.error(v);
+      return;
+    }
+    // El límite de 30s no lo cubre validateVideoFile: leemos la duración real.
+    // Si no se puede leer, no bloqueamos (fail-open).
+    let duration = 0;
+    try {
+      duration = await getVideoDuration(f);
+    } catch {
+      duration = 0;
+    }
+    const durErr = videoDurationError(duration);
+    if (durErr) {
+      toast.error(durErr);
       return;
     }
     setBusy(true);
