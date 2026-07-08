@@ -23,7 +23,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
-import { API, authFetch, parseApiError } from "@/lib/api";
+import { authFetch, parseApiError, photoSrc } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
@@ -305,7 +305,7 @@ export default function ProfilePage() {
                 <div className="group relative shrink-0">
                   {profile?.photo_url ? (
                     <img
-                      src={`${API}${profile.photo_url}`}
+                      src={photoSrc(profile.photo_url)}
                       alt="Foto de perfil"
                       width={80}
                       height={80}

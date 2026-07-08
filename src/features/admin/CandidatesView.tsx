@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
-import { API, authFetch, parseApiError } from "@/lib/api";
+import { authFetch, parseApiError, photoSrc } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -240,7 +240,7 @@ export default function CandidatesView() {
               <div className="flex items-center gap-3">
                 {c.photo_url ? (
                   <img
-                    src={`${API}${c.photo_url}`}
+                    src={photoSrc(c.photo_url)}
                     alt={`Foto de ${c.name} ${c.last_name ?? ""}`}
                     width={48}
                     height={48}
@@ -303,7 +303,7 @@ export default function CandidatesView() {
               <div className="mb-5 flex items-center gap-4">
                 {active.photo_url ? (
                   <img
-                    src={`${API}${active.photo_url}`}
+                    src={photoSrc(active.photo_url)}
                     alt={`Foto de ${active.name} ${active.last_name ?? ""}`}
                     width={64}
                     height={64}

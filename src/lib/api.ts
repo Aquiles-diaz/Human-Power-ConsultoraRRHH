@@ -4,6 +4,17 @@
 // estático no tiene proxy y "/api" pegaría contra el host estático (404).
 export const API = import.meta.env.VITE_API_URL ?? "/api";
 
+/**
+ * Resuelve el `src` de una foto de perfil. Las URLs absolutas (ej. la foto
+ * externa de Google, `external_photo_url`) se usan tal cual; las rutas relativas
+ * que sirve el backend (`/uploads/<key>`) se prefijan con `API`. Prefijar una
+ * URL absoluta la rompería (`https://api…https://lh3…`).
+ */
+export function photoSrc(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  return /^https?:\/\//i.test(url) ? url : `${API}${url}`;
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export type ApiFetchOptions = RequestInit & {
