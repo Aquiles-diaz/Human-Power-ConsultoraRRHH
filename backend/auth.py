@@ -257,7 +257,13 @@ def register(request: Request, dto: RegisterDTO):
 @limiter.limit("10/minute")
 def login(request: Request, dto: LoginDTO):
     user = get_user_by_email(dto.email)
-    if not user or not pwd_context.verify(dto.password, user["password_hash"]):
+    if not user:
+        # Corré un verify "dummy" (mismo costo que un hash real) para que el
+        # tiempo de respuesta no delate si el email existe. Sin esto, el caso sin
+        # usuario salta el hash y responde mucho más rápido → enumeración.
+        pwd_context.dummy_verify()
+        raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+    if not pwd_context.verify(dto.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
     access_token = create_access_token(data={"sub": user["email"]})
     return {"access_token": access_token, "user": user}
