@@ -45,6 +45,7 @@ import {
   PROFILE_TEXT_FIELDS,
   type Profile,
 } from "./types";
+import { mergeUploadedProfile } from "./profile-merge";
 import { composeLanguage } from "./profile-langs";
 import { PROVINCES, COUNTRIES, CITIES_BY_PROVINCE } from "./ar-geo";
 
@@ -177,7 +178,9 @@ export default function ProfilePage() {
     if (!res.ok) throw new Error(await parseApiError(res));
     const data: Profile = await res.json();
     setProfile(data);
-    setForm((f) => ({ ...f, ...data }));
+    // Conservá lo que el usuario esté editando sin guardar; del server solo
+    // tomamos lo que cambió el archivo subido (foto/CV/video).
+    setForm((f) => mergeUploadedProfile(f, data));
     toast.success(okMsg);
   }
 
