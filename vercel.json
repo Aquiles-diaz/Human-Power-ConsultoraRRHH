@@ -8,7 +8,8 @@
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" }
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' blob: https:; connect-src 'self' https://human-power-api.onrender.com https://accounts.google.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://player.vimeo.com https://www.tiktok.com https://www.instagram.com https://drive.google.com https://streamable.com https://accounts.google.com; worker-src 'self' blob:" }
       ]
     }
   ]
