@@ -505,6 +505,9 @@ const OfertasPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState(isValidCategory(rawCat) ? rawCat : "");
   const [selectedId, setSelectedId] = useState<string>("");
   const [applyOpen, setApplyOpen] = useState(false);
+  // Snapshot del aviso al abrir el modal: si la revalidación en background cambia
+  // selectedJob mientras el modal está abierto, no queremos postular a otro puesto.
+  const [applyJob, setApplyJob] = useState<Job | null>(null);
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filtersOpen, setFiltersOpen] = useState(false); // mobile: selects secundarios colapsados
@@ -750,7 +753,10 @@ const OfertasPage: React.FC = () => {
                   {jobForSeo && <JsonLd data={jobPostingLd(jobForSeo)} />}
                   <JobDetail
                     job={selectedJob}
-                    onApply={() => setApplyOpen(true)}
+                    onApply={() => {
+                      setApplyJob(selectedJob);
+                      setApplyOpen(true);
+                    }}
                     onBack={() => {
                       setMobileDetail(false);
                       navigate("/ofertas");
@@ -763,7 +769,7 @@ const OfertasPage: React.FC = () => {
         </section>
       </main>
 
-      <ApplyModal job={selectedJob} open={applyOpen} onClose={() => setApplyOpen(false)} />
+      <ApplyModal job={applyJob} open={applyOpen} onClose={() => setApplyOpen(false)} />
     </>
   );
 };
