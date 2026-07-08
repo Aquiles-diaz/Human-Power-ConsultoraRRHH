@@ -118,7 +118,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.cors_origins if o.strip()],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     # Allowlist explícita en vez de "*": para una API JWT solo hacen falta estos
     # dos headers desde el navegador (el control real de origen es allow_origins).
     allow_headers=["Authorization", "Content-Type"],
