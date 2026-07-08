@@ -36,6 +36,10 @@ class FakeCursor:
             cv_id = params[0]
             row = self.state["resumes"].get(cv_id)
             self._rows = [DualRow(["id"], [row["id"]])] if row else []
+        elif s.startswith("select withdrawn_at from resumes where id"):
+            cv_id = params[0]
+            row = self.state["resumes"].get(cv_id)
+            self._rows = [DualRow(["withdrawn_at"], [row.get("withdrawn_at")])] if row else []
         elif s.startswith("select filename, original_name, status from resumes"):
             cv_id = params[0]
             row = self.state["resumes"].get(cv_id)
@@ -118,6 +122,17 @@ def test_patch_invalid_status_400():
     client, _conn = make_client(state, executed)
     r = client.patch("/admin/cv/1/status", json={"status": "banana"})
     assert r.status_code == 400, (r.status_code, r.text)
+
+
+def test_patch_withdrawn_409():
+    """No se puede cambiar el estado de una postulación dada de baja → 409, sin UPDATE."""
+    state = {"resumes": {1: {"id": 1, "status": "received", "withdrawn_at": "2026-07-01T00:00:00Z",
+                             "filename": "a.pdf", "original_name": "a.pdf"}}}
+    executed = []
+    client, _conn = make_client(state, executed)
+    r = client.patch("/admin/cv/1/status", json={"status": "in_process"})
+    assert r.status_code == 409, (r.status_code, r.text)
+    assert not any(sql.startswith("update resumes set status") for sql, _ in executed), executed
 
 
 def test_patch_missing_cv_404():

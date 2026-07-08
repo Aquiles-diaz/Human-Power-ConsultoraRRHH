@@ -11,7 +11,7 @@ import unicodedata
 import uuid
 from urllib.parse import quote
 from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -377,7 +377,25 @@ class JobUpsert(BaseModel):
     @classmethod
     def _valid_category(cls, v: str) -> str:
         v = (v or "").strip().lower()
-        return v if v in JOB_CATEGORIES else "otros"
+        if v not in JOB_CATEGORIES:
+            # 422 en vez de coaccionar a "otros" en silencio: un typo mandaba el
+            # aviso al rubro equivocado y los suscriptores del correcto no recibían
+            # la alerta. El panel siempre manda un rubro válido (categories.ts).
+            raise ValueError(f"Categoría inválida: {v!r}")
+        return v
+
+    @field_validator("postedAt")
+    @classmethod
+    def _valid_posted_at(cls, v: Optional[str]) -> Optional[str]:
+        # Vacío → None (el INSERT usa CURRENT_DATE). Con valor, exigimos YYYY-MM-DD:
+        # antes una fecha mal formada reventaba en el COALESCE(%s::date) con un 500.
+        s = (v or "").strip()
+        if not s:
+            return None
+        try:
+            return date.fromisoformat(s).isoformat()
+        except ValueError:
+            raise ValueError("postedAt debe tener formato YYYY-MM-DD")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Utilidades
@@ -548,15 +566,23 @@ def contacto(request: Request, dto: ContactDTO) -> ContactOut:
     name = dto.name.strip()
     message = dto.message.strip()
     safe_msg = html.escape(message).replace("\n", "<br>")
-    emailer.send_email(
-        CONTACT_TO,
-        f"Nueva consulta web de {name}",
-        f"<p><strong>Nombre:</strong> {html.escape(name)}</p>"
-        f"<p><strong>Email:</strong> {html.escape(str(dto.email))}</p>"
-        f"<p><strong>Mensaje:</strong></p><p>{safe_msg}</p>",
-        text_body=f"Nombre: {name}\nEmail: {dto.email}\nMensaje:\n{message}",
-        reply_to=str(dto.email),
-    )
+    try:
+        emailer.send_email(
+            CONTACT_TO,
+            f"Nueva consulta web de {name}",
+            f"<p><strong>Nombre:</strong> {html.escape(name)}</p>"
+            f"<p><strong>Email:</strong> {html.escape(str(dto.email))}</p>"
+            f"<p><strong>Mensaje:</strong></p><p>{safe_msg}</p>",
+            text_body=f"Nombre: {name}\nEmail: {dto.email}\nMensaje:\n{message}",
+            reply_to=str(dto.email),
+        )
+    except Exception:
+        # No perdemos la consulta ni le tiramos un 500 al visitante si Brevo falla:
+        # la logueamos completa para recuperarla y respondemos OK igual.
+        log.exception(
+            "Fallo al enviar la consulta de contacto (queda en el log): name=%r email=%r message=%r",
+            name, str(dto.email), message,
+        )
     return ContactOut(message="¡Gracias! Recibimos tu consulta y te vamos a contactar a la brevedad.")
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -632,18 +658,22 @@ def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
         if out.isPublished:
             # Alertas: se juntan los destinatarios ahora (conexión viva) y el envío
             # va a background para no demorar la respuesta del admin. Best-effort:
-            # un fallo de mail nunca rompe el alta del aviso.
-            cur.execute(
-                """
-                SELECT DISTINCT u.email FROM job_alert_subscriptions s
-                JOIN users u ON u.id = s.user_id
-                WHERE s.category = %s
-                """,
-                (out.category,),
-            )
-            recipients = [r[0] for r in cur.fetchall()]
-            if recipients:
-                background_tasks.add_task(_send_job_alerts, recipients, out.title, out.company, out.id)
+            # el alta ya está commiteada, así que un fallo al juntar/mandar alertas
+            # se traga (log) y nunca convierte un alta exitosa en un 500.
+            try:
+                cur.execute(
+                    """
+                    SELECT DISTINCT u.email FROM job_alert_subscriptions s
+                    JOIN users u ON u.id = s.user_id
+                    WHERE s.category = %s
+                    """,
+                    (out.category,),
+                )
+                recipients = [r[0] for r in cur.fetchall()]
+                if recipients:
+                    background_tasks.add_task(_send_job_alerts, recipients, out.title, out.company, out.id)
+            except Exception:
+                log.exception("No se pudieron juntar/agendar las alertas del aviso %s (alta OK)", out.id)
     return out
 
 @app.put("/admin/jobs/{job_id}", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
@@ -792,7 +822,15 @@ def _store_resume_from_profile(
 
     src_key = row[0]
     original = row[1] or "cv"
-    data = storage.download_bytes(storage.CV_BUCKET, src_key)
+    try:
+        data = storage.download_bytes(storage.CV_BUCKET, src_key)
+    except storage.StorageObjectNotFound:
+        # El perfil apunta a un objeto que ya no existe en el bucket: 400 accionable
+        # en vez de un 500 crudo.
+        raise HTTPException(
+            status_code=400,
+            detail="Tu CV del perfil ya no está disponible. Volvé a subirlo para postularte.",
+        )
     ext = Path(original).suffix.lower()
     key = f"cv-{uuid.uuid4().hex}{ext}"
     mimetype = _detect_mimetype(original)
@@ -901,6 +939,7 @@ def list_cvs_admin() -> ListCvOut:
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
             ORDER BY r.id DESC
+            LIMIT 500
             """
         )
         rows = [
@@ -938,9 +977,12 @@ def update_cv_status(cv_id: int, dto: CvStatusUpdate) -> CvStatusOut:
         raise HTTPException(status_code=400, detail="Estado inválido")
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM resumes WHERE id = %s", (cv_id,))
-        if not cur.fetchone():
+        cur.execute("SELECT withdrawn_at FROM resumes WHERE id = %s", (cv_id,))
+        found = cur.fetchone()
+        if not found:
             raise HTTPException(status_code=404, detail="No encontrado")
+        if found[0] is not None:
+            raise HTTPException(status_code=409, detail="La postulación está dada de baja")
         cur.execute("UPDATE resumes SET status = %s WHERE id = %s", (status, cv_id))
         conn.commit()
     return CvStatusOut(id=cv_id, pipeline_status=status)
@@ -1229,7 +1271,8 @@ def delete_my_video(current_user: dict = Depends(get_current_user)) -> ProfileOu
 
 
 @app.get("/health/video", tags=["default"])
-def health_video() -> dict:
+@limiter.limit("6/minute")
+def health_video(request: Request) -> dict:
     """Diagnóstico SIN secretos del storage de videos (2º proyecto Supabase).
     `configured`: están las env vars en este entorno. `reachable`: la service_role
     autentica de verdad contra Supabase (list_buckets). `bucket_found`: existe el
@@ -1298,7 +1341,7 @@ def withdraw_my_application(
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, job_id, job_title, created_at, withdrawn_at FROM resumes WHERE id = %s AND email = %s",
+            "SELECT id, job_id, job_title, created_at, withdrawn_at, status FROM resumes WHERE id = %s AND email = %s",
             (application_id, current_user["email"]),
         )
         row = cur.fetchone()
@@ -1308,7 +1351,7 @@ def withdraw_my_application(
             cur.execute("UPDATE resumes SET withdrawn_at = now() WHERE id = %s", (application_id,))
             conn.commit()
             cur.execute(
-                "SELECT id, job_id, job_title, created_at, withdrawn_at FROM resumes WHERE id = %s",
+                "SELECT id, job_id, job_title, created_at, withdrawn_at, status FROM resumes WHERE id = %s",
                 (application_id,),
             )
             row = cur.fetchone()
@@ -1319,6 +1362,7 @@ def withdraw_my_application(
         created_at=_legacy_ts(row[3]),
         withdrawn_at=_legacy_ts(row[4]),
         status="withdrawn" if row[4] else "active",
+        pipeline_status=(row[5] or "received"),
     )
 
 class AlertsOut(BaseModel):

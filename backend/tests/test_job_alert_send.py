@@ -99,7 +99,7 @@ def make_client(state, executed):
     return TestClient(main.app), conn
 
 
-def _payload(category="gastronomia", isPublished=True, title="Mozo/a"):
+def _payload(category="hoteleria", isPublished=True, title="Mozo/a"):
     return {
         "title": title, "company": "Bar Sur", "location": "Rosario", "type": "Presencial",
         "category": category, "seniority": "Junior", "salary": "", "postedAt": None,
@@ -109,19 +109,19 @@ def _payload(category="gastronomia", isPublished=True, title="Mozo/a"):
 
 
 def test_publish_sends_to_matching_subscribers():
-    """create_job publicado en gastronomia → alerta a a@x y b@x (gastronomia), NO a c@x (ventas)."""
+    """create_job publicado en hoteleria → alerta a a@x y b@x (hoteleria), NO a c@x (comercial)."""
     calls = []
     main.emailer.send_job_alert = lambda *a, **k: calls.append((a, k))
 
     state = {
         "jobs": [],
         "subs": [
-            {"email": "a@x.com", "category": "gastronomia"},
-            {"email": "b@x.com", "category": "gastronomia"},
-            {"email": "c@x.com", "category": "ventas"},
+            {"email": "a@x.com", "category": "hoteleria"},
+            {"email": "b@x.com", "category": "hoteleria"},
+            {"email": "c@x.com", "category": "comercial"},
         ],
     }
-    dto = _payload(category="gastronomia", isPublished=True)
+    dto = _payload(category="hoteleria", isPublished=True)
     state["_last_dto"] = dto
     client, _conn = make_client(state, [])
 
@@ -139,9 +139,9 @@ def test_unpublished_job_sends_nothing():
 
     state = {
         "jobs": [],
-        "subs": [{"email": "a@x.com", "category": "gastronomia"}],
+        "subs": [{"email": "a@x.com", "category": "hoteleria"}],
     }
-    dto = _payload(category="gastronomia", isPublished=False)
+    dto = _payload(category="hoteleria", isPublished=False)
     state["_last_dto"] = dto
     client, _conn = make_client(state, [])
 
@@ -158,9 +158,9 @@ def test_send_failure_does_not_break_creation():
 
     state = {
         "jobs": [],
-        "subs": [{"email": "a@x.com", "category": "gastronomia"}],
+        "subs": [{"email": "a@x.com", "category": "hoteleria"}],
     }
-    dto = _payload(category="gastronomia", isPublished=True)
+    dto = _payload(category="hoteleria", isPublished=True)
     state["_last_dto"] = dto
     client, _conn = make_client(state, [])
 
@@ -175,7 +175,7 @@ def test_no_subscribers_no_calls():
     main.emailer.send_job_alert = lambda *a, **k: calls.append((a, k))
 
     state = {"jobs": [], "subs": []}
-    dto = _payload(category="gastronomia", isPublished=True)
+    dto = _payload(category="hoteleria", isPublished=True)
     state["_last_dto"] = dto
     client, _conn = make_client(state, [])
 
