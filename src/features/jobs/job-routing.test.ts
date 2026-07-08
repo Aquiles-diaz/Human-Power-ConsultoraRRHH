@@ -24,4 +24,14 @@ describe("resolveJobRoute", () => {
   it("param inexistente con carga terminada: redirect", () => {
     expect(resolveJobRoute("zzz", [job("a")], false)).toEqual({ kind: "redirect" });
   });
+
+  it("param inexistente pero con revalidación en vuelo: pendiente (no redirigir)", () => {
+    // Cache viejo sin el aviso recién publicado: el id podría estar en los datos
+    // frescos que todavía están cargando. No rebotar al listado todavía.
+    expect(resolveJobRoute("zzz", [job("a")], false, true)).toEqual({ kind: "pending" });
+  });
+
+  it("param inexistente, sin carga ni revalidación: redirect (datos frescos lo confirman)", () => {
+    expect(resolveJobRoute("zzz", [job("a")], false, false)).toEqual({ kind: "redirect" });
+  });
 });

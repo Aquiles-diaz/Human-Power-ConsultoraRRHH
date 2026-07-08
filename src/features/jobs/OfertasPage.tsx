@@ -494,7 +494,7 @@ const ApplyModal: React.FC<{
 const OfertasPage: React.FC = () => {
   // Carga con stale-while-revalidate: si hay cache, las ofertas se pintan al instante
   // y se revalidan en background (suaviza el cold start del backend).
-  const { jobs, loading, error: loadError } = useJobs();
+  const { jobs, loading, validating, error: loadError } = useJobs();
   const { jobId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -545,7 +545,7 @@ const OfertasPage: React.FC = () => {
 
   // Deep-link /ofertas/:jobId → seleccionar ese aviso (y abrir el detalle en
   // mobile). Id inexistente una vez cargados los jobs → volver al listado.
-  const routeRes = resolveJobRoute(jobId, jobs, loading);
+  const routeRes = resolveJobRoute(jobId, jobs, loading, validating);
   useEffect(() => {
     if (routeRes.kind === "found") {
       setSelectedId(routeRes.id);
@@ -554,7 +554,7 @@ const OfertasPage: React.FC = () => {
       navigate("/ofertas", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, jobs, loading]);
+  }, [jobId, jobs, loading, validating]);
 
   // SEO por aviso SOLO con deep-link real: jobForSeo exige que el aviso de la
   // URL sea el efectivamente seleccionado (los filtros podrían excluirlo y

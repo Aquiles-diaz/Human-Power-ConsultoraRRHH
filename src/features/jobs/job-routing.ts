@@ -11,9 +11,13 @@ export type JobRouteResolution =
 export function resolveJobRoute(
   jobId: string | undefined,
   jobs: Job[],
-  loading: boolean
+  loading: boolean,
+  validating = false
 ): JobRouteResolution {
   if (!jobId) return { kind: "none" };
   if (jobs.some((j) => j.id === jobId)) return { kind: "found", id: jobId };
-  return loading ? { kind: "pending" } : { kind: "redirect" };
+  // No redirigir mientras haya una revalidación en vuelo: con cache viejo, el
+  // aviso recién publicado podría estar en los datos frescos que aún cargan.
+  // Solo rebotamos al listado cuando datos ya frescos confirman que no existe.
+  return loading || validating ? { kind: "pending" } : { kind: "redirect" };
 }
