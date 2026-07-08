@@ -11,6 +11,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:run": "vitest run",
+    "test:api": ".venv/bin/python -m pytest backend/tests -q",
+    "lint": "eslint .",
     "optimize:images": "node scripts/optimize-images.mjs"
   },
   "dependencies": {

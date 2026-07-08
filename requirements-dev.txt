@@ -1,0 +1,8 @@
+# Dependencias de desarrollo / test (NO van a producción).
+# Instalar con:  .venv/bin/pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Runner de los tests del backend. Hasta ahora cada test se corría por su bloque
+# __main__ (PYTHONPATH=. .venv/bin/python backend/tests/test_X.py); con pytest se
+# corre toda la suite de una y lo usa el CI.
+pytest>=8.0

@@ -1,0 +1,39 @@
+name: CI
+
+# Gate automático: corre en cada push a main y en cada PR. Antes no había CI y el
+# deploy es automático desde main, así que un gate olvidado localmente podía
+# shippear código roto a producción (p. ej. el CORS que dejó muerto el pipeline
+# admin). Esto lo frena.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend (build + tests + lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      # El gate real de tipos es el build (tsc -b), no `tsc --noEmit`.
+      - run: npm run build
+      - run: npx vitest run
+      - run: npx eslint .
+
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Igual que producción (render.yaml: PYTHON_VERSION 3.13.x).
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest backend/tests -q
