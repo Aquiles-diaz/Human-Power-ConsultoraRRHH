@@ -73,8 +73,10 @@ export default function CandidatesView() {
   const [active, setActive] = useState<Profile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const detailReqId = useRef(0);
+  const loadReqId = useRef(0);
 
   const load = useCallback(async () => {
+    const reqId = ++loadReqId.current;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -86,13 +88,15 @@ export default function CandidatesView() {
       const res = await authFetch(`/admin/candidates?${params}`, authHeaders);
       if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
+      if (reqId !== loadReqId.current) return; // llegó una búsqueda más nueva: descartar
       setItems(data.items || []);
       setError(null);
     } catch (e) {
+      if (reqId !== loadReqId.current) return;
       setError(getErrorMessage(e) || "No se pudieron cargar los candidatos");
       toast.error("No se pudieron cargar los candidatos", { description: getErrorMessage(e) });
     } finally {
-      setLoading(false);
+      if (reqId === loadReqId.current) setLoading(false);
     }
   }, [q, area, education, onlyCv, onlyVideo, authHeaders]);
 
