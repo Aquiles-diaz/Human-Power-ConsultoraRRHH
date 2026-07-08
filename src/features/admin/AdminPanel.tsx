@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PAGE_SHELL } from "@/components/shared/PageContainer";
 import { authFetch, parseApiError } from "@/lib/api";
+import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
 import CandidatesView from "./CandidatesView";
 import VideoPreview from "./VideoPreview";
@@ -119,7 +120,7 @@ export default function AdminPanel() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename || "cv";
+      a.download = safeDownloadName(filename);
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

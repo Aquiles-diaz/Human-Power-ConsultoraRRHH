@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError, photoSrc } from "@/lib/api";
+import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
@@ -241,7 +242,7 @@ export default function ProfilePage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = profile?.cv_original_name || "cv";
+      a.download = safeDownloadName(profile?.cv_original_name);
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError, photoSrc } from "@/lib/api";
+import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,7 +126,7 @@ export default function CandidatesView() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename || "cv";
+      a.download = safeDownloadName(filename);
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
