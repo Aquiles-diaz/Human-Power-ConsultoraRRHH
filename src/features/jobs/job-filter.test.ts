@@ -28,4 +28,17 @@ describe("filterJobs", () => {
   it("combina filtros (AND)", () => {
     expect(filterJobs(jobs, { q: "tech", category: "otros" }).map((j) => j.id)).toEqual(["3"]);
   });
+  it("q matchea la especialización (label del rubro)", () => {
+    // El hero promete "Buscá por especialización…": "tecnología" debe traer
+    // los avisos del rubro IT aunque la palabra no esté en título ni empresa.
+    expect(filterJobs(jobs, { q: "tecnología" }).map((j) => j.id)).toEqual(["1"]);
+    expect(filterJobs(jobs, { q: "calidad" }).map((j) => j.id)).toEqual(["2"]);
+  });
+  it("q es insensible a acentos en ambas direcciones", () => {
+    expect(filterJobs(jobs, { q: "tecnologia" }).map((j) => j.id)).toEqual(["1"]);
+    const conAcento: Job[] = [
+      { ...base, id: "4", title: "Especialista en Gestión", company: "X", category: "otros" },
+    ];
+    expect(filterJobs(conAcento, { q: "gestion" }).map((j) => j.id)).toEqual(["4"]);
+  });
 });
