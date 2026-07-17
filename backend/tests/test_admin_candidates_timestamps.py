@@ -49,11 +49,13 @@ _ROW = {
 
 
 def test_admin_candidates_returns_timestamps():
+    orig_get_db = backend_main.get_db
     backend_main.get_db = lambda: _FakeConn([_ROW])
     app.dependency_overrides[require_admin] = lambda: {"id": 99, "role": "admin"}
     try:
         r = TestClient(app).get("/admin/candidates")
     finally:
+        backend_main.get_db = orig_get_db
         app.dependency_overrides.pop(require_admin, None)
     assert r.status_code == 200, (r.status_code, r.text)
     item = r.json()["items"][0]
