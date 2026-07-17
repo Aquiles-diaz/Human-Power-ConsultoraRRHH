@@ -133,10 +133,13 @@ export default function Hero() {
         >
           {/* Emblema de marca */}
           <img
-            src="/logohumap-white.png"
+            src="/logohumap-white-176.webp"
+            srcSet="/logohumap-white-176.webp 176w, /logohumap-white-352.webp 352w"
+            sizes="(min-width: 768px) 176px, (min-width: 640px) 128px, 80px"
             alt="Human Power RRHH"
             width={176}
             height={176}
+            fetchPriority="high"
             className="mb-4 size-20 object-contain [filter:drop-shadow(0_2px_4px_rgb(0_0_0/0.55))_drop-shadow(0_10px_22px_rgb(0_0_0/0.5))] sm:size-32 md:size-44"
           />
 

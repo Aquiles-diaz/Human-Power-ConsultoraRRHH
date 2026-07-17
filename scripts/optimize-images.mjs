@@ -33,6 +33,17 @@ await sharp(pub("logohumap-sinfondo.png"))
   .png({ compressionLevel: 9, palette: true })
   .toFile(pub("logo.png"));
 
+// Logo blanco en WebP para la UI (Hero LCP y navbar). El original 512px PNG pesa
+// ~55K y se muestra a 176px como máximo: 352px cubre pantallas retina (2x).
+await sharp(pub("logohumap-white.png"))
+  .resize(352, 352, { fit: "inside" })
+  .webp({ quality: 90 })
+  .toFile(pub("logohumap-white-352.webp"));
+await sharp(pub("logohumap-white.png"))
+  .resize(176, 176, { fit: "inside" })
+  .webp({ quality: 90 })
+  .toFile(pub("logohumap-white-176.webp"));
+
 // OG image: logo blanco centrado sobre fondo negro de marca, 1200x630 (preview social).
 const W = 1200;
 const H = 630;
@@ -45,6 +56,13 @@ await sharp({
   .toFile(pub("og-image.png"));
 
 console.log("Assets generados:");
-for (const f of ["favicon.png", "apple-touch-icon.png", "logo.png", "og-image.png"]) {
+for (const f of [
+  "favicon.png",
+  "apple-touch-icon.png",
+  "logo.png",
+  "logohumap-white-352.webp",
+  "logohumap-white-176.webp",
+  "og-image.png",
+]) {
   console.log(`  public/${f}  ->  ${kb(pub(f))}`);
 }

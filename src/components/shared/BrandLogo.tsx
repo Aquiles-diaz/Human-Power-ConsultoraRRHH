@@ -1,6 +1,7 @@
 // Lockup de marca: emblema + (opcional) wordmark legible.
-// Usamos la versión blanca con fondo transparente (/public/logohumap-white.png),
-// que se apoya directo sobre el navbar oscuro sin disco blanco.
+// Usamos la versión blanca con fondo transparente (webp generado por
+// scripts/optimize-images.mjs), que se apoya directo sobre el navbar oscuro
+// sin disco blanco. 176px alcanza: se muestra a ~44px (88px en retina).
 export function BrandLogo({
   imgClassName = "size-11",
   wordmark = true,
@@ -11,7 +12,7 @@ export function BrandLogo({
   return (
     <span className="inline-flex items-center gap-2.5">
       <img
-        src="/logohumap-white.png"
+        src="/logohumap-white-176.webp"
         alt="Human Power RRHH"
         loading="eager"
         className={`${imgClassName} shrink-0 object-contain`}
