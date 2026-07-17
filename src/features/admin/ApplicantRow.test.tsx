@@ -42,4 +42,11 @@ describe("ApplicantRow (vista agrupada Postulaciones)", () => {
     renderRow({ withdrawn_at: "2026-06-02T10:00:00Z" });
     expect(screen.getByRole("combobox")).toBeDisabled();
   });
+
+  it("el badge Retirada incluye fecha y hora de la baja", () => {
+    renderRow({ withdrawn_at: "2026-07-15T12:12:00Z" });
+    const badge = screen.getByText(/Retirada ·/);
+    expect(badge.textContent).toMatch(/15/);
+    expect(badge.textContent).toMatch(/jul/i);
+  });
 });

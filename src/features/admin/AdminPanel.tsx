@@ -34,7 +34,7 @@ import { getVideoEmbed } from "@/lib/video-embeds";
 import JobsManager from "./JobsManager";
 import ResumenDashboard from "./ResumenDashboard";
 import { PipelineSelect } from "./PipelineSelect";
-import { formatDate } from "./format";
+import { formatDate, formatShortDate } from "./format";
 
 type ResumeRow = {
   id: number;
@@ -505,7 +505,7 @@ export default function AdminPanel() {
                     <div className="flex shrink-0 items-center gap-1.5">
                       {cv.withdrawn_at && (
                         <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-300">
-                          Retirada
+                          Retirada · {formatShortDate(cv.withdrawn_at)}
                         </span>
                       )}
                       <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
@@ -609,7 +609,7 @@ export default function AdminPanel() {
                           <p className="truncate font-medium capitalize text-white">{cv.full_name}</p>
                           {cv.withdrawn_at && (
                             <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-300">
-                              Retirada
+                              Retirada · {formatShortDate(cv.withdrawn_at)}
                             </span>
                           )}
                         </div>
@@ -868,7 +868,14 @@ export function ApplicantRow({
         {initials(cv.full_name)}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium capitalize text-white">{cv.full_name}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium capitalize text-white">{cv.full_name}</p>
+          {cv.withdrawn_at && (
+            <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-300">
+              Retirada · {formatShortDate(cv.withdrawn_at)}
+            </span>
+          )}
+        </div>
         <a
           href={`mailto:${cv.email}`}
           className="inline-flex items-center gap-1 truncate text-xs text-amber-300/80 hover:text-amber-200"
