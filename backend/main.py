@@ -323,6 +323,8 @@ class CandidateListItem(BaseModel):
     photo_url: Optional[str] = None
     has_cv: bool = False
     has_video: bool = False
+    created_at: Optional[str] = None
+    last_login_at: Optional[str] = None
 
 class CandidatesOut(BaseModel):
     items: list[CandidateListItem]
@@ -1464,6 +1466,7 @@ def list_candidates(
 ) -> CandidatesOut:
     sql = """
         SELECT u.id, u.name, u.last_name, u.email,
+               u.created_at, u.last_login_at,
                p.headline, p.professional_area, p.education_level,
                p.experience_years, p.city, p.photo_filename, p.external_photo_url,
                p.cv_filename, p.video_filename, p.video_url
@@ -1498,6 +1501,8 @@ def list_candidates(
             city=r["city"], photo_url=_photo_url(r["photo_filename"]) or r["external_photo_url"],
             has_cv=bool(r["cv_filename"]),
             has_video=bool(r["video_filename"]) or bool(r["video_url"]),
+            created_at=_legacy_ts(r["created_at"]),
+            last_login_at=_legacy_ts(r["last_login_at"]),
         )
         for r in rows
     ]
