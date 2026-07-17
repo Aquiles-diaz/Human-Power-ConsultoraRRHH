@@ -27,8 +27,8 @@ export default function ValueProps() {
               />
             </div>
             <p className="mt-1 text-sm leading-relaxed text-white/70">
-              Destacate entre cientos de CV con tu{" "}
-              <span className="font-semibold text-white">primera impresión</span>.
+              Destacate entre más de cientos de CV con tu{" "}
+              <span className="font-semibold text-white">video de 30 segundos</span>.
             </p>
           </div>
         </Link>

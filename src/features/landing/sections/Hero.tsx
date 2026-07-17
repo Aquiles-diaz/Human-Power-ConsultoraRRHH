@@ -189,8 +189,8 @@ export default function Hero() {
               />
             </span>
             <p className="text-[13px] leading-relaxed text-white/75 sm:text-sm">
-              Destacate entre cientos de CV con tu{" "}
-              <span className="font-semibold text-white">primera impresión</span>.
+              Destacate entre más de cientos de CV con tu{" "}
+              <span className="font-semibold text-white">video de 30 segundos</span>.
             </p>
           </Link>
           <a href="#contacto" aria-label="Para empresas" className={valueCard}>
