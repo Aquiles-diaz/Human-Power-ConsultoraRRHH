@@ -116,6 +116,19 @@ def set_email_verified(email: str) -> None:
             (email.lower(),),
         )
 
+def touch_last_login(user_id: int) -> None:
+    """Marca la última conexión (trazabilidad del panel admin). Best-effort:
+    si la DB falla, el login NO debe fallar por esto — se traga la excepción."""
+    try:
+        with get_conn() as con:
+            cur = con.cursor()
+            cur.execute(
+                "UPDATE users SET last_login_at = now() WHERE id = %s",
+                (user_id,),
+            )
+    except Exception:
+        pass
+
 def create_user(name: str, last_name: str, email: str, password: str) -> dict:
     hashed_password = pwd_context.hash(password)
     with get_conn() as con:
@@ -265,6 +278,7 @@ def login(request: Request, dto: LoginDTO):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
     if not pwd_context.verify(dto.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+    touch_last_login(user["id"])
     access_token = create_access_token(data={"sub": user["email"]})
     return {"access_token": access_token, "user": user}
 
@@ -307,6 +321,7 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
         if picture:
             set_profile_photo_url(user["id"], picture)
 
+    touch_last_login(user["id"])
     access_token = create_access_token(data={"sub": email})
     return {"access_token": access_token, "user": user}
 

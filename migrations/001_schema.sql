@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- Verificación de email (agregada después; idempotente para bases ya creadas).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
 
+-- Última conexión (trazabilidad admin).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamptz;
+
 -- ── Perfil del candidato (1:1 con users) ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS profiles (
     user_id            BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
