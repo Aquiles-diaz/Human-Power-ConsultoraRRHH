@@ -34,6 +34,7 @@ import { getVideoEmbed } from "@/lib/video-embeds";
 import JobsManager from "./JobsManager";
 import ResumenDashboard from "./ResumenDashboard";
 import { PipelineSelect } from "./PipelineSelect";
+import { formatDate } from "./format";
 
 type ResumeRow = {
   id: number;
@@ -53,15 +54,6 @@ type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
 
 // --- utils ---
 const truncate = (s = "", n = 60) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(d);
-}
 
 function ymd(date?: Date) {
   const d = date ?? new Date();
