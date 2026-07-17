@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import { AppProviders } from "@/app/providers";
+import { Analytics } from "@vercel/analytics/react";
 
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("No se encontró el elemento #root en index.html");
@@ -13,5 +14,6 @@ createRoot(rootEl).render(
     <AppProviders>
       <App />
     </AppProviders>
+    <Analytics />
   </React.StrictMode>
 );
