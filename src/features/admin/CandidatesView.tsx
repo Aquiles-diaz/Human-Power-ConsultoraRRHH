@@ -30,6 +30,7 @@ import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/Modal";
 import VideoPreview from "./VideoPreview";
 import { getVideoEmbed } from "@/lib/video-embeds";
+import { formatDate, timeAgo } from "./format";
 import {
   EDUCATION_LEVELS,
   PROFESSIONAL_AREAS,
@@ -49,6 +50,8 @@ type Candidate = {
   photo_url?: string | null;
   has_cv: boolean;
   has_video?: boolean;
+  created_at?: string | null;
+  last_login_at?: string | null;
 };
 
 function initials(name?: string | null, last?: string | null) {
@@ -56,6 +59,22 @@ function initials(name?: string | null, last?: string | null) {
   const a = n[0] ?? "";
   const b = (last ?? "").trim()[0] ?? "";
   return (a + b || n[0] || "?").toUpperCase();
+}
+
+export function CandidateDates({
+  created_at,
+  last_login_at,
+}: {
+  created_at?: string | null;
+  last_login_at?: string | null;
+}) {
+  if (!created_at && !last_login_at) return null;
+  return (
+    <div className="mt-1 space-y-0.5 text-[11px] text-white/50">
+      {created_at && <p>Registrado: {formatDate(created_at)}</p>}
+      <p>Última conexión: {timeAgo(last_login_at)}</p>
+    </div>
+  );
 }
 
 export default function CandidatesView() {
@@ -288,6 +307,8 @@ export default function CandidatesView() {
                   </span>
                 )}
               </div>
+
+              <CandidateDates created_at={c.created_at} last_login_at={c.last_login_at} />
             </button>
           ))}
         </div>
