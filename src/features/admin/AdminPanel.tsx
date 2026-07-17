@@ -152,6 +152,16 @@ export default function AdminPanel() {
     });
   }, [q, cvs, dateFrom, dateTo]);
 
+  // Postulaciones sin revisar: estado "received" del pipeline y no retiradas.
+  // Marcarlas "Vista" (PATCH ya existente) las saca del contador solo.
+  const newCount = useMemo(
+    () =>
+      cvs.filter(
+        (c) => (c.pipeline_status ?? "received") === "received" && !c.withdrawn_at,
+      ).length,
+    [cvs],
+  );
+
   // Recibidos hoy (para tarjeta de stats)
   const todayCount = useMemo(() => {
     const today = ymd();
@@ -335,6 +345,7 @@ export default function AdminPanel() {
             onClick={() => setTab("all")}
             icon={<Inbox className="size-4" />}
             label="Base de datos general"
+            badge={newCount}
           />
         </div>
 
@@ -820,16 +831,18 @@ function StatCard({
   );
 }
 
-function TabButton({
+export function TabButton({
   active,
   onClick,
   icon,
   label,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  badge?: number;
 }) {
   return (
     <button
@@ -843,6 +856,11 @@ function TabButton({
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
+      {typeof badge === "number" && badge > 0 && (
+        <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[11px] font-bold text-black">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
