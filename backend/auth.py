@@ -127,7 +127,7 @@ def touch_last_login(user_id: int) -> None:
                 (user_id,),
             )
     except Exception:
-        pass
+        log.warning("touch_last_login falló (best-effort, login sigue)", exc_info=True)
 
 def create_user(name: str, last_name: str, email: str, password: str) -> dict:
     hashed_password = pwd_context.hash(password)

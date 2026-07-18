@@ -86,18 +86,3 @@ def test_google_new_user_touches():
     r = client.post("/auth/google", json={"credential": "fake"})
     assert r.status_code == 200, (r.status_code, r.text)
     assert touched == [33]
-
-
-TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
-
-if __name__ == "__main__":
-    failed = 0
-    for t in TESTS:
-        try:
-            t()
-            print(f"PASS  {t.__name__}")
-        except Exception as e:
-            failed += 1
-            print(f"FAIL  {t.__name__}: {e!r}")
-    print(f"\n{len(TESTS) - failed}/{len(TESTS)} passed")
-    raise SystemExit(1 if failed else 0)
