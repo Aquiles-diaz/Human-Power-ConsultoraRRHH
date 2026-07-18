@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/button";
 import { COLORS, nf } from "./dashboard-theme";
 import { MonthlyApplications, CandidatesByArea, TopJobs, SpontaneousVsLinked } from "./charts";
+import { formatShortDate } from "./format";
 
 type CvRow = StatCv & { full_name?: string; email?: string };
 
@@ -20,7 +21,13 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function CvList({ rows }: { rows: CvRow[] }) {
+function jobLabel(r: CvRow) {
+  if (r.job_title) return r.job_title;
+  if (!r.job_id) return "Espontánea";
+  return r.job_id;
+}
+
+export function CvList({ rows, showJob = false }: { rows: CvRow[]; showJob?: boolean }) {
   if (rows.length === 0)
     return <p className="py-6 text-center t-muted text-white/60">No hay postulaciones en este período.</p>;
   return (
@@ -30,8 +37,9 @@ function CvList({ rows }: { rows: CvRow[] }) {
           <div className="min-w-0">
             <p className="truncate font-medium capitalize text-white">{r.full_name || "—"}</p>
             <p className="truncate text-xs text-white/60">{r.email}</p>
+            {showJob && <p className="truncate text-xs font-medium text-amber-300/80">{jobLabel(r)}</p>}
           </div>
-          <span className="shrink-0 text-xs text-white/60">{(r.created_at || "").slice(0, 10)}</span>
+          <span className="shrink-0 text-xs text-white/60">{r.created_at ? formatShortDate(r.created_at) : "—"}</span>
         </li>
       ))}
     </ul>
@@ -46,16 +54,16 @@ export default function ResumenDashboard({
   const now = useMemo(() => new Date(), []);
   const [range, setRange] = useState<Range>(() => resolveRange("month", now));
   const { stats, raw, loading, error, reload } = useAdminStats(range);
-  const [modal, setModal] = useState<{ title: string; rows: CvRow[] } | null>(null);
+  const [modal, setModal] = useState<{ title: string; rows: CvRow[]; showJob?: boolean } | null>(null);
 
   const openPostulaciones = () => {
     if (!raw) return;
-    setModal({ title: "Postulaciones del período", rows: cvsInRange(raw.cvs as CvRow[], range) });
+    setModal({ title: "Postulaciones del período", rows: cvsInRange(raw.cvs as CvRow[], range), showJob: true });
   };
   const openMonth = (ym: string) => {
     if (!raw) return;
     const rows = (raw.cvs as CvRow[]).filter((c) => (c.created_at || "").slice(0, 7) === ym);
-    setModal({ title: `Postulaciones de ${ym}`, rows });
+    setModal({ title: `Postulaciones de ${ym}`, rows, showJob: true });
   };
   const openJob = (jobId: string) => {
     if (!raw) return;
@@ -152,7 +160,7 @@ export default function ResumenDashboard({
 
       {modal && (
         <Modal title={modal.title} onClose={() => setModal(null)}>
-          <CvList rows={modal.rows} />
+          <CvList rows={modal.rows} showJob={modal.showJob} />
         </Modal>
       )}
     </div>
