@@ -333,11 +333,12 @@ class CandidatesOut(BaseModel):
 # Salida en camelCase para coincidir con el tipo `Job` del frontend (postedAt,
 # shortDescription, etc.) sin necesidad de una capa de mapeo en React.
 
-# Rubros válidos. Debe coincidir con src/features/jobs/categories.ts (16 values).
+# Rubros válidos. Debe coincidir con src/features/jobs/categories.ts (23 values).
 JOB_CATEGORIES = {
     "it", "calidad", "ingenieria", "mantenimiento", "hoteleria", "aseo-seguridad",
     "construccion", "call-center", "diseno", "legales", "aduana", "depto-tecnico",
-    "administracion", "comercial", "rrhh", "otros",
+    "administracion", "comercial", "rrhh", "marketing", "produccion", "logistica",
+    "atencion-cliente", "salud", "educacion", "oficios", "otros",
 }
 
 class JobOut(BaseModel):

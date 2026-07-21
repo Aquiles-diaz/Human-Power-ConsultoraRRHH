@@ -3,6 +3,7 @@
 import {
   Laptop, FlaskConical, Cog, Wrench, UtensilsCrossed, ShieldCheck, HardHat,
   Headset, Palette, Scale, Ship, Settings, Calculator, TrendingUp, Users,
+  Megaphone, Factory, Truck, MessagesSquare, Stethoscope, GraduationCap, Hammer,
   LayoutGrid, type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +30,13 @@ export const CATEGORIES: Category[] = [
   { value: "administracion", label: "Administración / Finanzas",         Icon: Calculator },
   { value: "comercial",      label: "Comercial / Ventas",               Icon: TrendingUp },
   { value: "rrhh",           label: "RRHH",                             Icon: Users },
+  { value: "marketing",      label: "Marketing / Comunicación",         Icon: Megaphone },
+  { value: "produccion",     label: "Producción",                       Icon: Factory },
+  { value: "logistica",      label: "Logística",                        Icon: Truck },
+  { value: "atencion-cliente", label: "Atención al cliente",            Icon: MessagesSquare },
+  { value: "salud",          label: "Salud",                            Icon: Stethoscope },
+  { value: "educacion",      label: "Educación",                        Icon: GraduationCap },
+  { value: "oficios",        label: "Oficios",                          Icon: Hammer },
   { value: "otros",          label: "Otros",                            Icon: LayoutGrid },
 ];
 

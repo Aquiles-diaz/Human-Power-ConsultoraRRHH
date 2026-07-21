@@ -34,6 +34,14 @@ def test_invalid_category_rejected():
     assert _rejects(category="inexistente")
 
 
+def test_new_categories_2026_07_accepted():
+    for cat in (
+        "marketing", "produccion", "logistica", "atencion-cliente",
+        "salud", "educacion", "oficios",
+    ):
+        assert JobUpsert(title="x", company="y", category=cat).category == cat
+
+
 def test_default_category_is_otros():
     assert JobUpsert(title="x", company="y").category == "otros"
 
