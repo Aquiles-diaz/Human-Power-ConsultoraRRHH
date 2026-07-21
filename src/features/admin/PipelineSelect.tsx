@@ -16,7 +16,7 @@ export const PipelineSelect: React.FC<{
     className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/80 transition-colors hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
   >
     {PIPELINE_STEPS.map((s) => (
-      <option key={s.key} value={s.key} className="bg-slate-900 text-white">
+      <option key={s.key} value={s.key} className="bg-neutral-900 text-white">
         {s.label}
       </option>
     ))}
