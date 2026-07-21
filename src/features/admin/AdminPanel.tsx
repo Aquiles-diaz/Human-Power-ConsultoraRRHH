@@ -35,6 +35,7 @@ import JobsManager from "./JobsManager";
 import ResumenDashboard from "./ResumenDashboard";
 import { PipelineSelect } from "./PipelineSelect";
 import { formatDate, formatShortDate } from "./format";
+import { composeEmailProps } from "./gmail";
 
 type ResumeRow = {
   id: number;
@@ -525,7 +526,7 @@ export default function AdminPanel() {
                     </div>
                   </div>
                   <a
-                    href={`mailto:${cv.email}`}
+                    {...composeEmailProps(cv.email)}
                     className="inline-flex items-center gap-1 break-all text-sm text-amber-300/90 hover:text-amber-200"
                   >
                     <Mail className="size-3.5" />
@@ -630,7 +631,7 @@ export default function AdminPanel() {
                   </td>
                   <td className="px-4 py-3">
                     <a
-                      href={`mailto:${cv.email}`}
+                      {...composeEmailProps(cv.email)}
                       className="inline-flex items-center gap-1 text-amber-300/90 hover:text-amber-200"
                     >
                       <Mail className="size-3.5" />
@@ -740,7 +741,10 @@ export default function AdminPanel() {
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-3 text-sm">
                 <Field label="Email">
-                  <a className="text-amber-300 hover:text-amber-200" href={`mailto:${active.email}`}>
+                  <a
+                    className="text-amber-300 hover:text-amber-200"
+                    {...composeEmailProps(active.email)}
+                  >
                     {active.email}
                   </a>
                 </Field>
@@ -778,7 +782,7 @@ export default function AdminPanel() {
                 Descargar CV
               </Button>
               <Button asChild variant="subtle">
-                <a href={`mailto:${active.email}`}>
+                <a {...composeEmailProps(active.email)}>
                   <Mail className="size-4" />
                   Escribir
                 </a>
@@ -898,7 +902,7 @@ export function ApplicantRow({
           )}
         </div>
         <a
-          href={`mailto:${cv.email}`}
+          {...composeEmailProps(cv.email)}
           className="inline-flex items-center gap-1 truncate text-xs text-amber-300/80 hover:text-amber-200"
         >
           <Mail className="size-3" />

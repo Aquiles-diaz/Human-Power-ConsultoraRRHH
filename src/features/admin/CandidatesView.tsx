@@ -31,6 +31,7 @@ import { Modal } from "@/components/ui/Modal";
 import VideoPreview from "./VideoPreview";
 import { getVideoEmbed } from "@/lib/video-embeds";
 import { formatDate, timeAgo } from "./format";
+import { composeEmailProps } from "./gmail";
 import {
   EDUCATION_LEVELS,
   PROFESSIONAL_AREAS,
@@ -344,7 +345,10 @@ export default function CandidatesView() {
                   {active.headline && (
                     <p className="t-eyebrow text-amber-300">{active.headline}</p>
                   )}
-                  <a href={`mailto:${active.email}`} className="text-sm text-white/60 hover:text-white">
+                  <a
+                    {...composeEmailProps(active.email)}
+                    className="text-sm text-white/60 hover:text-white"
+                  >
                     {active.email}
                   </a>
                 </div>
@@ -375,7 +379,7 @@ export default function CandidatesView() {
                   <span className="text-sm text-white/60">Este candidato todavía no subió su CV.</span>
                 )}
                 <Button asChild variant="subtle">
-                  <a href={`mailto:${active.email}`}>
+                  <a {...composeEmailProps(active.email)}>
                     <Mail className="size-4" /> Escribir
                   </a>
                 </Button>
