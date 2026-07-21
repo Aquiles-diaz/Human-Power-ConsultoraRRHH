@@ -25,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PAGE_SHELL } from "@/components/shared/PageContainer";
-import { authFetch, parseApiError } from "@/lib/api";
+import { authFetch, parseApiError, photoSrc } from "@/lib/api";
 import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
 import CandidatesView from "./CandidatesView";
@@ -49,6 +49,23 @@ type ResumeRow = {
   withdrawn_at?: string | null;
   video_url?: string | null;
   pipeline_status?: string;
+  // Perfil del candidato (JOIN por email en el backend): null si postuló sin cuenta.
+  user_id?: number | null;
+  name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  age_range?: string | null;
+  city?: string | null;
+  province?: string | null;
+  country?: string | null;
+  professional_area?: string | null;
+  education_level?: string | null;
+  experience_years?: string | null;
+  availability?: string | null;
+  salary_expectation?: string | null;
+  languages?: string[];
+  headline?: string | null;
+  photo_url?: string | null;
 };
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
@@ -146,6 +163,8 @@ export default function AdminPanel() {
 
       return (
         (r.full_name || "").toLowerCase().includes(needle) ||
+        // nombre real del perfil registrado: es el que titula el modal de detalle
+        (`${r.name || ""} ${r.last_name || ""}`).toLowerCase().includes(needle) ||
         (r.email || "").toLowerCase().includes(needle) ||
         (r.original_name || "").toLowerCase().includes(needle) ||
         (r.message || "").toLowerCase().includes(needle)
@@ -707,102 +726,13 @@ export default function AdminPanel() {
 
       {/* Drawer/Modal de detalle */}
       {active && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() => setActive(null)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-neutral-900/95 p-6 shadow-2xl backdrop-blur-xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Detalle del candidato #${active.id}`}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="grid size-11 place-items-center rounded-full bg-amber-500/20 text-base font-bold text-amber-300">
-                  {initials(active.full_name)}
-                </span>
-                <div>
-                  <h2 className="t-h3 capitalize text-white">{active.full_name}</h2>
-                  <p className="text-xs text-white/60">Candidato #{active.id}</p>
-                </div>
-              </div>
-              <Button
-                variant="subtle"
-                size="icon"
-                onClick={() => setActive(null)}
-                aria-label="Cerrar"
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="space-y-3 text-sm">
-                <Field label="Email">
-                  <a
-                    className="text-amber-300 hover:text-amber-200"
-                    {...composeEmailProps(active.email)}
-                  >
-                    {active.email}
-                  </a>
-                </Field>
-                <Field label="Archivo">{active.original_name}</Field>
-                <Field label="Fecha">{formatDate(active.created_at)}</Field>
-                <div>
-                  <p className="mb-1 t-label text-white/50">Mensaje</p>
-                  <div className="whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
-                    {active.message || "—"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Video preview */}
-              <div>
-                <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
-                  <Video className="size-4" /> Video
-                </p>
-                <div className="overflow-hidden rounded-xl border border-white/10">
-                  {active.video_url && getVideoEmbed(active.video_url) ? (
-                    <VideoPreview url={active.video_url} />
-                  ) : (
-                    <VideoPreview message={active.message || ""} />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Button
-                variant="brand"
-                onClick={() => downloadCv(active.id, active.original_name)}
-              >
-                <Download className="size-4" />
-                Descargar CV
-              </Button>
-              <Button asChild variant="subtle">
-                <a {...composeEmailProps(active.email)}>
-                  <Mail className="size-4" />
-                  Escribir
-                </a>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => deleteCv(active.id)}
-                disabled={deleting === active.id}
-                className="ml-auto border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-              >
-                {deleting === active.id ? (
-                  <RefreshCw className="size-4 animate-spin" />
-                ) : (
-                  <Trash2 className="size-4" />
-                )}
-                Eliminar
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ApplicantDetail
+          cv={active}
+          deleting={deleting === active.id}
+          onClose={() => setActive(null)}
+          onDownload={() => downloadCv(active.id, active.original_name)}
+          onDelete={() => deleteCv(active.id)}
+        />
       )}
     </main>
   );
@@ -952,11 +882,194 @@ export function ApplicantRow({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function ApplicantDetail({
+  cv,
+  deleting,
+  onClose,
+  onDownload,
+  onDelete,
+}: {
+  cv: ResumeRow;
+  deleting: boolean;
+  onClose: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
+}) {
+  // Nombre y apellido del perfil registrado; si postuló sin cuenta, lo que
+  // escribió en el formulario.
+  const profileName = [cv.name, cv.last_name].filter(Boolean).join(" ");
+  const displayName = profileName || cv.full_name;
+  // El perfil se adjunta por email sin prueba de titularidad (POST /cv es
+  // anónimo): si el nombre del form no coincide, avisarlo evita atribuirle la
+  // postulación a la persona equivocada.
+  const formNameDiffers =
+    !!profileName &&
+    profileName.trim().toLowerCase() !== (cv.full_name || "").trim().toLowerCase();
+  const location = [cv.city, cv.province, cv.country].filter(Boolean).join(", ");
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-neutral-900/95 p-6 shadow-2xl backdrop-blur-xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Detalle del candidato #${cv.id}`}
+      >
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {cv.photo_url ? (
+              <img
+                src={photoSrc(cv.photo_url)}
+                alt={`Foto de ${displayName}`}
+                width={44}
+                height={44}
+                className="size-11 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-500/20 text-base font-bold text-amber-300">
+                {initials(displayName)}
+              </span>
+            )}
+            <div>
+              <h2 className="t-h3 capitalize text-white">{displayName}</h2>
+              <p className="text-xs text-white/60">
+                Candidato #{cv.id}
+                {cv.headline && (
+                  <>
+                    {" · "}
+                    <span className="normal-case text-amber-300/90">{cv.headline}</span>
+                  </>
+                )}
+              </p>
+              {formNameDiffers && (
+                <p className="text-[11px] text-white/45">
+                  En el formulario firmó como «{cv.full_name}»
+                </p>
+              )}
+            </div>
+          </div>
+          <Button variant="subtle" size="icon" onClick={onClose} aria-label="Cerrar">
+            <X className="size-4" />
+          </Button>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="space-y-3 text-sm">
+            <Field label="Puesto" wrap="words">{cv.job_title || "Espontánea"}</Field>
+            <Field label="Email">
+              <a
+                className="text-amber-300 hover:text-amber-200"
+                {...composeEmailProps(cv.email)}
+              >
+                {cv.email}
+              </a>
+            </Field>
+            {cv.phone && (
+              <Field label="Teléfono">
+                {/* tel: no admite espacios ni paréntesis (RFC 3966); el texto queda crudo */}
+                <a
+                  className="text-amber-300 hover:text-amber-200"
+                  href={`tel:${cv.phone.replace(/[^+\d]/g, "")}`}
+                >
+                  {cv.phone}
+                </a>
+              </Field>
+            )}
+            <Field label="Archivo">{cv.original_name}</Field>
+            <Field label="Fecha">{formatDate(cv.created_at)}</Field>
+            <div>
+              <p className="mb-1 t-label text-white/50">Mensaje</p>
+              <div className="whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                {cv.message || "—"}
+              </div>
+            </div>
+          </div>
+
+          {/* Video preview */}
+          <div>
+            <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
+              <Video className="size-4" /> Video
+            </p>
+            <div className="overflow-hidden rounded-xl border border-white/10">
+              {cv.video_url && getVideoEmbed(cv.video_url) ? (
+                <VideoPreview url={cv.video_url} />
+              ) : (
+                <VideoPreview message={cv.message || ""} />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Datos del perfil registrado, para tener todo a mano sin ir a Candidatos */}
+        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <p className="mb-3 t-label text-white/50">Perfil del candidato</p>
+          {cv.user_id ? (
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <Field label="Edad" wrap="words">{cv.age_range || "—"}</Field>
+              <Field label="Ubicación" wrap="words">{location || "—"}</Field>
+              <Field label="Área profesional" wrap="words">{cv.professional_area || "—"}</Field>
+              <Field label="Educación" wrap="words">{cv.education_level || "—"}</Field>
+              <Field label="Experiencia" wrap="words">{cv.experience_years || "—"}</Field>
+              <Field label="Disponibilidad" wrap="words">{cv.availability || "—"}</Field>
+              <Field label="Pretensión salarial" wrap="words">{cv.salary_expectation || "—"}</Field>
+              <Field label="Idiomas" wrap="words">
+                {cv.languages?.length ? cv.languages.join(", ") : "—"}
+              </Field>
+            </div>
+          ) : (
+            <p className="text-sm text-white/60">
+              El candidato no tiene cuenta registrada en la web: solo están los datos del
+              formulario de postulación.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button variant="brand" onClick={onDownload}>
+            <Download className="size-4" />
+            Descargar CV
+          </Button>
+          <Button asChild variant="subtle">
+            <a {...composeEmailProps(cv.email)}>
+              <Mail className="size-4" />
+              Escribir
+            </a>
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={onDelete}
+            disabled={deleting}
+            className="ml-auto border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+          >
+            {deleting ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            Eliminar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  wrap = "all",
+}: {
+  label: string;
+  children: React.ReactNode;
+  // "all" corta en cualquier carácter (emails, nombres de archivo);
+  // "words" respeta palabras (prosa del perfil: rubros, educación, etc.)
+  wrap?: "all" | "words";
+}) {
   return (
     <div>
       <p className="mb-0.5 t-label text-white/50">{label}</p>
-      <p className="break-all text-white/80">{children}</p>
+      <p className={`${wrap === "words" ? "break-words" : "break-all"} text-white/80`}>
+        {children}
+      </p>
     </div>
   );
 }

@@ -221,6 +221,23 @@ class ResumeItem(BaseModel):
     withdrawn_at: Optional[str] = None
     video_url: Optional[str] = None  # video de presentación del perfil del candidato (si tiene)
     pipeline_status: str = "received"  # pipeline visible (received|viewed|in_process|finished)
+    # Perfil del candidato (JOIN por email): null si postuló sin cuenta registrada.
+    user_id: Optional[int] = None
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    age_range: Optional[str] = None
+    city: Optional[str] = None
+    province: Optional[str] = None
+    country: Optional[str] = None
+    professional_area: Optional[str] = None
+    education_level: Optional[str] = None
+    experience_years: Optional[str] = None
+    availability: Optional[str] = None
+    salary_expectation: Optional[str] = None
+    languages: list[str] = Field(default_factory=list)
+    headline: Optional[str] = None
+    photo_url: Optional[str] = None
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
@@ -935,9 +952,14 @@ def list_cvs_admin() -> ListCvOut:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, ''),
+            SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, '') AS message,
                    r.created_at, r.job_id, r.job_title, r.withdrawn_at,
-                   p.video_filename, p.video_url, r.status
+                   p.video_filename, p.video_url, r.status,
+                   u.id AS user_id, u.name, u.last_name,
+                   p.phone, p.age_range, p.city, p.province, p.country,
+                   p.professional_area, p.education_level, p.experience_years,
+                   p.availability, p.salary_expectation, p.languages, p.headline,
+                   p.photo_filename, p.external_photo_url
             FROM resumes r
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
@@ -947,18 +969,35 @@ def list_cvs_admin() -> ListCvOut:
         )
         rows = [
             ResumeItem(
-                id=r[0],
-                full_name=r[1],
-                email=r[2],
-                original_name=r[3],
-                message=r[4],
-                created_at=_legacy_ts(r[5]),
-                job_id=r[6],
-                job_title=r[7],
-                withdrawn_at=_legacy_ts(r[8]),
+                id=r["id"],
+                full_name=r["full_name"],
+                email=r["email"],
+                original_name=r["original_name"],
+                message=r["message"],
+                created_at=_legacy_ts(r["created_at"]),
+                job_id=r["job_id"],
+                job_title=r["job_title"],
+                withdrawn_at=_legacy_ts(r["withdrawn_at"]),
                 # video del perfil: archivo subido (precede) o link viejo
-                video_url=storage_video.public_url(r[9]) or r[10],
-                pipeline_status=(r[11] or "received"),
+                video_url=storage_video.public_url(r["video_filename"]) or r["video_url"],
+                pipeline_status=(r["status"] or "received"),
+                user_id=r["user_id"],
+                name=r["name"],
+                last_name=r["last_name"],
+                phone=r["phone"],
+                age_range=r["age_range"],
+                city=r["city"],
+                province=r["province"],
+                country=r["country"],
+                professional_area=r["professional_area"],
+                education_level=r["education_level"],
+                experience_years=r["experience_years"],
+                availability=r["availability"],
+                salary_expectation=r["salary_expectation"],
+                languages=_parse_languages(r["languages"]),
+                headline=r["headline"],
+                # foto subida a mano > foto externa de Google (mismo criterio que el perfil)
+                photo_url=_photo_url(r["photo_filename"]) or r["external_photo_url"],
             )
             for r in cur.fetchall()
         ]
@@ -1031,13 +1070,17 @@ def _legacy_ts(v):
         return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return v
 
+def _parse_languages(raw) -> list[str]:
+    """profiles.languages es TEXT con JSON; dato roto o vacío → lista vacía."""
+    try:
+        parsed = json.loads(raw) if raw else []
+    except (ValueError, TypeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
 def _profile_row_to_out(user: dict, row=None) -> ProfileOut:
     data = dict(row) if row else {}
-    raw_langs = data.get("languages")
-    try:
-        languages = json.loads(raw_langs) if raw_langs else []
-    except (ValueError, TypeError):
-        languages = []
+    languages = _parse_languages(data.get("languages"))
     return ProfileOut(
         user_id=user["id"],
         name=user.get("name") or "",
