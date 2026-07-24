@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { CvPreview, isPdfFilename } from "./CvPreview";
+import { CvPreview } from "./CvPreview";
+import { isPdfFilename } from "./cv-file";
 
 describe("isPdfFilename", () => {
   it("detecta pdf sin importar mayúsculas", () => {

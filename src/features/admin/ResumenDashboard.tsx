@@ -37,7 +37,7 @@ export function CvList({ rows, showJob = false }: { rows: CvRow[]; showJob?: boo
           <div className="min-w-0">
             <p className="truncate font-medium capitalize text-white">{r.full_name || "—"}</p>
             <p className="truncate text-xs text-white/60">{r.email}</p>
-            {showJob && <p className="truncate text-xs font-medium text-amber-300/80">{jobLabel(r)}</p>}
+            {showJob && <p className="truncate text-xs font-medium text-yellow-300/90">{jobLabel(r)}</p>}
           </div>
           <span className="shrink-0 text-xs text-white/60">{r.created_at ? formatShortDate(r.created_at) : "—"}</span>
         </li>

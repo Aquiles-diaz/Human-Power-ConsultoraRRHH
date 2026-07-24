@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BTN_YELLOW } from "./ui";
-
-export const isPdfFilename = (name?: string | null) => /\.pdf$/i.test((name ?? "").trim());
+import { isPdfFilename } from "./cv-file";
 
 // Visor de CV para los modales del admin: PDF embebido vía blob autenticado
 // (un <iframe src="/cv/id"> plano no manda el Bearer → 401). .doc/.docx no los
