@@ -48,8 +48,14 @@ describe("PendingApplicationBanner", () => {
 
   it("con pendiente pero perfil incompleto no muestra nada", () => {
     savePendingApplication({ jobId: "j1", title: "Contador/a" });
-    renderBanner({ ...fullProfile, video_url: null });
+    renderBanner({ ...fullProfile, phone: null });
     expect(screen.queryByText(/ya podés postularte/i)).not.toBeInTheDocument();
+  });
+
+  it("sin video pero con lo obligatorio completo SÍ muestra el banner (video no bloquea)", () => {
+    savePendingApplication({ jobId: "j1", title: "Contador/a" });
+    renderBanner({ ...fullProfile, video_url: null });
+    expect(screen.getByText(/Contador\/a/)).toBeInTheDocument();
   });
 
   it("con pendiente y perfil listo muestra el banner y navega al aviso", () => {

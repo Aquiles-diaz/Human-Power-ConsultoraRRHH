@@ -866,8 +866,9 @@ def _store_resume_from_profile(
 def _profile_apply_missing(user_id: int) -> list[str]:
     """Qué le falta al perfil para poder postular. Lista vacía = listo.
 
-    Espeja computeApplyReadiness del frontend (apply-readiness.ts): CV, video
-    (archivo subido o link pegado), teléfono, ciudad y rubro.
+    Espeja computeApplyReadiness del frontend (apply-readiness.ts): CV,
+    teléfono, ciudad y rubro. El video NO es obligatorio (decisión de negocio:
+    se recomienda con insistencia en la UI, pero nunca bloquea).
     """
     with get_db() as conn:
         row = conn.execute(
@@ -882,8 +883,6 @@ def _profile_apply_missing(user_id: int) -> list[str]:
     missing: list[str] = []
     if not row or not _has(row[0]):
         missing.append("tu CV")
-    if not row or not (_has(row[1]) or _has(row[2])):
-        missing.append("tu video de presentación")
     if not row or not _has(row[3]):
         missing.append("tu teléfono")
     if not row or not _has(row[4]):
@@ -921,9 +920,10 @@ async def apply_to_job(
 ) -> UploadCvOut:
     """Postulación a un puesto. Requiere sesión iniciada y perfil completo.
 
-    El CV sale siempre del perfil (snapshot). Si falta CV, video o datos de
-    contacto responde 400 con un mensaje accionable; no se acepta archivo
-    adjunto (un `file` extra en el multipart se ignora).
+    El CV sale siempre del perfil (snapshot). Si falta CV o datos de contacto
+    responde 400 con un mensaje accionable; el video se recomienda pero no
+    bloquea. No se acepta archivo adjunto (un `file` extra en el multipart se
+    ignora).
     """
     # Validamos que el puesto exista y esté publicado, y usamos su título canónico
     # (ignoramos el job_title del Form para evitar inconsistencias/spoofing).

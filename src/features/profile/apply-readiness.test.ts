@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeApplyReadiness, APPLY_REQUIREMENTS } from "./apply-readiness";
+import { computeApplyReadiness, APPLY_REQUIREMENTS, VIDEO_RECOMMENDATION } from "./apply-readiness";
 
 const full = {
   has_cv: true,
@@ -14,33 +14,33 @@ describe("computeApplyReadiness", () => {
     const r = computeApplyReadiness(full);
     expect(r.ready).toBe(true);
     expect(r.missing).toEqual([]);
+    expect(r.videoMissing).toBe(false);
   });
 
-  it("perfil null → faltan los 5 ítems", () => {
+  it("perfil null → faltan los 4 obligatorios y el video recomendado", () => {
     const r = computeApplyReadiness(null);
     expect(r.ready).toBe(false);
-    expect(r.missing.map((m) => m.id)).toEqual(["cv", "video", "phone", "city", "area"]);
+    expect(r.missing.map((m) => m.id)).toEqual(["cv", "phone", "city", "area"]);
+    expect(r.videoMissing).toBe(true);
   });
 
-  it("sin video (ni archivo ni link) → falta video", () => {
+  it("sin video (ni archivo ni link) NO bloquea: ready pero videoMissing", () => {
     const r = computeApplyReadiness({ ...full, video_url: null });
-    expect(r.ready).toBe(false);
-    expect(r.missing.map((m) => m.id)).toEqual(["video"]);
+    expect(r.ready).toBe(true);
+    expect(r.missing).toEqual([]);
+    expect(r.videoMissing).toBe(true);
   });
 
   it("campos con solo espacios cuentan como vacíos", () => {
     const r = computeApplyReadiness({ ...full, phone: "   ", city: "" });
+    expect(r.ready).toBe(false);
     expect(r.missing.map((m) => m.id)).toEqual(["phone", "city"]);
   });
 
-  it("targetTab: solo falta video → solapa video; falta algo más → perfil", () => {
-    expect(computeApplyReadiness({ ...full, video_url: null }).targetTab).toBe("video");
-    expect(computeApplyReadiness({ ...full, video_url: null, phone: null }).targetTab).toBe("perfil");
-    expect(computeApplyReadiness(full).targetTab).toBe("perfil");
-  });
-
-  it("APPLY_REQUIREMENTS expone los 5 ítems con label", () => {
-    expect(APPLY_REQUIREMENTS.map((m) => m.id)).toEqual(["cv", "video", "phone", "city", "area"]);
+  it("APPLY_REQUIREMENTS son los 4 obligatorios; el video va aparte como recomendado", () => {
+    expect(APPLY_REQUIREMENTS.map((m) => m.id)).toEqual(["cv", "phone", "city", "area"]);
     for (const m of APPLY_REQUIREMENTS) expect(m.label.length).toBeGreaterThan(0);
+    expect(VIDEO_RECOMMENDATION.id).toBe("video");
+    expect(VIDEO_RECOMMENDATION.label.length).toBeGreaterThan(0);
   });
 });

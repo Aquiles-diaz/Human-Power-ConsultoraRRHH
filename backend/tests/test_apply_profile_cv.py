@@ -1,9 +1,10 @@
 """Tests de POST /apply: exige perfil completo y usa siempre el CV del perfil.
 
-Postular requiere CV + video + teléfono + ciudad + rubro en el perfil. Si falta
-algo responde 400 con un mensaje corporativo (sin códigos visibles). El
-endpoint ya no acepta archivo adjunto: un `file` extra en el multipart se
-ignora y el CV sale del perfil (snapshot).
+Postular requiere CV + teléfono + ciudad + rubro en el perfil (el video NO es
+obligatorio: decisión de negocio, solo se recomienda). Si falta algo responde
+400 con un mensaje corporativo (sin códigos visibles). El endpoint ya no acepta
+archivo adjunto: un `file` extra en el multipart se ignora y el CV sale del
+perfil (snapshot).
 
 Sin DB ni Storage reales: se sobreescribe get_current_user, se monkeypatchea
 _get_conn (DB) y las funciones de storage. Corre con:
@@ -139,26 +140,18 @@ def test_apply_without_profile_cv_returns_400():
     assert not state.get("inserted"), "no debe crear postulación sin CV"
 
 
-def test_apply_without_video_returns_400():
-    # Sin archivo subido NI link pegado → falta el video.
-    state = {"profile_row": full_profile(video_filename=None, video_url=None)}
-    client = make_client(state)
-    r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
-    assert r.status_code == 400, (r.status_code, r.text)
-    assert "video" in r.json()["detail"].lower()
-    assert not state.get("inserted")
-
-
-def test_apply_with_video_link_counts_as_video():
-    # El link pegado (video_url) vale como video aunque no haya archivo subido.
+def test_apply_without_video_still_works():
+    # El video NO es obligatorio (decisión de negocio): sin archivo ni link,
+    # la postulación sale igual si el resto del perfil está completo.
     state = {
-        "profile_row": full_profile(video_filename=None, video_url="https://youtube.com/watch?v=x"),
+        "profile_row": full_profile(video_filename=None, video_url=None),
         "profile_cv": (PROFILE_KEY, PROFILE_NAME),
         "next_id": 5,
     }
     client = make_client(state)
     r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
     assert r.status_code == 200, (r.status_code, r.text)
+    assert len(state.get("inserted", [])) == 1
 
 
 def test_apply_without_contact_data_returns_400():

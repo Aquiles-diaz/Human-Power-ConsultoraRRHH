@@ -13,6 +13,7 @@ import {
   Filter,
   FileText,
   Loader2,
+  Video,
 } from "lucide-react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -347,10 +348,11 @@ const ApplyModal: React.FC<{
           // ── Perfil incompleto: checklist y a completar el perfil ──
           <ApplyProfileChecklist
             missing={readiness.missing}
+            videoMissing={readiness.videoMissing}
             onComplete={() => {
               savePendingApplication({ jobId: job.id, title: job.title });
               handleClose();
-              navigate(`/perfil?tab=${readiness.targetTab}`);
+              navigate("/perfil?tab=perfil");
             }}
             onCancel={handleClose}
           />
@@ -388,6 +390,32 @@ const ApplyModal: React.FC<{
                   <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
                 </div>
               </div>
+
+              {/* Video: no bloquea, pero se insiste — es lo que más mira RRHH. */}
+              {readiness.videoMissing && (
+                <div className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-sky-500 shadow-sm">
+                    <Video size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1 text-sky-900">
+                    <span className="block font-medium">Sumá tu video de presentación</span>
+                    <span className="block text-xs text-sky-700">
+                      No es obligatorio, pero es lo que más miran los equipos de RRHH.
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-200"
+                    onClick={() => {
+                      savePendingApplication({ jobId: job.id, title: job.title });
+                      handleClose();
+                      navigate("/perfil?tab=video");
+                    }}
+                  >
+                    Grabarlo ahora
+                  </button>
+                </div>
+              )}
 
               {/* Mensaje opcional */}
               <div>
