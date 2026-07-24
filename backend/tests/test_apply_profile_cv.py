@@ -1,8 +1,9 @@
-"""Tests de POST /apply usando el CV ya cargado en el perfil.
+"""Tests de POST /apply: exige perfil completo y usa siempre el CV del perfil.
 
-La postulación debe poder enviarse SIN volver a subir el CV cuando el usuario
-ya tiene uno en su perfil. Si no manda archivo y tampoco tiene CV en el perfil,
-debe fallar con 400. Subir un archivo en la postulación sigue funcionando.
+Postular requiere CV + video + teléfono + ciudad + rubro en el perfil. Si falta
+algo responde 400 con un mensaje corporativo (sin códigos visibles). El
+endpoint ya no acepta archivo adjunto: un `file` extra en el multipart se
+ignora y el CV sale del perfil (snapshot).
 
 Sin DB ni Storage reales: se sobreescribe get_current_user, se monkeypatchea
 _get_conn (DB) y las funciones de storage. Corre con:
@@ -27,6 +28,20 @@ PROFILE_KEY = "cv-PROFILEKEY0000000000000000000.pdf"
 PROFILE_NAME = "miCV.pdf"
 
 
+def full_profile(**overrides):
+    """Fila de profiles con todo lo necesario para postular; overrides pisan campos."""
+    row = {
+        "cv_filename": PROFILE_KEY,
+        "video_filename": "video-abc.webm",
+        "video_url": None,
+        "phone": "11 5555-5555",
+        "city": "CABA",
+        "professional_area": "Administración",
+    }
+    row.update(overrides)
+    return row
+
+
 class FakeCursor:
     def __init__(self, state):
         self.state = state
@@ -39,6 +54,11 @@ class FakeCursor:
         elif s.startswith("select 1 from resumes"):
             # Chequeo de postulación duplicada (email+job_id, no dada de baja).
             self._row = DualRow(["exists"], [1]) if self.state.get("already_applied") else None
+        elif s.startswith("select") and "from profiles" in s and "video_filename" in s:
+            # Consulta de elegibilidad del perfil (readiness) de /apply.
+            prof = self.state.get("profile_row")
+            cols = ["cv_filename", "video_filename", "video_url", "phone", "city", "professional_area"]
+            self._row = DualRow(cols, [prof.get(c) for c in cols]) if prof else None
         elif s.startswith("select") and "from profiles" in s and "cv_filename" in s:
             cv = self.state.get("profile_cv")  # (filename, original_name) o None
             self._row = DualRow(["cv_filename", "cv_original_name"], list(cv)) if cv else None
@@ -88,7 +108,7 @@ def make_client(state):
 
 
 def test_apply_uses_profile_cv_when_no_file():
-    state = {"profile_cv": (PROFILE_KEY, PROFILE_NAME), "next_id": 7}
+    state = {"profile_row": full_profile(), "profile_cv": (PROFILE_KEY, PROFILE_NAME), "next_id": 7}
     client = make_client(state)
     r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a", "message": "Hola"})
     assert r.status_code == 200, (r.status_code, r.text)
@@ -108,17 +128,61 @@ def test_apply_uses_profile_cv_when_no_file():
     assert params[7] == "j1"              # job_id
 
 
-def test_apply_no_file_and_no_profile_cv_returns_400():
-    state = {"profile_cv": None}
+def test_apply_without_profile_cv_returns_400():
+    state = {"profile_row": full_profile(cv_filename=None), "profile_cv": None}
     client = make_client(state)
     r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
     assert r.status_code == 400, (r.status_code, r.text)
-    assert "cv" in r.json()["detail"].lower()
+    detail = r.json()["detail"]
+    assert "cv" in detail.lower()
+    assert "400" not in detail  # sin códigos visibles para el usuario
     assert not state.get("inserted"), "no debe crear postulación sin CV"
 
 
-def test_apply_with_uploaded_file_still_works():
-    state = {"profile_cv": (PROFILE_KEY, PROFILE_NAME), "next_id": 3}
+def test_apply_without_video_returns_400():
+    # Sin archivo subido NI link pegado → falta el video.
+    state = {"profile_row": full_profile(video_filename=None, video_url=None)}
+    client = make_client(state)
+    r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
+    assert r.status_code == 400, (r.status_code, r.text)
+    assert "video" in r.json()["detail"].lower()
+    assert not state.get("inserted")
+
+
+def test_apply_with_video_link_counts_as_video():
+    # El link pegado (video_url) vale como video aunque no haya archivo subido.
+    state = {
+        "profile_row": full_profile(video_filename=None, video_url="https://youtube.com/watch?v=x"),
+        "profile_cv": (PROFILE_KEY, PROFILE_NAME),
+        "next_id": 5,
+    }
+    client = make_client(state)
+    r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
+    assert r.status_code == 200, (r.status_code, r.text)
+
+
+def test_apply_without_contact_data_returns_400():
+    state = {"profile_row": full_profile(phone="  ", city=None, professional_area="")}
+    client = make_client(state)
+    r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
+    assert r.status_code == 400, (r.status_code, r.text)
+    detail = r.json()["detail"].lower()
+    assert "teléfono" in detail and "ciudad" in detail and "rubro" in detail
+    assert not state.get("inserted")
+
+
+def test_apply_without_profile_row_returns_400():
+    state = {"profile_row": None}
+    client = make_client(state)
+    r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
+    assert r.status_code == 400, (r.status_code, r.text)
+    assert not state.get("inserted")
+
+
+def test_apply_ignores_uploaded_file_and_uses_profile_cv():
+    # El multipart puede traer un file (frontend viejo en caché): se ignora y
+    # el snapshot sale del CV del perfil.
+    state = {"profile_row": full_profile(), "profile_cv": (PROFILE_KEY, PROFILE_NAME), "next_id": 3}
     client = make_client(state)
     r = client.post(
         "/apply",
@@ -126,17 +190,15 @@ def test_apply_with_uploaded_file_still_works():
         files={"file": ("nuevo.pdf", b"%PDF-1.4 subido", "application/pdf")},
     )
     assert r.status_code == 200, (r.status_code, r.text)
-    assert r.json()["resume_id"] == 3
-    # Con archivo subido NO se toca el CV del perfil.
-    assert not state.get("downloads"), "no debe leer el CV del perfil si suben uno"
+    assert state["downloads"] == [(main.storage.CV_BUCKET, PROFILE_KEY)]
     assert len(state.get("inserted", [])) == 1
-    assert state["inserted"][0][4] == "nuevo.pdf"  # original_name del archivo subido
+    assert state["inserted"][0][4] == PROFILE_NAME  # original_name del perfil, no "nuevo.pdf"
 
 
 def test_apply_duplicate_active_returns_409():
     # Ya existe una postulación activa del usuario a este puesto → 409, sin crear
     # otra (evita duplicados y el abuso de storage por snapshots repetidos de CV).
-    state = {"profile_cv": (PROFILE_KEY, PROFILE_NAME), "already_applied": True}
+    state = {"profile_row": full_profile(), "profile_cv": (PROFILE_KEY, PROFILE_NAME), "already_applied": True}
     client = make_client(state)
     r = client.post("/apply", data={"job_id": "j1", "job_title": "Contador/a"})
     assert r.status_code == 409, (r.status_code, r.text)
@@ -145,7 +207,7 @@ def test_apply_duplicate_active_returns_409():
 
 
 def test_apply_unknown_job_returns_404():
-    state = {"job_exists": False, "profile_cv": (PROFILE_KEY, PROFILE_NAME)}
+    state = {"job_exists": False, "profile_row": full_profile(), "profile_cv": (PROFILE_KEY, PROFILE_NAME)}
     client = make_client(state)
     r = client.post("/apply", data={"job_id": "nope", "job_title": "X"})
     assert r.status_code == 404, (r.status_code, r.text)

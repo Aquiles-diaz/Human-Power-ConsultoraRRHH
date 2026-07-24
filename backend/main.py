@@ -862,6 +862,36 @@ def _store_resume_from_profile(
     )
 
 
+def _profile_apply_missing(user_id: int) -> list[str]:
+    """Qué le falta al perfil para poder postular. Lista vacía = listo.
+
+    Espeja computeApplyReadiness del frontend (apply-readiness.ts): CV, video
+    (archivo subido o link pegado), teléfono, ciudad y rubro.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT cv_filename, video_filename, video_url, phone, city, professional_area"
+            " FROM profiles WHERE user_id = %s",
+            (user_id,),
+        ).fetchone()
+
+    def _has(value) -> bool:
+        return bool(value and str(value).strip())
+
+    missing: list[str] = []
+    if not row or not _has(row[0]):
+        missing.append("tu CV")
+    if not row or not (_has(row[1]) or _has(row[2])):
+        missing.append("tu video de presentación")
+    if not row or not _has(row[3]):
+        missing.append("tu teléfono")
+    if not row or not _has(row[4]):
+        missing.append("tu ciudad")
+    if not row or not _has(row[5]):
+        missing.append("tu rubro o área profesional")
+    return missing
+
+
 @app.post("/cv", response_model=UploadCvOut, tags=["default"])
 @limiter.limit(CV_UPLOAD_RATE_LIMIT_HOUR)
 @limiter.limit(CV_UPLOAD_RATE_LIMIT_MIN)
@@ -886,13 +916,13 @@ async def apply_to_job(
     job_id: str = Form(..., max_length=100),
     job_title: str = Form(..., max_length=300),
     message: Optional[str] = Form(None, max_length=10_000),
-    file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
 ) -> UploadCvOut:
-    """Postulación a un puesto. Requiere sesión iniciada; toma nombre/email de la cuenta.
+    """Postulación a un puesto. Requiere sesión iniciada y perfil completo.
 
-    Si no se adjunta archivo, se usa el CV ya cargado en el perfil del usuario
-    (postulación en un paso). Si tampoco hay CV en el perfil, falla con 400.
+    El CV sale siempre del perfil (snapshot). Si falta CV, video o datos de
+    contacto responde 400 con un mensaje accionable; no se acepta archivo
+    adjunto (un `file` extra en el multipart se ignora).
     """
     # Validamos que el puesto exista y esté publicado, y usamos su título canónico
     # (ignoramos el job_title del Form para evitar inconsistencias/spoofing).
@@ -912,17 +942,22 @@ async def apply_to_job(
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="Ya te postulaste a este puesto.")
 
+    missing = _profile_apply_missing(current_user["id"])
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Para postularte necesitamos que completes tu perfil: "
+                + ", ".join(missing)
+                + ". Ingresá a Mi perfil para completarlo."
+            ),
+        )
+
     full_name = current_user.get("name") or current_user.get("email", "")
-    if file is not None and file.filename:
-        resume_id = await _store_resume(
-            full_name=full_name, email=current_user["email"], message=message,
-            file=file, job_id=job_id, job_title=row[0],
-        )
-    else:
-        resume_id = _store_resume_from_profile(
-            user_id=current_user["id"], full_name=full_name, email=current_user["email"],
-            message=message, job_id=job_id, job_title=row[0],
-        )
+    resume_id = _store_resume_from_profile(
+        user_id=current_user["id"], full_name=full_name, email=current_user["email"],
+        message=message, job_id=job_id, job_title=row[0],
+    )
     return UploadCvOut(resume_id=resume_id)
 
 @app.get("/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])
