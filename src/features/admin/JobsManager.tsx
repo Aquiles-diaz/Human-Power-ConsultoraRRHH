@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { BTN_YELLOW } from "./ui";
 
 const JOB_TYPES = ["Presencial", "Remoto", "Híbrido"] as const;
 
@@ -134,7 +135,7 @@ export default function JobsManager() {
             <RefreshCw className="size-4" /> Actualizar
           </Button>
           <Button
-            variant="brand"
+            variant="brand" className={BTN_YELLOW}
             onClick={() => {
               setEditing(null);
               setCreating(true);
@@ -147,7 +148,7 @@ export default function JobsManager() {
 
       {/* Lista */}
       {loading ? (
-        <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] py-16 text-white/50">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 py-16 text-white/50">
           <Loader2 className="size-5 animate-spin" /> Cargando puestos…
         </div>
       ) : error ? (
@@ -155,49 +156,53 @@ export default function JobsManager() {
           {error}
         </div>
       ) : jobs.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-white/10 py-16 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-neutral-800 py-16 text-center">
           <p className="font-semibold text-white">Todavía no creaste ningún puesto</p>
           <p className="mt-1 text-sm text-white/50">
             Tocá “Nuevo puesto” para publicar tu primera oferta.
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {jobs.map((j) => (
             <div
               key={j.id}
-              className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
             >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-white">{j.title}</p>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
-                    {j.type}
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-lg font-bold leading-tight text-white">{j.title}</p>
+                {j.isPublished ? (
+                  <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">
+                    Publicado
                   </span>
-                  {j.isPublished ? (
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">
-                      Publicado
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/50">
-                      Borrador
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 truncate text-sm text-white/60">
-                  {j.company}
-                  {j.location ? (
-                    <span className="inline-flex items-center gap-1">
-                      {" · "}
-                      <MapPin className="size-3" /> {j.location}
-                    </span>
-                  ) : null}
-                </p>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] text-neutral-400">
+                    Borrador
+                  </span>
+                )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <p className="truncate text-sm text-neutral-400">
+                {j.company}
+                {j.location ? (
+                  <span className="inline-flex items-center gap-1">
+                    {" · "}
+                    <MapPin className="size-3" /> {j.location}
+                  </span>
+                ) : null}
+              </p>
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                <span className="rounded-full border border-neutral-800 bg-neutral-900 px-2 py-0.5 text-neutral-400">
+                  {j.type}
+                </span>
+                <span className="rounded-full bg-yellow-400/10 px-2 py-0.5 text-yellow-300">
+                  {CATEGORIES.find((c) => c.value === j.category)?.label ?? j.category}
+                </span>
+              </div>
+              <div className="mt-auto flex items-center gap-2">
                 <Button
                   variant="subtle"
                   size="sm"
+                  className="flex-1"
                   onClick={() => {
                     setCreating(false);
                     setEditing(j);
@@ -210,7 +215,7 @@ export default function JobsManager() {
                   size="sm"
                   onClick={() => handleDelete(j)}
                 >
-                  <Trash2 className="size-3.5" /> Eliminar
+                  <Trash2 className="size-3.5" />
                 </Button>
               </div>
             </div>
@@ -356,13 +361,13 @@ function JobFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4"
       onMouseDown={onCancel}
     >
       <form
         onSubmit={submit}
         onMouseDown={(e) => e.stopPropagation()}
-        className="my-8 w-full max-w-2xl space-y-4 rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+        className="my-8 w-full max-w-2xl space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -376,7 +381,7 @@ function JobFormModal({
                 <button
                   type="button"
                   onClick={clearForm}
-                  className="text-amber-400 underline-offset-2 hover:underline"
+                  className="text-yellow-400 underline-offset-2 hover:underline"
                 >
                   Empezar en blanco
                 </button>
@@ -389,14 +394,14 @@ function JobFormModal({
             size="icon"
             onClick={onCancel}
             aria-label="Cerrar"
-            className="shrink-0 text-white/60 hover:bg-white/10 hover:text-white"
+            className="shrink-0 text-white/60 hover:bg-neutral-800 hover:text-white"
           >
             <X className="size-5" />
           </Button>
         </div>
 
         {/* Pegar y autocompletar: el cliente manda el aviso por texto/WhatsApp y se carga acá */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="rounded-xl border border-neutral-800 bg-white/[0.03] p-3">
           <label className="mb-1 block text-xs font-medium text-white/70">
             ¿Tenés el aviso en texto? Pegalo y autocompletá los campos
           </label>
@@ -414,7 +419,7 @@ function JobFormModal({
               size="sm"
               onClick={autofillFromPaste}
               disabled={!pasteText.trim()}
-              className="border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"
+              className="border-yellow-400/30 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20"
             >
               <ClipboardPaste className="size-4" /> Autocompletar
             </Button>
@@ -424,7 +429,7 @@ function JobFormModal({
                 variant="ghost"
                 size="sm"
                 onClick={() => setPasteText("")}
-                className="text-white/60 hover:bg-white/10 hover:text-white"
+                className="text-white/60 hover:bg-neutral-800 hover:text-white"
               >
                 Limpiar
               </Button>
@@ -585,16 +590,16 @@ function JobFormModal({
             type="checkbox"
             checked={f.isPublished}
             onChange={(e) => set("isPublished", e.target.checked)}
-            className="size-4 accent-amber-500"
+            className="size-4 accent-yellow-400"
           />
           Publicar (visible en la página de ofertas). Si lo destildás, queda como borrador.
         </label>
 
-        <div className="flex items-center justify-end gap-2 border-t border-white/10 pt-4">
+        <div className="flex items-center justify-end gap-2 border-t border-neutral-800 pt-4">
           <Button type="button" variant="subtle" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button type="submit" variant="brand" disabled={saving}>
+          <Button type="submit" variant="brand" className={BTN_YELLOW} disabled={saving}>
             {saving ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Guardando…
