@@ -7,7 +7,6 @@ import {
   Video,
   Mail,
   Trash2,
-  Filter,
   FileText,
   CalendarClock,
   Inbox,
@@ -24,7 +23,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PAGE_SHELL } from "@/components/shared/PageContainer";
+import { ADMIN_SHELL, BTN_YELLOW } from "./ui";
 import { authFetch, parseApiError, photoSrc } from "@/lib/api";
 import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
@@ -225,17 +224,13 @@ export default function AdminPanel() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-neutral-950 text-white">
-      {/* Halos decorativos */}
-      <div className="pointer-events-none fixed -top-40 -left-32 h-96 w-96 rounded-full bg-amber-500/15 blur-3xl" />
-      <div className="pointer-events-none fixed -bottom-40 -right-32 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
-
-      {/* Topbar sticky glass */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-neutral-950/70 backdrop-blur-xl">
-        <div className={`${PAGE_SHELL} flex items-center justify-between gap-3 py-3`}>
+    <main className="relative min-h-screen bg-black text-white">
+      {/* Topbar sticky flat */}
+      <header className="sticky top-0 z-40 border-b border-neutral-800 bg-black">
+        <div className={`${ADMIN_SHELL} flex items-center justify-between gap-3 py-3`}>
           <div className="flex items-center gap-3">
             <span
-              className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-black shadow-lg shadow-amber-500/30"
+              className="grid size-10 place-items-center rounded-xl bg-yellow-400 text-black"
               aria-hidden
             >
               <Inbox className="size-5" />
@@ -247,8 +242,8 @@ export default function AdminPanel() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 sm:flex">
-              <span className="grid size-7 place-items-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-300">
+            <div className="hidden items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900 py-1 pl-1 pr-3 sm:flex">
+              <span className="grid size-7 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
                 {initials(user?.name || user?.email)}
               </span>
               <span className="max-w-[180px] truncate text-xs text-white/60">
@@ -271,10 +266,10 @@ export default function AdminPanel() {
         </div>
       </header>
 
-      <div className={`${PAGE_SHELL} relative py-6`}>
+      <div className={`${ADMIN_SHELL} relative py-6`}>
         {/* Stat cards (el Resumen trae sus propios KPIs, no duplicamos) */}
         {tab !== "resumen" && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
           <StatCard
             icon={<FileText className="size-5" />}
             label="Total recibidos"
@@ -289,17 +284,19 @@ export default function AdminPanel() {
             icon={<CalendarClock className="size-5" />}
             label="Hoy"
             value={todayCount}
+            accent
           />
           <StatCard
-            icon={<Filter className="size-5" />}
-            label="En vista"
-            value={filtered.length}
+            icon={<Inbox className="size-5" />}
+            label="Sin revisar"
+            value={newCount}
+            hero
           />
         </div>
         )}
 
         {/* Selector de vista */}
-        <div className="mb-4 inline-flex flex-wrap rounded-xl border border-white/10 bg-white/5 p-1">
+        <div className="mb-4 inline-flex flex-wrap rounded-xl border border-neutral-800 bg-neutral-900 p-1">
           <TabButton
             active={tab === "resumen"}
             onClick={() => setTab("resumen")}
@@ -341,7 +338,7 @@ export default function AdminPanel() {
 
         {/* Controles (no aplican a Candidatos ni a Puestos, que tienen su propia UI) */}
         {tab !== "candidates" && tab !== "jobs" && (
-        <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center">
+        <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-neutral-800 bg-neutral-900 p-3 sm:flex-row sm:items-center">
           {/* Búsqueda */}
           <label className="relative flex-1" aria-label="Buscar">
             <Search className="absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-white/60" />
@@ -385,7 +382,7 @@ export default function AdminPanel() {
               </Button>
             )}
             <Button
-              variant="brand"
+              variant="brand" className={BTN_YELLOW}
               onClick={loadData}
               title="Actualizar"
               disabled={loading}
@@ -408,7 +405,7 @@ export default function AdminPanel() {
         {loading && cvs.length === 0 && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-40 rounded-2xl bg-white/5" />
+              <Skeleton key={i} className="h-40 rounded-2xl bg-neutral-800" />
             ))}
           </div>
         )}
@@ -421,13 +418,13 @@ export default function AdminPanel() {
               return (
                 <div
                   key={group.id}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm"
+                  className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900"
                 >
                   <button
                     onClick={() => toggleJob(group.id)}
-                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/5"
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-800/50"
                   >
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/15 text-amber-300">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-yellow-400/10 text-yellow-300">
                       <Briefcase className="size-5" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -437,8 +434,8 @@ export default function AdminPanel() {
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                         group.applicants.length
-                          ? "bg-amber-500/20 text-amber-200"
-                          : "bg-white/5 text-white/60"
+                          ? "bg-yellow-400/15 text-yellow-200"
+                          : "bg-neutral-800 text-white/60"
                       }`}
                     >
                       <Users className="size-3.5" />
@@ -452,13 +449,13 @@ export default function AdminPanel() {
                   </button>
 
                   {open && (
-                    <div className="border-t border-white/10 px-3 pb-3 pt-1">
+                    <div className="border-t border-neutral-800 px-3 pb-3 pt-1">
                       {group.applicants.length === 0 ? (
                         <p className="px-2 py-4 text-center text-sm text-white/60">
                           Todavía nadie se postuló a este puesto.
                         </p>
                       ) : (
-                        <ul className="divide-y divide-white/10">
+                        <ul className="divide-y divide-neutral-800">
                           {group.applicants.map((cv) => (
                             <ApplicantRow
                               key={cv.id}
@@ -488,10 +485,10 @@ export default function AdminPanel() {
           {filtered.map((cv) => (
             <div
               key={cv.id}
-              className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4"
             >
               <div className="flex items-start gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-500/20 text-sm font-bold text-amber-300">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-sm font-bold text-yellow-300">
                   {initials(cv.full_name)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -503,14 +500,14 @@ export default function AdminPanel() {
                           Retirada · {formatShortDate(cv.withdrawn_at)}
                         </span>
                       )}
-                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
+                      <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] text-white/60">
                         #{cv.id}
                       </span>
                     </div>
                   </div>
                   <a
                     {...composeEmailProps(cv.email)}
-                    className="inline-flex items-center gap-1 break-all text-sm text-amber-300/90 hover:text-amber-200"
+                    className="inline-flex items-center gap-1 break-all text-sm text-yellow-300 hover:text-yellow-200"
                   >
                     <Mail className="size-3.5" />
                     {cv.email}
@@ -532,7 +529,7 @@ export default function AdminPanel() {
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Button
-                  variant="brand"
+                  variant="brand" className={BTN_YELLOW}
                   size="sm"
                   onClick={() => downloadCv(cv.id, cv.original_name)}
                 >
@@ -576,10 +573,10 @@ export default function AdminPanel() {
 
         {/* Tabla en desktop */}
         {tab === "all" && (
-        <div className="hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm md:block">
+        <div className="hidden overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900 md:block">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="t-label border-b border-white/10 text-left text-white/50">
+              <tr className="t-label border-b border-neutral-800 text-left text-white/50">
                 <th className="px-4 py-3 font-semibold">Candidato</th>
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Archivo</th>
@@ -592,11 +589,11 @@ export default function AdminPanel() {
               {filtered.map((cv) => (
                 <tr
                   key={cv.id}
-                  className="border-b border-white/10 transition-colors last:border-0 hover:bg-white/5"
+                  className="border-b border-neutral-800 transition-colors last:border-0 hover:bg-neutral-800/50"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-300">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
                         {initials(cv.full_name)}
                       </span>
                       <div className="min-w-0">
@@ -615,7 +612,7 @@ export default function AdminPanel() {
                   <td className="px-4 py-3">
                     <a
                       {...composeEmailProps(cv.email)}
-                      className="inline-flex items-center gap-1 text-amber-300/90 hover:text-amber-200"
+                      className="inline-flex items-center gap-1 text-yellow-300 hover:text-yellow-200"
                     >
                       <Mail className="size-3.5" />
                       {cv.email}
@@ -639,7 +636,7 @@ export default function AdminPanel() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1.5">
                       <Button
-                        variant="brand"
+                        variant="brand" className={BTN_YELLOW}
                         size="icon"
                         onClick={() => downloadCv(cv.id, cv.original_name)}
                         title="Descargar"
@@ -707,24 +704,32 @@ function StatCard({
   icon,
   label,
   value,
-  className = "",
+  hero = false,
+  accent = false,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
-  className?: string;
+  hero?: boolean;   // bloque amarillo pleno (el dato accionable)
+  accent?: boolean; // número en amarillo sobre superficie oscura
 }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm ${className}`}
+      className={`rounded-2xl p-5 ${
+        hero ? "bg-yellow-400 text-black" : "border border-neutral-800 bg-neutral-900 text-white"
+      }`}
     >
-      <span className="grid size-11 place-items-center rounded-xl bg-amber-500/15 text-amber-300">
-        {icon}
-      </span>
-      <div className="leading-tight">
-        <p className="t-stat text-white">{value}</p>
-        <p className="text-xs text-white/60">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className={`t-label ${hero ? "text-black/60" : "text-neutral-400"}`}>{label}</p>
+        <span className={hero ? "text-black/70" : "text-yellow-300"}>{icon}</span>
       </div>
+      <p
+        className={`mt-2 text-3xl font-black tabular-nums sm:text-5xl ${
+          accent && !hero ? "text-yellow-300" : ""
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -748,15 +753,15 @@ export function TabButton({
       aria-current={active ? "page" : undefined}
       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow"
-          : "text-white/60 hover:bg-white/5 hover:text-white"
+          ? "bg-yellow-400 font-bold text-black"
+          : "text-neutral-400 hover:bg-neutral-900 hover:text-white"
       }`}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
       {typeof badge === "number" && badge > 0 && (
         <span
-          className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[11px] font-bold text-black"
+          className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] font-bold text-yellow-400"
           aria-label={`${badge} sin revisar`}
         >
           {badge}
@@ -783,7 +788,7 @@ export function ApplicantRow({
 }) {
   return (
     <li className="flex items-center gap-3 px-2 py-2.5">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-300">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
         {initials(cv.full_name)}
       </span>
       <div className="min-w-0 flex-1">
@@ -797,7 +802,7 @@ export function ApplicantRow({
         </div>
         <a
           {...composeEmailProps(cv.email)}
-          className="inline-flex items-center gap-1 truncate text-xs text-amber-300/80 hover:text-amber-200"
+          className="inline-flex items-center gap-1 truncate text-xs text-yellow-300 hover:text-yellow-200"
         >
           <Mail className="size-3" />
           {cv.email}
@@ -813,7 +818,7 @@ export function ApplicantRow({
       />
       <div className="flex items-center gap-1.5">
         <Button
-          variant="brand"
+          variant="brand" className={BTN_YELLOW}
           size="icon"
           onClick={onDownload}
           title="Descargar CV"
@@ -872,11 +877,11 @@ export function ApplicantDetail({
   const location = [cv.city, cv.province, cv.country].filter(Boolean).join(", ");
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-neutral-900/95 p-6 shadow-2xl backdrop-blur-xl"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -893,7 +898,7 @@ export function ApplicantDetail({
                 className="size-11 shrink-0 rounded-full object-cover"
               />
             ) : (
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-500/20 text-base font-bold text-amber-300">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-base font-bold text-yellow-300">
                 {initials(displayName)}
               </span>
             )}
@@ -904,7 +909,7 @@ export function ApplicantDetail({
                 {cv.headline && (
                   <>
                     {" · "}
-                    <span className="normal-case text-amber-300/90">{cv.headline}</span>
+                    <span className="normal-case text-yellow-300">{cv.headline}</span>
                   </>
                 )}
               </p>
@@ -925,7 +930,7 @@ export function ApplicantDetail({
             <Field label="Puesto" wrap="words">{cv.job_title || "Espontánea"}</Field>
             <Field label="Email">
               <a
-                className="text-amber-300 hover:text-amber-200"
+                className="text-yellow-300 hover:text-yellow-200"
                 {...composeEmailProps(cv.email)}
               >
                 {cv.email}
@@ -935,7 +940,7 @@ export function ApplicantDetail({
               <Field label="Teléfono">
                 {/* tel: no admite espacios ni paréntesis (RFC 3966); el texto queda crudo */}
                 <a
-                  className="text-amber-300 hover:text-amber-200"
+                  className="text-yellow-300 hover:text-yellow-200"
                   href={`tel:${cv.phone.replace(/[^+\d]/g, "")}`}
                 >
                   {cv.phone}
@@ -946,7 +951,7 @@ export function ApplicantDetail({
             <Field label="Fecha">{formatDate(cv.created_at)}</Field>
             <div>
               <p className="mb-1 t-label text-white/50">Mensaje</p>
-              <div className="whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+              <div className="whitespace-pre-wrap break-words rounded-xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white/70">
                 {cv.message || "—"}
               </div>
             </div>
@@ -957,7 +962,7 @@ export function ApplicantDetail({
             <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
               <Video className="size-4" /> Video
             </p>
-            <div className="overflow-hidden rounded-xl border border-white/10">
+            <div className="overflow-hidden rounded-xl border border-neutral-800">
               {cv.video_url && getVideoEmbed(cv.video_url) ? (
                 <VideoPreview url={cv.video_url} />
               ) : (
@@ -968,7 +973,7 @@ export function ApplicantDetail({
         </div>
 
         {/* Datos del perfil registrado, para tener todo a mano sin ir a Candidatos */}
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
           <p className="mb-3 t-label text-white/50">Perfil del candidato</p>
           {cv.user_id ? (
             <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -1041,7 +1046,7 @@ function Field({
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <span className="grid size-14 place-items-center rounded-2xl bg-white/5 text-white/60">
+      <span className="grid size-14 place-items-center rounded-2xl bg-neutral-800 text-white/60">
         <Inbox className="size-7" />
       </span>
       <div>
