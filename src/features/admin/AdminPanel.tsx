@@ -714,7 +714,8 @@ export function ApplicantDetail({
           <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
             <FileText className="size-4" /> CV
           </p>
-          <CvPreview filename={cv.original_name} fetchBlob={fetchCvBlob} onDownload={onDownload} />
+          {/* key: si el modal pasa a otro candidato sin desmontarse, el visor se remonta */}
+          <CvPreview key={cv.id} filename={cv.original_name} fetchBlob={fetchCvBlob} onDownload={onDownload} />
         </div>
 
         {/* Datos del perfil registrado, para tener todo a mano sin ir a Candidatos */}

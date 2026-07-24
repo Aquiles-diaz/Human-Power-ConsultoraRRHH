@@ -407,6 +407,7 @@ export default function CandidatesView() {
                     <FileText className="size-4" /> CV
                   </p>
                   <CvPreview
+                    key={active.user_id}
                     filename={active.cv_original_name ?? ""}
                     fetchBlob={async () => {
                       const res = await authFetch(

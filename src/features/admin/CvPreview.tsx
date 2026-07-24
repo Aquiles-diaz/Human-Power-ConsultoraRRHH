@@ -37,8 +37,10 @@ export function CvPreview({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
+    // fetchBlob queda fuera adrede: es una arrow inline en los callsites y meterla
+    // dispararía un refetch por cada render del padre.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdf]);
+  }, [pdf, filename]);
 
   if (!pdf || failed) {
     return (
