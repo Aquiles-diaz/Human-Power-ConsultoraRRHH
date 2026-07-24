@@ -37,6 +37,7 @@ import {
   type Profile,
 } from "@/features/profile/types";
 import { categoryLabel } from "@/features/jobs/categories";
+import { CANDIDATES_CACHE_KEY, readAdminCache, writeAdminCache } from "./admin-cache";
 import { RubroChips } from "./RubroChips";
 import { CvPreview } from "./CvPreview";
 import { BTN_YELLOW } from "./ui";
@@ -85,7 +86,10 @@ export default function CandidatesView() {
   const { getAuthHeader } = useAuth();
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
 
-  const [items, setItems] = useState<Candidate[]>([]);
+  // Pinta al instante lo último conocido (sessionStorage) y revalida en segundo plano.
+  const [items, setItems] = useState<Candidate[]>(
+    () => readAdminCache<Candidate>(CANDIDATES_CACHE_KEY) ?? [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -114,6 +118,10 @@ export default function CandidatesView() {
       const data = await res.json();
       if (reqId !== loadReqId.current) return; // llegó una búsqueda más nueva: descartar
       setItems(data.items || []);
+      // solo cacheamos la vista sin filtros: es la que se pinta al entrar
+      if (!q.trim() && !rubro && !education && !onlyCv && !onlyVideo) {
+        writeAdminCache(CANDIDATES_CACHE_KEY, data.items || []);
+      }
       setError(null);
     } catch (e) {
       if (reqId !== loadReqId.current) return;
@@ -232,7 +240,7 @@ export default function CandidatesView() {
       </div>
 
       {/* Listado */}
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div className="grid place-items-center py-20 text-white/40">
           <Loader2 className="size-6 animate-spin" />
         </div>
@@ -255,7 +263,12 @@ export default function CandidatesView() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div
+          className={`grid gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${
+            loading ? "opacity-60" : ""
+          }`}
+          aria-busy={loading}
+        >
           {items.map((c) => (
             <div
               key={c.user_id}

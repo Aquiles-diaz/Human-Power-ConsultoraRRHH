@@ -36,6 +36,7 @@ import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
 import { type ResumeRow, initials } from "./resume-row";
 import { CvPreview } from "./CvPreview";
+import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import ApplicationsView from "./ApplicationsView";
 import BaseGeneralView from "./BaseGeneralView";
 
@@ -55,7 +56,9 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const { user, getAuthHeader, logout } = useAuth();
 
-  const [cvs, setCvs] = useState<ResumeRow[]>([]);
+  // Arranca con lo último conocido (sessionStorage) y revalida en segundo plano:
+  // el panel pinta al instante aunque el backend esté frío.
+  const [cvs, setCvs] = useState<ResumeRow[]>(() => readAdminCache<ResumeRow>(CV_CACHE_KEY) ?? []);
   const [error, setError] = useState("");
   const [q, setQ] = useState(""); // búsqueda de texto opcional
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -75,6 +78,7 @@ export default function AdminPanel() {
       if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       setCvs(data.items || []);
+      writeAdminCache(CV_CACHE_KEY, data.items || []);
       setError("");
     } catch (e) {
       setError(getErrorMessage(e) || "Error");
@@ -229,6 +233,7 @@ export default function AdminPanel() {
             <Button
               variant="subtle"
               onClick={() => {
+                clearAdminCache(); // que no quede PII en el storage al salir
                 logout();
                 navigate("/login", { replace: true });
               }}
