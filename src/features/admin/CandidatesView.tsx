@@ -34,9 +34,12 @@ import { formatDate, timeAgo } from "./format";
 import { composeEmailProps } from "./gmail";
 import {
   EDUCATION_LEVELS,
-  PROFESSIONAL_AREAS,
   type Profile,
 } from "@/features/profile/types";
+import { categoryLabel } from "@/features/jobs/categories";
+import { RubroChips } from "./RubroChips";
+import { CvPreview } from "./CvPreview";
+import { BTN_YELLOW } from "./ui";
 
 type Candidate = {
   user_id: number;
@@ -86,7 +89,7 @@ export default function CandidatesView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [area, setArea] = useState("");
+  const [rubro, setRubro] = useState<string | null>(null);
   const [education, setEducation] = useState("");
   const [onlyCv, setOnlyCv] = useState(false);
   const [onlyVideo, setOnlyVideo] = useState(false);
@@ -101,7 +104,8 @@ export default function CandidatesView() {
     try {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
-      if (area) params.set("area", area);
+      // la API filtra professional_area por label; los chips manejan el value canónico
+      if (rubro) params.set("area", categoryLabel(rubro));
       if (education) params.set("education", education);
       if (onlyCv) params.set("only_with_cv", "true");
       if (onlyVideo) params.set("only_with_video", "true");
@@ -118,7 +122,7 @@ export default function CandidatesView() {
     } finally {
       if (reqId === loadReqId.current) setLoading(false);
     }
-  }, [q, area, education, onlyCv, onlyVideo, authHeaders]);
+  }, [q, rubro, education, onlyCv, onlyVideo, authHeaders]);
 
   useEffect(() => {
     const t = setTimeout(load, 250); // debounce de filtros
@@ -158,12 +162,17 @@ export default function CandidatesView() {
     }
   }
 
-  const hasFilters = !!(q.trim() || area || education || onlyCv || onlyVideo);
+  const hasFilters = !!(q.trim() || rubro || education || onlyCv || onlyVideo);
 
   return (
     <div>
+      {/* Chips de rubro */}
+      <div className="mb-2.5">
+        <RubroChips value={rubro} onChange={setRubro} />
+      </div>
+
       {/* Filtros */}
-      <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm lg:flex-row lg:items-center">
+      <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-neutral-800 bg-neutral-900 p-3 lg:flex-row lg:items-center">
         <label className="relative flex-1">
           <Search className="absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-white/40" />
           <Input
@@ -174,15 +183,6 @@ export default function CandidatesView() {
             className="w-full pl-9"
           />
         </label>
-
-        <Select variant="dark" value={area} onChange={(e) => setArea(e.target.value)}>
-          <option value="">Todas las áreas</option>
-          {PROFESSIONAL_AREAS.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </Select>
 
         <Select variant="dark" value={education} onChange={(e) => setEducation(e.target.value)}>
           <option value="">Toda la educación</option>
@@ -197,8 +197,8 @@ export default function CandidatesView() {
           onClick={() => setOnlyCv((v) => !v)}
           className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm transition ${
             onlyCv
-              ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
-              : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              ? "border-yellow-400/50 bg-yellow-400/15 text-yellow-300"
+              : "border-neutral-800 bg-neutral-900 text-white/70 hover:bg-neutral-800"
           }`}
         >
           <FileText className="size-4" /> Con CV
@@ -208,8 +208,8 @@ export default function CandidatesView() {
           onClick={() => setOnlyVideo((v) => !v)}
           className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm transition ${
             onlyVideo
-              ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
-              : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              ? "border-yellow-400/50 bg-yellow-400/15 text-yellow-300"
+              : "border-neutral-800 bg-neutral-900 text-white/70 hover:bg-neutral-800"
           }`}
         >
           <Video className="size-4" /> Con video
@@ -220,7 +220,7 @@ export default function CandidatesView() {
             variant="subtle"
             onClick={() => {
               setQ("");
-              setArea("");
+              setRubro(null);
               setEducation("");
               setOnlyCv(false);
               setOnlyVideo(false);
@@ -245,8 +245,8 @@ export default function CandidatesView() {
           </Button>
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] py-16 text-center">
-          <span className="grid size-14 place-items-center rounded-2xl bg-white/5 text-white/60">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 py-16 text-center">
+          <span className="grid size-14 place-items-center rounded-2xl bg-neutral-800 text-white/60">
             <Filter className="size-7" />
           </span>
           <div>
@@ -255,33 +255,38 @@ export default function CandidatesView() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((c) => (
-            <button
+            <div
               key={c.user_id}
+              role="button"
+              tabIndex={0}
               onClick={() => openDetail(c.user_id)}
-              className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left backdrop-blur-sm transition hover:border-amber-400/30 hover:bg-white/[0.06]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openDetail(c.user_id);
+              }}
+              className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-left transition hover:border-yellow-400/40 hover:bg-neutral-800/60"
             >
               <div className="flex items-center gap-3">
                 {c.photo_url ? (
                   <img
                     src={photoSrc(c.photo_url)}
                     alt={`Foto de ${c.name} ${c.last_name ?? ""}`}
-                    width={48}
-                    height={48}
-                    className="size-12 rounded-full object-cover"
+                    width={56}
+                    height={56}
+                    className="size-14 rounded-full object-cover"
                   />
                 ) : (
-                  <span className="grid size-12 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-sm font-bold text-black">
+                  <span className="grid size-14 place-items-center rounded-full bg-yellow-400 text-sm font-bold text-black">
                     {initials(c.name, c.last_name ?? "")}
                   </span>
                 )}
                 <div className="min-w-0">
-                  <p className="truncate font-semibold capitalize text-white">
+                  <p className="truncate text-lg font-bold capitalize text-white">
                     {c.name} {c.last_name}
                   </p>
                   {c.headline && (
-                    <p className="truncate text-xs font-medium uppercase tracking-wide text-amber-300/80">
+                    <p className="truncate text-xs font-medium uppercase tracking-wide text-yellow-300">
                       {c.headline}
                     </p>
                   )}
@@ -298,19 +303,33 @@ export default function CandidatesView() {
                     <FileText className="size-3" /> CV
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-white/60">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-800 px-2 py-0.5 text-white/60">
                     Sin CV
                   </span>
                 )}
                 {c.has_video && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-yellow-400/10 px-2 py-0.5 text-yellow-300">
                     <Video className="size-3" /> Video
                   </span>
                 )}
               </div>
 
               <CandidateDates created_at={c.created_at} last_login_at={c.last_login_at} />
-            </button>
+
+              {c.has_cv && (
+                <Button
+                  variant="brand"
+                  size="sm"
+                  className={`${BTN_YELLOW} mt-auto w-full`}
+                  onClick={(e) => {
+                    e.stopPropagation(); // que no abra el modal
+                    downloadCv(c.user_id);
+                  }}
+                >
+                  <Download className="size-4" /> Descargar CV
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -318,6 +337,7 @@ export default function CandidatesView() {
       {/* Detalle (solo lectura) */}
       {(active || loadingDetail) && (
         <Modal
+          wide
           title={active ? `${active.name} ${active.last_name ?? ""}`.trim() : "Candidato"}
           onClose={() => setActive(null)}
         >
@@ -337,13 +357,13 @@ export default function CandidatesView() {
                     className="size-16 rounded-2xl object-cover"
                   />
                 ) : (
-                  <span className="grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-lg font-bold text-black">
+                  <span className="grid size-16 place-items-center rounded-2xl bg-yellow-400 text-lg font-bold text-black">
                     {initials(active.name, active.last_name ?? "")}
                   </span>
                 )}
                 <div className="min-w-0">
                   {active.headline && (
-                    <p className="t-eyebrow text-amber-300">{active.headline}</p>
+                    <p className="t-eyebrow text-yellow-300">{active.headline}</p>
                   )}
                   <a
                     {...composeEmailProps(active.email)}
@@ -367,17 +387,32 @@ export default function CandidatesView() {
                 <Info icon={<CalendarDays className="size-4" />} label="Nacimiento" value={active.birthdate} />
               </div>
 
+              {/* CV embebido: el jefe lo ve sin descargar */}
+              {active.has_cv ? (
+                <div className="mt-5">
+                  <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-white/80">
+                    <FileText className="size-4" /> CV
+                  </p>
+                  <CvPreview
+                    filename={active.cv_original_name ?? ""}
+                    fetchBlob={async () => {
+                      const res = await authFetch(
+                        `/admin/candidates/${active.user_id}/cv`,
+                        authHeaders,
+                      );
+                      if (!res.ok) throw new Error(await parseApiError(res));
+                      return res.blob();
+                    }}
+                    onDownload={() => downloadCv(active.user_id, active.cv_original_name)}
+                  />
+                </div>
+              ) : (
+                <p className="mt-5 text-sm text-white/60">
+                  Este candidato todavía no subió su CV.
+                </p>
+              )}
+
               <div className="mt-5 flex items-center gap-2">
-                {active.has_cv ? (
-                  <Button
-                    variant="brand"
-                    onClick={() => downloadCv(active.user_id, active.cv_original_name)}
-                  >
-                    <Download className="size-4" /> Descargar CV
-                  </Button>
-                ) : (
-                  <span className="text-sm text-white/60">Este candidato todavía no subió su CV.</span>
-                )}
                 <Button asChild variant="subtle">
                   <a {...composeEmailProps(active.email)}>
                     <Mail className="size-4" /> Escribir
@@ -395,7 +430,7 @@ export default function CandidatesView() {
                     href={active.video_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-amber-400 hover:text-amber-300"
+                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-yellow-400 hover:text-yellow-300"
                   >
                     <ExternalLink className="size-4" /> Abrir en pestaña nueva
                   </a>
@@ -415,7 +450,7 @@ export default function CandidatesView() {
 
 function Chip({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-white/60">
+    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-800 px-2 py-0.5 text-white/60">
       {icon}
       {children}
     </span>
@@ -424,7 +459,7 @@ function Chip({ icon, children }: { icon: React.ReactNode; children: React.React
 
 function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string | null }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3">
       <p className="mb-0.5 inline-flex items-center gap-1.5 t-label text-white/50">
         {icon} {label}
       </p>
