@@ -78,7 +78,7 @@ def make_applications_client(state, email="u@test.com"):
 # ── Fakes para /admin/cv (columnas del SELECT real; el perfil puede venir null) ──
 CV_COLS = [
     "id", "full_name", "email", "original_name", "message", "created_at",
-    "job_id", "job_title", "withdrawn_at", "video_filename", "video_url", "status",
+    "job_id", "job_title", "job_category", "withdrawn_at", "video_filename", "video_url", "status",
     "user_id", "name", "last_name", "phone", "age_range", "city", "province",
     "country", "professional_area", "education_level", "experience_years",
     "availability", "salary_expectation", "languages", "headline",

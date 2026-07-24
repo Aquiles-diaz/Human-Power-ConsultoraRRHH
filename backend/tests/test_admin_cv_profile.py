@@ -22,7 +22,7 @@ limiter.enabled = False
 
 CV_COLS = [
     "id", "full_name", "email", "original_name", "message", "created_at",
-    "job_id", "job_title", "withdrawn_at", "video_filename", "video_url", "status",
+    "job_id", "job_title", "job_category", "withdrawn_at", "video_filename", "video_url", "status",
     "user_id", "name", "last_name", "phone", "age_range", "city", "province",
     "country", "professional_area", "education_level", "experience_years",
     "availability", "salary_expectation", "languages", "headline",
@@ -137,6 +137,20 @@ def test_admin_cv_bad_languages_json_is_empty_list():
     state = {"resumes": [{**_BASE, "user_id": 42, "languages": "no-es-json"}]}
     item = _client(state).get("/admin/cv").json()["items"][0]
     assert item["languages"] == []
+
+
+def test_admin_cv_incluye_job_category():
+    state = {"resumes": [{**_BASE, "job_category": "administracion"}]}
+    r = _client(state).get("/admin/cv")
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert r.json()["items"][0]["job_category"] == "administracion"
+
+
+def test_admin_cv_job_category_null_en_espontanea():
+    state = {"resumes": [{**_BASE, "job_id": None, "job_title": None, "job_category": None}]}
+    r = _client(state).get("/admin/cv")
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert r.json()["items"][0]["job_category"] is None
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

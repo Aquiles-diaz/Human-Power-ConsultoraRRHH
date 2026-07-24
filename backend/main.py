@@ -218,6 +218,7 @@ class ResumeItem(BaseModel):
     created_at: str
     job_id: Optional[str] = None
     job_title: Optional[str] = None
+    job_category: Optional[str] = None  # rubro canónico del puesto; None si espontánea
     withdrawn_at: Optional[str] = None
     video_url: Optional[str] = None  # video de presentación del perfil del candidato (si tiene)
     pipeline_status: str = "received"  # pipeline visible (received|viewed|in_process|finished)
@@ -988,7 +989,7 @@ def list_cvs_admin() -> ListCvOut:
         cur.execute(
             """
             SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, '') AS message,
-                   r.created_at, r.job_id, r.job_title, r.withdrawn_at,
+                   r.created_at, r.job_id, r.job_title, j.category AS job_category, r.withdrawn_at,
                    p.video_filename, p.video_url, r.status,
                    u.id AS user_id, u.name, u.last_name,
                    p.phone, p.age_range, p.city, p.province, p.country,
@@ -996,6 +997,7 @@ def list_cvs_admin() -> ListCvOut:
                    p.availability, p.salary_expectation, p.languages, p.headline,
                    p.photo_filename, p.external_photo_url
             FROM resumes r
+            LEFT JOIN jobs j ON j.id = r.job_id
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
             ORDER BY r.id DESC
@@ -1012,6 +1014,7 @@ def list_cvs_admin() -> ListCvOut:
                 created_at=_legacy_ts(r["created_at"]),
                 job_id=r["job_id"],
                 job_title=r["job_title"],
+                job_category=r["job_category"],
                 withdrawn_at=_legacy_ts(r["withdrawn_at"]),
                 # video del perfil: archivo subido (precede) o link viejo
                 video_url=storage_video.public_url(r["video_filename"]) or r["video_url"],
