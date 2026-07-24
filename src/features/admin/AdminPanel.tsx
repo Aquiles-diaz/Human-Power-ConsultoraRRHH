@@ -36,6 +36,7 @@ import { PipelineSelect } from "./PipelineSelect";
 import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
 import { type ResumeRow, initials } from "./resume-row";
+import { CvPreview } from "./CvPreview";
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
 
@@ -693,6 +694,11 @@ export default function AdminPanel() {
           onClose={() => setActive(null)}
           onDownload={() => downloadCv(active.id, active.original_name)}
           onDelete={() => deleteCv(active.id)}
+          fetchCvBlob={async () => {
+            const res = await authFetch(`/cv/${active.id}`, getAuthHeader());
+            if (!res.ok) throw new Error(await parseApiError(res));
+            return res.blob();
+          }}
         />
       )}
     </main>
@@ -857,12 +863,14 @@ export function ApplicantDetail({
   onClose,
   onDownload,
   onDelete,
+  fetchCvBlob,
 }: {
   cv: ResumeRow;
   deleting: boolean;
   onClose: () => void;
   onDownload: () => void;
   onDelete: () => void;
+  fetchCvBlob: () => Promise<Blob>;
 }) {
   // Nombre y apellido del perfil registrado; si postuló sin cuenta, lo que
   // escribió en el formulario.
@@ -881,7 +889,7 @@ export function ApplicantDetail({
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -970,6 +978,14 @@ export function ApplicantDetail({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Vista previa del CV: el jefe lo ve sin descargar */}
+        <div className="mt-5">
+          <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
+            <FileText className="size-4" /> CV
+          </p>
+          <CvPreview filename={cv.original_name} fetchBlob={fetchCvBlob} onDownload={onDownload} />
         </div>
 
         {/* Datos del perfil registrado, para tener todo a mano sin ir a Candidatos */}

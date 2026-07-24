@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { ApplicantDetail } from "./AdminPanel";
 
 const baseCv = {
@@ -10,6 +10,10 @@ const baseCv = {
   created_at: "2026-07-21T14:16:00Z",
 };
 
+// Promise que nunca resuelve: los tests que no miran el visor no necesitan
+// stubear URL.createObjectURL (jsdom no lo trae).
+const pendingBlob = () => new Promise<Blob>(() => {});
+
 function renderDetail(cv: Partial<typeof baseCv> & Record<string, unknown> = {}) {
   return render(
     <ApplicantDetail
@@ -18,6 +22,7 @@ function renderDetail(cv: Partial<typeof baseCv> & Record<string, unknown> = {})
       onClose={() => {}}
       onDownload={() => {}}
       onDelete={() => {}}
+      fetchCvBlob={pendingBlob}
     />,
   );
 }
@@ -98,5 +103,27 @@ describe("ApplicantDetail (modal de postulación por puesto)", () => {
     const btn = screen.getByRole("link", { name: /escribir/i });
     expect(btn.getAttribute("href")).toContain("mail.google.com");
     expect(btn.getAttribute("href")).toContain("humanpower.rrhh%40gmail.com");
+  });
+
+  it("muestra la vista previa del CV cuando es PDF", async () => {
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => "blob:fake"),
+        revokeObjectURL: vi.fn(),
+      }),
+    );
+    render(
+      <ApplicantDetail
+        cv={baseCv}
+        deleting={false}
+        onClose={() => {}}
+        onDownload={() => {}}
+        onDelete={() => {}}
+        fetchCvBlob={() => Promise.resolve(new Blob(["x"], { type: "application/pdf" }))}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTitle("Vista previa del CV")).toBeInTheDocument());
+    vi.unstubAllGlobals();
   });
 });
