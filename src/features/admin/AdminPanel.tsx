@@ -36,37 +36,7 @@ import ResumenDashboard from "./ResumenDashboard";
 import { PipelineSelect } from "./PipelineSelect";
 import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
-
-type ResumeRow = {
-  id: number;
-  full_name: string;
-  email: string;
-  original_name: string;
-  created_at: string;
-  message?: string;
-  job_id?: string | null;
-  job_title?: string | null;
-  withdrawn_at?: string | null;
-  video_url?: string | null;
-  pipeline_status?: string;
-  // Perfil del candidato (JOIN por email en el backend): null si postuló sin cuenta.
-  user_id?: number | null;
-  name?: string | null;
-  last_name?: string | null;
-  phone?: string | null;
-  age_range?: string | null;
-  city?: string | null;
-  province?: string | null;
-  country?: string | null;
-  professional_area?: string | null;
-  education_level?: string | null;
-  experience_years?: string | null;
-  availability?: string | null;
-  salary_expectation?: string | null;
-  languages?: string[];
-  headline?: string | null;
-  photo_url?: string | null;
-};
+import { type ResumeRow, initials } from "./resume-row";
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
 
@@ -78,12 +48,6 @@ function ymd(date?: Date) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${day}`;
-}
-
-function initials(name?: string | null) {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
 // --- Componente principal ---
