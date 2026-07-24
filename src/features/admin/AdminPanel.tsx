@@ -14,7 +14,6 @@ import {
   X,
   Briefcase,
   Users,
-  ChevronDown,
   LayoutDashboard,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +36,7 @@ import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
 import { type ResumeRow, initials } from "./resume-row";
 import { CvPreview } from "./CvPreview";
+import ApplicationsView from "./ApplicationsView";
 
 type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
 
@@ -64,7 +64,6 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [tab, setTab] = useState<AdminTab>("resumen");
-  const [openJobs, setOpenJobs] = useState<Record<string, boolean>>({});
 
   async function loadData() {
     setLoading(true);
@@ -158,30 +157,6 @@ export default function AdminPanel() {
   }, [cvs]);
 
   const hasFilters = !!(dateFrom || dateTo || q.trim());
-
-  // Postulaciones (CV vinculado a un puesto) dentro de la vista filtrada
-  const applications = useMemo(() => filtered.filter((r) => r.job_id), [filtered]);
-
-  // Agrupar postulaciones por puesto. Solo mostramos puestos que tienen al menos
-  // una postulación (el catálogo de ofertas vive en la DB; acá agrupamos por el
-  // job_id/job_title que viene guardado en cada postulación).
-  const jobGroups = useMemo(() => {
-    const byId = new Map<string, ResumeRow[]>();
-    for (const r of applications) {
-      const key = r.job_id as string;
-      if (!byId.has(key)) byId.set(key, []);
-      byId.get(key)!.push(r);
-    }
-    return [...byId.entries()].map(([id, applicants]) => ({
-      id,
-      title: applicants[0]?.job_title || id,
-      applicants,
-    }));
-  }, [applications]);
-
-  function toggleJob(id: string) {
-    setOpenJobs((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
 
   async function deleteCv(id: number) {
     if (!confirm("¿Seguro que querés eliminar este CV? Esta acción no se puede deshacer.")) return;
@@ -411,71 +386,15 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* ─── Vista: Postulaciones por puesto ─── */}
         {tab === "applications" && (
-          <div className="space-y-3">
-            {jobGroups.map((group) => {
-              const open = !!openJobs[group.id];
-              return (
-                <div
-                  key={group.id}
-                  className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900"
-                >
-                  <button
-                    onClick={() => toggleJob(group.id)}
-                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-800/50"
-                  >
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-yellow-400/10 text-yellow-300">
-                      <Briefcase className="size-5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-white">{group.title}</p>
-                      <p className="truncate text-xs text-white/60">{group.id}</p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        group.applicants.length
-                          ? "bg-yellow-400/15 text-yellow-200"
-                          : "bg-neutral-800 text-white/60"
-                      }`}
-                    >
-                      <Users className="size-3.5" />
-                      {group.applicants.length}
-                    </span>
-                    <ChevronDown
-                      className={`size-4 shrink-0 text-white/60 transition-transform ${
-                        open ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-
-                  {open && (
-                    <div className="border-t border-neutral-800 px-3 pb-3 pt-1">
-                      {group.applicants.length === 0 ? (
-                        <p className="px-2 py-4 text-center text-sm text-white/60">
-                          Todavía nadie se postuló a este puesto.
-                        </p>
-                      ) : (
-                        <ul className="divide-y divide-neutral-800">
-                          {group.applicants.map((cv) => (
-                            <ApplicantRow
-                              key={cv.id}
-                              cv={cv}
-                              onView={() => setActive(cv)}
-                              onDownload={() => downloadCv(cv.id, cv.original_name)}
-                              onDelete={() => deleteCv(cv.id)}
-                              onStatusChange={(s) => updateStatus(cv.id, s)}
-                              deleting={deleting === cv.id}
-                            />
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <ApplicationsView
+            rows={filtered}
+            deletingId={deleting}
+            onView={setActive}
+            onDownload={(cv) => downloadCv(cv.id, cv.original_name)}
+            onDelete={deleteCv}
+            onStatusChange={updateStatus}
+          />
         )}
 
         {/* Lista en mobile (cards) */}
