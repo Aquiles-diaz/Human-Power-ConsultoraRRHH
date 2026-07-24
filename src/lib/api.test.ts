@@ -32,8 +32,10 @@ describe("parseApiError", () => {
     expect(await parseApiError(res)).toBe("Rate limit exceeded: 10 per 1 minute");
   });
 
-  it("cae a 'Error <status>' si el body no tiene detail ni error", async () => {
+  it("sin detail ni error cae a un mensaje corporativo, nunca al código", async () => {
     const res = new Response("no-json", { status: 500 });
-    expect(await parseApiError(res)).toBe("Error 500");
+    const msg = await parseApiError(res);
+    expect(msg).toBe("No pudimos procesar tu solicitud. Por favor, intentá nuevamente en unos minutos.");
+    expect(msg).not.toMatch(/\d{3}/);
   });
 });

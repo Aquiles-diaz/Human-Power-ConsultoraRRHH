@@ -107,5 +107,6 @@ export async function parseApiError(res: Response): Promise<string> {
   } catch {
     /* respuesta sin JSON */
   }
-  return `Error ${res.status}`;
+  // Nunca mostramos códigos HTTP al usuario: mensaje corporativo genérico.
+  return "No pudimos procesar tu solicitud. Por favor, intentá nuevamente en unos minutos.";
 }
