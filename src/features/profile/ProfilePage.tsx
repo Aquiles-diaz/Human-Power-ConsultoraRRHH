@@ -29,6 +29,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
 import ProfileCompletion from "./ProfileCompletion";
 import VideoTab from "./VideoTab";
+import { PendingApplicationBanner } from "./PendingApplicationBanner";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import MyApplications from "./MyApplications";
 import AlertsCard from "./AlertsCard";
@@ -275,6 +276,9 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
+              {/* Retorno al aviso pendiente cuando el perfil queda listo para postular */}
+              <PendingApplicationBanner profile={profile} />
+
               {/* ── Solapas: Mi perfil | Mi video | Mis postulaciones ── */}
               <div className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist">
                 <TabButton active={tab === "perfil"} onClick={() => setTab("perfil")}>
