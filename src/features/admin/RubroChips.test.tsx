@@ -6,10 +6,13 @@ import { CATEGORIES } from "@/features/jobs/categories";
 describe("RubroChips", () => {
   it("renderiza Todos + los 23 rubros", () => {
     render(<RubroChips value={null} onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Todos" })).toBeTruthy();
+    // una sola consulta al DOM: getByRole con name es carísimo en jsdom (timeout)
+    const names = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(names).toContain("Todos");
     for (const c of CATEGORIES) {
-      expect(screen.getByRole("button", { name: c.label })).toBeTruthy();
+      expect(names).toContain(c.label);
     }
+    expect(names).toHaveLength(1 + CATEGORIES.length);
   });
 
   it("click en un rubro lo selecciona", () => {
