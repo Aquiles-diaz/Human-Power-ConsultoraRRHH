@@ -762,7 +762,15 @@ def _persist_resume(
                 RETURNING id
                 """,
                 (
-                    full_name.strip(), email.strip(), message or "", key, original,
+                    # .lower() como en auth.create_user: `users.email` se guarda
+                    # siempre en minúsculas, y varias queries cruzan las dos tablas
+                    # por igualdad EXACTA de email (/me/applications, el chequeo de
+                    # postulación duplicada en /apply, withdraw_my_application).
+                    # Un envío espontáneo por /cv con "Juan@Gmail.com" quedaba con
+                    # mayúsculas y esas queries no lo encontraban nunca: no aparecía
+                    # en "Mis postulaciones" ni se podía dar de baja. En el panel
+                    # admin sí se veía, porque ese JOIN usa LOWER() en ambos lados.
+                    full_name.strip(), email.strip().lower(), message or "", key, original,
                     mimetype, size, job_id, job_title,
                 ),
             )

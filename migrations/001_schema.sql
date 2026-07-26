@@ -139,3 +139,21 @@ BEGIN
       FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL;
   END IF;
 END $$;
+
+-- ── Normalización de emails en `resumes` ───────────────────────────────────
+-- `users.email` se guarda siempre en minúsculas (auth.create_user), pero los
+-- envíos espontáneos por /cv guardaban el email tal cual lo tipeó el visitante.
+-- Como /me/applications, el chequeo de duplicados de /apply y la baja de una
+-- postulación cruzan las tablas por igualdad EXACTA, una fila con mayúsculas
+-- quedaba invisible para su propio dueño. El INSERT ya normaliza (ver
+-- _persist_resume); esto arregla las filas históricas. Idempotente.
+UPDATE resumes SET email = LOWER(email) WHERE email <> LOWER(email);
+
+-- ── Índices funcionales sobre LOWER(email) ────────────────────────────────
+-- El listado del panel (/admin/cv) cruza las dos tablas con
+-- `LOWER(u.email) = LOWER(r.email)`. `idx_users_email` es sobre la columna
+-- cruda, así que Postgres NO puede usarlo para esa expresión y termina
+-- materializando la tabla entera. Estos índices son sobre la expresión, que es
+-- lo que la query realmente compara.
+CREATE INDEX IF NOT EXISTS idx_users_email_lower   ON users   (LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_resumes_email_lower ON resumes (LOWER(email));
