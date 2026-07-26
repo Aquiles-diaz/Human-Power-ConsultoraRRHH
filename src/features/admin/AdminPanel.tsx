@@ -37,6 +37,7 @@ import { composeEmailProps } from "./gmail";
 import { type ResumeRow, initials } from "./resume-row";
 import { CvPreview } from "./CvPreview";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
+import { buildCvQuery } from "./cv-query";
 import ApplicationsView from "./ApplicationsView";
 import BaseGeneralView from "./BaseGeneralView";
 
@@ -67,18 +68,42 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [tab, setTab] = useState<AdminTab>("resumen");
+  // Conteo REAL en la base (no el largo de la página) y si quedaron filas afuera.
+  const [total, setTotal] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  // "recent" = las últimas N (lo de siempre); "all" = resultado de una búsqueda
+  // server-side sobre todo el histórico.
+  const [scope, setScope] = useState<"recent" | "all">("recent");
 
-  async function loadData() {
+  /**
+   * Trae postulaciones. Sin argumentos, las más recientes (lo de siempre, y lo
+   * que se cachea). Con `serverFilters`, la búsqueda baja a SQL y alcanza TODO
+   * el histórico, no sólo la página que ya está en memoria.
+   *
+   * Es el modo híbrido: el filtro del navegador (`filtered`) sigue respondiendo
+   * al instante sobre lo cargado, y sólo se paga el viaje al backend cuando el
+   * usuario pide explícitamente buscar en todo — que es cuando de verdad hace
+   * falta, porque pasadas las 500 lo viejo no está en memoria.
+   */
+  async function loadData(serverFilters?: { q: string; dateFrom: string; dateTo: string }) {
+    const qs = serverFilters ? buildCvQuery(serverFilters) : "";
+    const isServerSearch = qs.length > 0;
+
     setLoading(true);
     try {
       // authFetch: ante 401 cierra sesión global y el guard redirige al login.
-      const res = await authFetch(`/admin/cv`, getAuthHeader(), {
+      const res = await authFetch(`/admin/cv${qs ? `?${qs}` : ""}`, getAuthHeader(), {
         headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       setCvs(data.items || []);
-      writeAdminCache(CV_CACHE_KEY, data.items || []);
+      setTotal(data.total ?? null);
+      setHasMore(!!data.has_more);
+      setScope(isServerSearch ? "all" : "recent");
+      // Se cachea SOLO la vista sin filtros: guardar un resultado filtrado haría
+      // que la próxima entrada al panel pintara ese subset como si fuera el total.
+      if (!isServerSearch) writeAdminCache(CV_CACHE_KEY, data.items || []);
       setError("");
     } catch (e) {
       setError(getErrorMessage(e) || "Error");
@@ -86,6 +111,12 @@ export default function AdminPanel() {
       setLoading(false);
     }
   }
+
+  /** Repite la búsqueda actual contra el servidor, sobre todo el histórico. */
+  const searchAll = () => loadData({ q, dateFrom, dateTo });
+
+  /** Vuelve a la vista por defecto (las más recientes). */
+  const backToRecent = () => loadData();
 
   // Descarga autenticada del CV (el endpoint /cv/{id} exige Bearer admin; un <a href>
   // plano no manda el token → 401). Bajamos el blob con authFetch y lo guardamos.
@@ -201,7 +232,14 @@ export default function AdminPanel() {
     setDateFrom("");
     setDateTo("");
     setQ("");
+    // Si veníamos de una búsqueda en todo el histórico, limpiar los filtros tiene
+    // que devolvernos a la vista por defecto: si no, quedarían a la vista los
+    // resultados de una búsqueda que ya no está escrita en ningún lado.
+    if (scope === "all") backToRecent();
   }
+
+  /** Recarga respetando la vista actual (recientes o búsqueda completa). */
+  const refresh = () => (scope === "all" ? searchAll() : loadData());
 
   return (
     <main className="relative min-h-screen bg-black text-white">
@@ -364,7 +402,7 @@ export default function AdminPanel() {
             )}
             <Button
               variant="brand" className={BTN_YELLOW}
-              onClick={loadData}
+              onClick={refresh}
               title="Actualizar"
               disabled={loading}
               aria-busy={loading}
@@ -374,6 +412,45 @@ export default function AdminPanel() {
             </Button>
           </div>
         </div>
+        )}
+
+        {/* Puente entre el filtro instantáneo (sobre lo que ya está en memoria) y
+            la búsqueda completa (SQL). Sólo aparece cuando de verdad hace falta:
+            si `has_more` es false, el navegador ya tiene TODAS las postulaciones
+            y el filtro local no se puede estar perdiendo nada. */}
+        {tab !== "candidates" && tab !== "jobs" && scope === "recent" && hasFilters && hasMore && (
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-amber-100/90">
+              Estás filtrando sobre las <strong>{cvs.length}</strong> más recientes
+              {total !== null && <> de <strong>{total}</strong> en total</>}. Puede haber
+              coincidencias más viejas.
+            </p>
+            <Button
+              variant="brand"
+              className={`${BTN_YELLOW} shrink-0`}
+              onClick={searchAll}
+              disabled={loading}
+              aria-busy={loading}
+            >
+              <Search className="size-4" />
+              Buscar en todo el histórico
+            </Button>
+          </div>
+        )}
+
+        {tab !== "candidates" && tab !== "jobs" && scope === "all" && (
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-white/80">
+              Resultados de <strong>todo el histórico</strong>: {filtered.length}
+              {hasMore && total !== null && (
+                <span className="text-white/50"> (se muestran las primeras {cvs.length} de {total})</span>
+              )}
+            </p>
+            <Button variant="subtle" className="shrink-0" onClick={backToRecent} disabled={loading}>
+              <X className="size-4" />
+              Volver a las recientes
+            </Button>
+          </div>
         )}
 
         {error && tab !== "candidates" && tab !== "jobs" && (

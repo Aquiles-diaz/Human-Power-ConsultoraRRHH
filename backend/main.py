@@ -242,6 +242,11 @@ class ResumeItem(BaseModel):
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
+    # Campos aditivos: una respuesta sin ellos sigue siendo válida para el front
+    # que ya está desplegado. `total` es el conteo REAL (no el largo de la
+    # página); `has_more` avisa que quedaron filas afuera del tope.
+    total: Optional[int] = None
+    has_more: bool = False
 
 # ── Métricas del panel (dashboard "Resumen") ──
 # Espejan el tipo `AdminStats` de src/features/admin/admin-stats.ts para que el
@@ -307,6 +312,11 @@ class ApplicationsOut(BaseModel):
 
 # Estados de pipeline visibles (candidato + admin); reusado por el PATCH de la Task 3.
 _PIPELINE_STATUSES = {"received", "viewed", "in_process", "finished"}
+
+# Tope de filas por página en /admin/cv. Es el mismo 500 de antes, ahora explícito
+# y acompañado de `total`/`has_more`: el problema no era el tope en sí, era que
+# truncaba en silencio y sin forma de pedir el resto.
+MAX_CV_PAGE = 500
 
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
@@ -1041,11 +1051,65 @@ def download_cv(cv_id: int):
     return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
 
 @app.get("/admin/cv", response_model=ListCvOut, dependencies=[Depends(require_admin)], tags=["admin"])
-def list_cvs_admin() -> ListCvOut:
+def list_cvs_admin(
+    q: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    job_id: Optional[str] = None,
+    status: Optional[str] = None,
+    include_withdrawn: bool = True,
+    limit: int = MAX_CV_PAGE,
+    offset: int = 0,
+) -> ListCvOut:
+    """Listado de postulaciones para el panel.
+
+    TODOS los parámetros son opcionales: sin ninguno, la respuesta es la misma
+    que antes de que existiera el filtrado server-side (las 500 más recientes),
+    más dos campos aditivos. Eso mantiene andando al front ya desplegado.
+
+    El filtrado bajó a SQL porque el panel lo hacía en el navegador sobre las 500
+    filas ya descargadas: pasado ese volumen, buscar una postulación vieja no la
+    encontraba nunca — estaba en la base, pero era inalcanzable desde la UI.
+    """
+    limit = max(1, min(limit, MAX_CV_PAGE))
+    offset = max(0, offset)
+
+    where: list[str] = []
+    params: list = []
+    if q and q.strip():
+        # Los MISMOS campos que filtraba el cliente (AdminPanel.tsx). Si acá
+        # faltara alguno, el re-filtro del navegador descartaría en silencio
+        # filas que el server sí devolvió.
+        needle = f"%{_like_escape(q.strip().lower())}%"
+        where.append(
+            "(LOWER(r.full_name) LIKE %s OR LOWER(r.email) LIKE %s"
+            " OR LOWER(r.original_name) LIKE %s OR LOWER(COALESCE(r.message,'')) LIKE %s"
+            " OR LOWER(COALESCE(u.name,'') || ' ' || COALESCE(u.last_name,'')) LIKE %s)"
+        )
+        params += [needle] * 5
+    if date_from:
+        where.append("r.created_at >= %s")
+        params.append(date_from)
+    if date_to:
+        where.append("r.created_at <= %s")
+        params.append(date_to)
+    if job_id:
+        where.append("r.job_id = %s")
+        params.append(job_id)
+    if status:
+        if status not in _PIPELINE_STATUSES:
+            raise HTTPException(status_code=400, detail="Estado inválido")
+        where.append("r.status = %s")
+        params.append(status)
+    if not include_withdrawn:
+        where.append("r.withdrawn_at IS NULL")
+
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
-            """
+            f"""
             SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, '') AS message,
                    r.created_at, r.job_id, r.job_title, j.category AS job_category, r.withdrawn_at,
                    p.video_filename, p.video_url, r.status,
@@ -1058,9 +1122,11 @@ def list_cvs_admin() -> ListCvOut:
             LEFT JOIN jobs j ON j.id = r.job_id
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
+            {where_sql}
             ORDER BY r.id DESC
-            LIMIT 500
-            """
+            LIMIT %s OFFSET %s
+            """,
+            (*params, limit, offset),
         )
         rows = [
             ResumeItem(
@@ -1097,7 +1163,27 @@ def list_cvs_admin() -> ListCvOut:
             )
             for r in cur.fetchall()
         ]
-    return ListCvOut(items=rows)
+
+        # `total` sin segunda query cuando el resultado NO está truncado: si
+        # volvieron menos filas que el tope, ya las vimos todas y el conteo es
+        # exacto. Sólo se paga el COUNT(*) cuando de verdad quedó algo afuera.
+        # (Además de ahorrar una consulta, esto evita emitir un COUNT en el caso
+        # habitual, que es el 100% de los listados de hoy.)
+        if len(rows) < limit:
+            total = offset + len(rows)
+        else:
+            cur.execute(
+                f"""
+                SELECT count(*)
+                  FROM resumes r
+                  LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
+                {where_sql}
+                """,
+                tuple(params),
+            )
+            total = cur.fetchone()[0]
+
+    return ListCvOut(items=rows, total=total, has_more=offset + len(rows) < total)
 
 # Meses abreviados en español para las etiquetas del gráfico. La app es
 # monolingüe, así que la etiqueta sale del server y el front es un consumidor
