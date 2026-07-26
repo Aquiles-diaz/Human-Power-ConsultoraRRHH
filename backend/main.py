@@ -1,6 +1,6 @@
 # backend/main.py
 from __future__ import annotations
-from .db import get_conn as _get_conn, init_db
+from .db import get_conn as _get_conn, init_db, close_pool
 import html
 import json
 import logging
@@ -101,6 +101,12 @@ async def lifespan(app: FastAPI):
     else:
         log.info("RUN_INIT_DB!=1; salteo init_db() (esquema gestionado por migraciones).")
     yield
+    # Cierra el pool de conexiones al apagar (devuelve los sockets prolijamente
+    # en vez de dejar que Supabase los expire por timeout).
+    try:
+        close_pool()
+    except Exception:
+        log.warning("close_pool() falló en el apagado.", exc_info=True)
 
 app = FastAPI(
     title="HumanPower API",

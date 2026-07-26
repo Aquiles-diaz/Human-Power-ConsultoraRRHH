@@ -14,12 +14,18 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any, Sequence
 
 import psycopg
+from psycopg.pq import TransactionStatus as _TxStatus
 
 log = logging.getLogger("humanpower.db")
+
+# Estado "sin transacción abierta": se compara contra él antes de revertir al
+# devolver una conexión al pool (ver PooledConnection.close).
+_TX_IDLE = _TxStatus.IDLE
 
 # ── Carga de .env (sin dependencia obligatoria) ───────────────────────────────
 # Busca backend/.env y ./.env. Si python-dotenv no está, hace un parseo mínimo.
@@ -109,23 +115,157 @@ def dual_row(cursor: psycopg.Cursor) -> Any:
     return make
 
 
-# ── Conexión ──────────────────────────────────────────────────────────────────
-def get_conn() -> psycopg.Connection:
-    """Abre una conexión nueva a Postgres (una por request, como antes en SQLite).
+# ── Pool de conexiones ────────────────────────────────────────────────────────
+# Antes cada request abría una conexión NUEVA (handshake TCP + TLS + auth contra
+# Supabase en otra región) y la cerraba al terminar. Endpoints como /apply abren
+# tres, así que se pagaba el handshake tres veces por postulación. El pool las
+# reusa: se paga una vez y después es gratis.
+#
+# Convive bien con el pooler de Supabase (PgBouncer en modo transaction, puerto
+# 6543): este pool es del lado del cliente y lo que ahorra es justamente el
+# handshake HASTA PgBouncer.
+POOL_MIN = int(os.getenv("PG_POOL_MIN", "1"))
+POOL_MAX = int(os.getenv("PG_POOL_MAX", "5"))
+POOL_TIMEOUT = float(os.getenv("PG_POOL_TIMEOUT", "15"))
+# Escotilla de escape: PG_USE_POOL=0 vuelve al comportamiento anterior (una
+# conexión nueva por request) sin tocar código, por si hay que descartar el pool
+# como sospechoso durante un incidente.
+USE_POOL = os.getenv("PG_USE_POOL", "1") == "1"
 
-    `autocommit=False` para conservar la semántica de commit explícito del código.
-    """
+_pool = None
+_pool_lock = threading.Lock()
+
+
+def _connect_kwargs() -> dict:
+    return {
+        "autocommit": False,  # se conserva el commit explícito del código
+        "row_factory": dual_row,
+        "prepare_threshold": _PREPARE_THRESHOLD,
+    }
+
+
+def _require_url() -> None:
     if not DATABASE_URL:
         raise RuntimeError(
             "DATABASE_URL no está configurada. Copiá .env.example a backend/.env "
             "y cargá la connection string de Supabase."
         )
-    return psycopg.connect(
-        DATABASE_URL,
-        autocommit=False,
-        row_factory=dual_row,
-        prepare_threshold=_PREPARE_THRESHOLD,
-    )
+
+
+def get_pool():
+    """Pool perezoso (doble chequeo con lock).
+
+    Perezoso a propósito: crearlo en el import haría que importar backend.main
+    intentara conectar, y los tests importan el módulo con una DATABASE_URL falsa.
+    """
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _require_url()
+                from psycopg_pool import ConnectionPool
+
+                _pool = ConnectionPool(
+                    DATABASE_URL,
+                    min_size=POOL_MIN,
+                    max_size=POOL_MAX,
+                    timeout=POOL_TIMEOUT,
+                    kwargs=_connect_kwargs(),
+                    # PgBouncer y el propio Supabase cierran conexiones ociosas.
+                    # Sin este check, la primera request después de un rato de
+                    # calma se comería el error de una conexión ya muerta.
+                    check=ConnectionPool.check_connection,
+                    max_idle=float(os.getenv("PG_POOL_MAX_IDLE", "300")),
+                    name="humanpower",
+                    open=False,
+                )
+                _pool.open()
+                log.info("Pool de conexiones abierto (min=%s max=%s)", POOL_MIN, POOL_MAX)
+    return _pool
+
+
+class PooledConnection:
+    """Conexión prestada del pool, con la misma interfaz que una de psycopg.
+
+    Proxea todo a la conexión real, pero `close()` la DEVUELVE al pool en vez de
+    cerrarla, y el `with` replica la semántica de psycopg (commit al salir bien,
+    rollback si hubo excepción). Gracias a eso los call sites no cambian: siguen
+    haciendo `with get_conn() as con:` (auth.py, los seeds) o `.close()` en un
+    finally (get_db en main.py), y `main._get_conn` sigue siendo el punto que
+    monkeypatchean los tests.
+    """
+
+    def __init__(self, pool, conn):
+        self._pool = pool
+        self._conn = conn
+
+    def __getattr__(self, name):
+        # Sólo se llama si el atributo no está en la instancia: delega en la real.
+        conn = self.__dict__.get("_conn")
+        if conn is None:
+            raise RuntimeError("La conexión ya fue devuelta al pool")
+        return getattr(conn, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        conn = self._conn
+        if conn is not None:
+            try:
+                if exc_type is None:
+                    conn.commit()
+                else:
+                    conn.rollback()
+            finally:
+                self.close()
+        return False
+
+    def close(self) -> None:
+        """Devuelve la conexión al pool (idempotente).
+
+        Cierra la transacción ANTES de devolverla. putconn también la revertiría,
+        pero lo hace emitiendo un warning ("rolling back returned connection") y
+        con autocommit=False hasta un SELECT deja la conexión en transacción: sin
+        esto, cada request del backend loguearía esa línea. El rollback sólo se
+        manda si de verdad hay algo abierto, así una conexión ya limpia no paga
+        un viaje de ida y vuelta al pedo.
+
+        Descartar la transacción es exactamente lo que pasaba antes al cerrar una
+        conexión sin commitear, así que la semántica no cambia."""
+        conn, self._conn = self._conn, None
+        if conn is None:
+            return
+        try:
+            if conn.info.transaction_status != _TX_IDLE:
+                conn.rollback()
+        except Exception:
+            log.warning("No se pudo revertir la transacción al devolver la conexión.",
+                        exc_info=True)
+        self._pool.putconn(conn)
+
+
+def get_conn():
+    """Conexión a Postgres, del pool salvo que se lo deshabilite.
+
+    Devuelve un objeto con la misma interfaz de siempre, así que el resto del
+    backend no cambió: se usa con `with` o cerrándola en un finally.
+    """
+    if not USE_POOL:
+        _require_url()
+        return psycopg.connect(DATABASE_URL, **_connect_kwargs())
+    pool = get_pool()
+    return PooledConnection(pool, pool.getconn())
+
+
+def close_pool() -> None:
+    """Cierra el pool (shutdown de la app). Idempotente."""
+    global _pool
+    with _pool_lock:
+        if _pool is not None:
+            _pool.close()
+            _pool = None
+            log.info("Pool de conexiones cerrado.")
 
 
 # ── Inicialización del esquema ────────────────────────────────────────────────

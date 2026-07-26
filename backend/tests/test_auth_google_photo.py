@@ -41,6 +41,10 @@ def make_client(rec, *, idinfo, existing_user=None):
         "id": 42, "name": name, "last_name": last, "email": email, "role": "user",
     }
     auth.set_email_verified = lambda email: rec.__setitem__("verified", email)
+    # touch_last_login toca la DB y no es lo que se testea acá; sin stub, el
+    # endpoint intenta conectar de verdad (es best-effort, así que el fallo se
+    # traga, pero se paga la espera).
+    auth.touch_last_login = lambda uid: rec.__setitem__("last_login", uid)
     auth.set_profile_photo_url = lambda uid, url: rec.__setitem__("photo", (uid, url))
     return TestClient(app)
 
