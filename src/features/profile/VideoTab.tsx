@@ -113,6 +113,11 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
                   src={embed.src}
                   controls
                   playsInline
+                  // "metadata" y no "none" (como sí usa el panel admin): acá el
+                  // candidato viene a confirmar que su video quedó bien subido,
+                  // así que necesita ver el primer cuadro. Baja unos pocos KB en
+                  // vez de los ~2,8 MB completos.
+                  preload="metadata"
                   className="aspect-[3/4] w-full rounded-2xl bg-black object-cover ring-1 ring-white/10"
                 />
               ) : (

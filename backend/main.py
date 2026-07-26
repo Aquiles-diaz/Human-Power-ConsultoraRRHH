@@ -1531,7 +1531,17 @@ def serve_upload(key: str):
     return Response(
         content=data,
         media_type=_detect_mimetype(key, "image/jpeg"),
-        headers={"Cache-Control": "private, max-age=300"},
+        # Cache largo + immutable: la clave es un content-address, no un nombre
+        # estable. Cada subida genera "photo-<uuid nuevo>" y borra la anterior
+        # (ver upload_my_photo), así que una clave NUNCA cambia de contenido y
+        # cachearla un año es seguro: al cambiar la foto, el perfil apunta a otra
+        # clave y el navegador la pide igual.
+        # Antes eran 300s: con la grilla de candidatos (cientos de fotos) eso
+        # significaba re-bajar todo el listado desde Supabase Storage cada 5
+        # minutos, y el egress del plan Free se consume con eso más que con nada.
+        # Sigue `private` porque son fotos de personas: sólo cachea el navegador,
+        # nunca un proxy compartido.
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
 
 # ──────────────────────────────────────────────────────────────────────────────
