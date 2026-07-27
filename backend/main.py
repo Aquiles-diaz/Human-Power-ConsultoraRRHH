@@ -1,6 +1,6 @@
 # backend/main.py
 from __future__ import annotations
-from .db import get_conn as _get_conn, init_db
+from .db import get_conn as _get_conn, init_db, close_pool
 import html
 import json
 import logging
@@ -101,6 +101,12 @@ async def lifespan(app: FastAPI):
     else:
         log.info("RUN_INIT_DB!=1; salteo init_db() (esquema gestionado por migraciones).")
     yield
+    # Cierra el pool de conexiones al apagar (devuelve los sockets prolijamente
+    # en vez de dejar que Supabase los expire por timeout).
+    try:
+        close_pool()
+    except Exception:
+        log.warning("close_pool() falló en el apagado.", exc_info=True)
 
 app = FastAPI(
     title="HumanPower API",
@@ -242,6 +248,61 @@ class ResumeItem(BaseModel):
 
 class ListCvOut(BaseModel):
     items: list[ResumeItem]
+    # Campos aditivos: una respuesta sin ellos sigue siendo válida para el front
+    # que ya está desplegado. `total` es el conteo REAL (no el largo de la
+    # página); `has_more` avisa que quedaron filas afuera del tope.
+    total: Optional[int] = None
+    has_more: bool = False
+
+# ── Métricas del panel (dashboard "Resumen") ──
+# Espejan el tipo `AdminStats` de src/features/admin/admin-stats.ts para que el
+# front las consuma sin re-tipar. Antes se calculaban en el navegador a partir de
+# /admin/cv, que devuelve como mucho 500 filas: pasado ese tope los KPIs se
+# congelaban y el gráfico por mes perdía la cola, en silencio. Acá se agregan en
+# SQL, así que son exactos sin importar el volumen.
+class KpiPostulaciones(BaseModel):
+    value: int
+    deltaPct: Optional[int] = None
+
+class KpiCandidatos(BaseModel):
+    value: int
+    withCv: int
+    withoutCv: int
+
+class KpiPuestos(BaseModel):
+    value: int
+    drafts: int
+
+class StatsKpis(BaseModel):
+    postulaciones: KpiPostulaciones
+    candidatos: KpiCandidatos
+    puestosActivos: KpiPuestos
+    hoy: int
+
+class MonthBucket(BaseModel):
+    ym: str
+    label: str
+    count: int
+
+class AreaBucket(BaseModel):
+    area: str
+    count: int
+
+class TopJob(BaseModel):
+    jobId: str
+    title: str
+    count: int
+
+class SpontaneousVsLinked(BaseModel):
+    spontaneous: int
+    linked: int
+
+class AdminStatsOut(BaseModel):
+    kpis: StatsKpis
+    byMonth: list[MonthBucket]
+    byArea: list[AreaBucket]
+    topJobs: list[TopJob]
+    spontaneousVsLinked: SpontaneousVsLinked
 
 class ApplicationItem(BaseModel):
     id: int
@@ -257,6 +318,11 @@ class ApplicationsOut(BaseModel):
 
 # Estados de pipeline visibles (candidato + admin); reusado por el PATCH de la Task 3.
 _PIPELINE_STATUSES = {"received", "viewed", "in_process", "finished"}
+
+# Tope de filas por página en /admin/cv. Es el mismo 500 de antes, ahora explícito
+# y acompañado de `total`/`has_more`: el problema no era el tope en sí, era que
+# truncaba en silencio y sin forma de pedir el resto.
+MAX_CV_PAGE = 500
 
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
@@ -762,7 +828,15 @@ def _persist_resume(
                 RETURNING id
                 """,
                 (
-                    full_name.strip(), email.strip(), message or "", key, original,
+                    # .lower() como en auth.create_user: `users.email` se guarda
+                    # siempre en minúsculas, y varias queries cruzan las dos tablas
+                    # por igualdad EXACTA de email (/me/applications, el chequeo de
+                    # postulación duplicada en /apply, withdraw_my_application).
+                    # Un envío espontáneo por /cv con "Juan@Gmail.com" quedaba con
+                    # mayúsculas y esas queries no lo encontraban nunca: no aparecía
+                    # en "Mis postulaciones" ni se podía dar de baja. En el panel
+                    # admin sí se veía, porque ese JOIN usa LOWER() en ambos lados.
+                    full_name.strip(), email.strip().lower(), message or "", key, original,
                     mimetype, size, job_id, job_title,
                 ),
             )
@@ -983,11 +1057,65 @@ def download_cv(cv_id: int):
     return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
 
 @app.get("/admin/cv", response_model=ListCvOut, dependencies=[Depends(require_admin)], tags=["admin"])
-def list_cvs_admin() -> ListCvOut:
+def list_cvs_admin(
+    q: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    job_id: Optional[str] = None,
+    status: Optional[str] = None,
+    include_withdrawn: bool = True,
+    limit: int = MAX_CV_PAGE,
+    offset: int = 0,
+) -> ListCvOut:
+    """Listado de postulaciones para el panel.
+
+    TODOS los parámetros son opcionales: sin ninguno, la respuesta es la misma
+    que antes de que existiera el filtrado server-side (las 500 más recientes),
+    más dos campos aditivos. Eso mantiene andando al front ya desplegado.
+
+    El filtrado bajó a SQL porque el panel lo hacía en el navegador sobre las 500
+    filas ya descargadas: pasado ese volumen, buscar una postulación vieja no la
+    encontraba nunca — estaba en la base, pero era inalcanzable desde la UI.
+    """
+    limit = max(1, min(limit, MAX_CV_PAGE))
+    offset = max(0, offset)
+
+    where: list[str] = []
+    params: list = []
+    if q and q.strip():
+        # Los MISMOS campos que filtraba el cliente (AdminPanel.tsx). Si acá
+        # faltara alguno, el re-filtro del navegador descartaría en silencio
+        # filas que el server sí devolvió.
+        needle = f"%{_like_escape(q.strip().lower())}%"
+        where.append(
+            "(LOWER(r.full_name) LIKE %s OR LOWER(r.email) LIKE %s"
+            " OR LOWER(r.original_name) LIKE %s OR LOWER(COALESCE(r.message,'')) LIKE %s"
+            " OR LOWER(COALESCE(u.name,'') || ' ' || COALESCE(u.last_name,'')) LIKE %s)"
+        )
+        params += [needle] * 5
+    if date_from:
+        where.append("r.created_at >= %s")
+        params.append(date_from)
+    if date_to:
+        where.append("r.created_at <= %s")
+        params.append(date_to)
+    if job_id:
+        where.append("r.job_id = %s")
+        params.append(job_id)
+    if status:
+        if status not in _PIPELINE_STATUSES:
+            raise HTTPException(status_code=400, detail="Estado inválido")
+        where.append("r.status = %s")
+        params.append(status)
+    if not include_withdrawn:
+        where.append("r.withdrawn_at IS NULL")
+
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
-            """
+            f"""
             SELECT r.id, r.full_name, r.email, r.original_name, COALESCE(r.message, '') AS message,
                    r.created_at, r.job_id, r.job_title, j.category AS job_category, r.withdrawn_at,
                    p.video_filename, p.video_url, r.status,
@@ -1000,9 +1128,11 @@ def list_cvs_admin() -> ListCvOut:
             LEFT JOIN jobs j ON j.id = r.job_id
             LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
             LEFT JOIN profiles p ON p.user_id = u.id
+            {where_sql}
             ORDER BY r.id DESC
-            LIMIT 500
-            """
+            LIMIT %s OFFSET %s
+            """,
+            (*params, limit, offset),
         )
         rows = [
             ResumeItem(
@@ -1039,7 +1169,184 @@ def list_cvs_admin() -> ListCvOut:
             )
             for r in cur.fetchall()
         ]
-    return ListCvOut(items=rows)
+
+        # `total` sin segunda query cuando el resultado NO está truncado: si
+        # volvieron menos filas que el tope, ya las vimos todas y el conteo es
+        # exacto. Sólo se paga el COUNT(*) cuando de verdad quedó algo afuera.
+        # (Además de ahorrar una consulta, esto evita emitir un COUNT en el caso
+        # habitual, que es el 100% de los listados de hoy.)
+        if len(rows) < limit:
+            total = offset + len(rows)
+        else:
+            cur.execute(
+                f"""
+                SELECT count(*)
+                  FROM resumes r
+                  LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
+                {where_sql}
+                """,
+                tuple(params),
+            )
+            total = cur.fetchone()[0]
+
+    return ListCvOut(items=rows, total=total, has_more=offset + len(rows) < total)
+
+# Meses abreviados en español para las etiquetas del gráfico. La app es
+# monolingüe, así que la etiqueta sale del server y el front es un consumidor
+# tonto (antes las armaba `lastTwelveMonths` en admin-stats.ts).
+_MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+# Zona por defecto para agrupar por mes. Los buckets de `byMonth` son calendario
+# (no instantes), así que necesitan una zona explícita: agrupar en UTC corre las
+# postulaciones de las últimas 3 h de cada mes al mes siguiente.
+_DEFAULT_TZ = "America/Argentina/Buenos_Aires"
+
+@app.get("/admin/stats", response_model=AdminStatsOut,
+         dependencies=[Depends(require_admin)], tags=["admin"])
+def get_admin_stats(
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    tz: str = _DEFAULT_TZ,
+) -> AdminStatsOut:
+    """Métricas del dashboard, agregadas en Postgres.
+
+    `date_from`/`date_to` son INSTANTES ISO (el cliente resuelve el rango en su
+    zona y manda UTC): así no hay que negociar zona horaria para los rangos, sólo
+    para los buckets de `byMonth`, que sí son calendario.
+
+    Semántica preservada 1:1 de la que tenía computeStats() en el navegador para
+    no mover números que el equipo ya venía mirando:
+      * Las postulaciones RETIRADAS se cuentan (no se filtra withdrawn_at).
+      * `candidatos`, `puestosActivos`, `hoy`, `byMonth` y `byArea` IGNORAN el
+        rango; sólo `postulaciones`, `deltaPct`, `topJobs` y
+        `spontaneousVsLinked` lo respetan.
+    """
+    # Ventana anterior de igual duración, para el delta %. Igual que el cliente:
+    # sin rango completo (o rango "todo") no hay comparación posible.
+    prev_from = prev_to = None
+    if date_from and date_to:
+        dur = date_to - date_from
+        prev_from, prev_to = date_from - dur, date_from
+
+    with get_db() as conn:
+        cur = conn.cursor()
+
+        # 1) Escalares sobre resumes, en una sola pasada con FILTER.
+        cur.execute(
+            """
+            SELECT
+              count(*) FILTER (WHERE (%(f)s::timestamptz IS NULL OR created_at >= %(f)s)
+                                 AND (%(t)s::timestamptz IS NULL OR created_at <= %(t)s)) AS in_range,
+              count(*) FILTER (WHERE %(pf)s::timestamptz IS NOT NULL
+                                 AND created_at >= %(pf)s AND created_at < %(pt)s)        AS prev,
+              count(*) FILTER (WHERE created_at >= date_trunc('day', now() AT TIME ZONE %(tz)s)
+                                                   AT TIME ZONE %(tz)s)                   AS hoy,
+              count(*) FILTER (WHERE job_id IS NOT NULL
+                                 AND (%(f)s::timestamptz IS NULL OR created_at >= %(f)s)
+                                 AND (%(t)s::timestamptz IS NULL OR created_at <= %(t)s)) AS linked
+            FROM resumes
+            """,
+            {"f": date_from, "t": date_to, "pf": prev_from, "pt": prev_to, "tz": tz},
+        )
+        r = cur.fetchone()
+        in_range, prev, hoy, linked = r[0], r[1], r[2], r[3]
+
+        # 2) Últimos 12 meses (incluido el actual), con los meses sin
+        #    postulaciones en cero: el gráfico necesita la serie completa.
+        cur.execute(
+            """
+            WITH meses AS (
+              SELECT to_char(gs, 'YYYY-MM') AS ym, EXTRACT(MONTH FROM gs)::int AS mes
+                FROM generate_series(
+                       date_trunc('month', now() AT TIME ZONE %(tz)s) - interval '11 months',
+                       date_trunc('month', now() AT TIME ZONE %(tz)s),
+                       interval '1 month') AS gs
+            )
+            SELECT m.ym, m.mes, count(r.id) AS total
+              FROM meses m
+              LEFT JOIN resumes r
+                ON to_char(r.created_at AT TIME ZONE %(tz)s, 'YYYY-MM') = m.ym
+             GROUP BY m.ym, m.mes
+             ORDER BY m.ym
+            """,
+            {"tz": tz},
+        )
+        by_month = [
+            MonthBucket(ym=row[0], label=_MESES[row[1] - 1], count=row[2])
+            for row in cur.fetchall()
+        ]
+
+        # 3) Top 7 puestos DENTRO del rango.
+        cur.execute(
+            """
+            SELECT job_id,
+                   COALESCE(max(job_title), job_id) AS title,
+                   count(*) AS total
+              FROM resumes
+             WHERE job_id IS NOT NULL
+               AND (%(f)s::timestamptz IS NULL OR created_at >= %(f)s)
+               AND (%(t)s::timestamptz IS NULL OR created_at <= %(t)s)
+             GROUP BY job_id
+             ORDER BY total DESC, job_id
+             LIMIT 7
+            """,
+            {"f": date_from, "t": date_to},
+        )
+        top_jobs = [TopJob(jobId=row[0], title=row[1], count=row[2]) for row in cur.fetchall()]
+
+        # 4) Candidatos (excluye admins, igual que /admin/candidates).
+        cur.execute(
+            """
+            SELECT count(*) AS total,
+                   count(*) FILTER (WHERE p.cv_filename IS NOT NULL) AS with_cv
+              FROM users u
+              LEFT JOIN profiles p ON p.user_id = u.id
+             WHERE u.role != 'admin'
+            """
+        )
+        row = cur.fetchone()
+        cand_total, cand_with_cv = row[0], row[1]
+
+        # 5) Distribución por área. El cliente agrupaba con `(area||'').trim() ||
+        #    'Sin área'`, así que acá también un área vacía cuenta como "Sin área".
+        cur.execute(
+            """
+            SELECT COALESCE(NULLIF(btrim(p.professional_area), ''), 'Sin área') AS area,
+                   count(*) AS total
+              FROM users u
+              LEFT JOIN profiles p ON p.user_id = u.id
+             WHERE u.role != 'admin'
+             GROUP BY 1
+             ORDER BY total DESC, area
+            """
+        )
+        by_area = [AreaBucket(area=row[0], count=row[1]) for row in cur.fetchall()]
+
+        # 6) Puestos publicados vs borradores.
+        cur.execute(
+            "SELECT count(*) AS total, count(*) FILTER (WHERE is_published) AS pub FROM jobs"
+        )
+        row = cur.fetchone()
+        jobs_total, jobs_pub = row[0], row[1]
+
+    # Mismo criterio que el cliente: sin período previo con datos, no hay delta
+    # (un "+100%" contra cero no dice nada).
+    delta = None if not prev else round(((in_range - prev) / prev) * 100)
+
+    return AdminStatsOut(
+        kpis=StatsKpis(
+            postulaciones=KpiPostulaciones(value=in_range, deltaPct=delta),
+            candidatos=KpiCandidatos(
+                value=cand_total, withCv=cand_with_cv, withoutCv=cand_total - cand_with_cv
+            ),
+            puestosActivos=KpiPuestos(value=jobs_pub, drafts=jobs_total - jobs_pub),
+            hoy=hoy,
+        ),
+        byMonth=by_month,
+        byArea=by_area,
+        topJobs=top_jobs,
+        spontaneousVsLinked=SpontaneousVsLinked(spontaneous=in_range - linked, linked=linked),
+    )
 
 class CvStatusUpdate(BaseModel):
     status: str
@@ -1531,7 +1838,17 @@ def serve_upload(key: str):
     return Response(
         content=data,
         media_type=_detect_mimetype(key, "image/jpeg"),
-        headers={"Cache-Control": "private, max-age=300"},
+        # Cache largo + immutable: la clave es un content-address, no un nombre
+        # estable. Cada subida genera "photo-<uuid nuevo>" y borra la anterior
+        # (ver upload_my_photo), así que una clave NUNCA cambia de contenido y
+        # cachearla un año es seguro: al cambiar la foto, el perfil apunta a otra
+        # clave y el navegador la pide igual.
+        # Antes eran 300s: con la grilla de candidatos (cientos de fotos) eso
+        # significaba re-bajar todo el listado desde Supabase Storage cada 5
+        # minutos, y el egress del plan Free se consume con eso más que con nada.
+        # Sigue `private` porque son fotos de personas: sólo cachea el navegador,
+        # nunca un proxy compartido.
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
 
 # ──────────────────────────────────────────────────────────────────────────────

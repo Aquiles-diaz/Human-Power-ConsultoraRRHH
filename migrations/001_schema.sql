@@ -139,3 +139,39 @@ BEGIN
       FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL;
   END IF;
 END $$;
+
+-- ── Normalización de emails en `resumes` ───────────────────────────────────
+-- `users.email` se guarda siempre en minúsculas (auth.create_user), pero los
+-- envíos espontáneos por /cv guardaban el email tal cual lo tipeó el visitante.
+-- Como /me/applications, el chequeo de duplicados de /apply y la baja de una
+-- postulación cruzan las tablas por igualdad EXACTA, una fila con mayúsculas
+-- quedaba invisible para su propio dueño. El INSERT ya normaliza (ver
+-- _persist_resume); esto arregla las filas históricas. Idempotente.
+-- OJO: `uq_resumes_active_application` es UNIQUE sobre (email, job_id) para las
+-- activas con puesto. Un UPDATE ciego a LOWER() puede chocar contra él y abortar
+-- la migración entera. Por eso sólo se normalizan las filas que NO pueden
+-- colisionar: las espontáneas (job_id NULL) y las dadas de baja quedan fuera del
+-- índice parcial, y las activas con puesto se tocan sólo si no existe ya otra
+-- fila activa del mismo puesto con ese email en minúsculas.
+UPDATE resumes SET email = LOWER(email)
+ WHERE email <> LOWER(email)
+   AND (
+        job_id IS NULL
+     OR withdrawn_at IS NOT NULL
+     OR NOT EXISTS (
+          SELECT 1 FROM resumes o
+           WHERE o.id <> resumes.id
+             AND LOWER(o.email) = LOWER(resumes.email)
+             AND o.job_id = resumes.job_id
+             AND o.withdrawn_at IS NULL
+        )
+   );
+
+-- ── Índices funcionales sobre LOWER(email) ────────────────────────────────
+-- El listado del panel (/admin/cv) cruza las dos tablas con
+-- `LOWER(u.email) = LOWER(r.email)`. `idx_users_email` es sobre la columna
+-- cruda, así que Postgres NO puede usarlo para esa expresión y termina
+-- materializando la tabla entera. Estos índices son sobre la expresión, que es
+-- lo que la query realmente compara.
+CREATE INDEX IF NOT EXISTS idx_users_email_lower   ON users   (LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_resumes_email_lower ON resumes (LOWER(email));

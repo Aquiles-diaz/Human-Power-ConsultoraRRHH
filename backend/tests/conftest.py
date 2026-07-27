@@ -15,6 +15,12 @@ import os
 os.environ.setdefault("SECRET_KEY", "x" * 40)
 os.environ.setdefault("DATABASE_URL", "postgresql://noop/noop")
 os.environ.setdefault("RUN_INIT_DB", "0")
+# Sin pool en los tests: la DATABASE_URL de acá es falsa a propósito y el pool,
+# ante una URL que no conecta, espera su timeout completo antes de rendirse (la
+# suite pasó de 1,5 s a 76 s al introducirlo). Con conexión directa el fallo es
+# inmediato, que es lo que los tests esperan: o monkeypatchean _get_conn, o el
+# camino que tocan es best-effort y se traga el error.
+os.environ.setdefault("PG_USE_POOL", "0")
 os.environ.setdefault("VIDEO_SUPABASE_URL", "https://vid.example.co")
 os.environ.setdefault("VIDEO_SUPABASE_SERVICE_KEY", "k")
 os.environ.setdefault("VIDEO_BUCKET", "videos")

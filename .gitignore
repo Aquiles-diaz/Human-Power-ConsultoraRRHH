@@ -34,6 +34,11 @@ uploads/
 .env.*
 !.env.example
 backend/.env
+# El virtualenv vive en la raíz: los scripts de package.json (npm run backend,
+# npm run test:api) invocan .venv/bin/python. Se ignoran también las variantes
+# dentro de backend/ por si alguien lo crea ahí.
+.venv/
+venv/
 backend/.venv/
 backend/venv/
 # Backend

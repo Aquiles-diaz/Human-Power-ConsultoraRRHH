@@ -28,7 +28,12 @@ export default function VideoPreview({ message, url }: { message?: string; url?:
   if (v.type === "file") {
     return (
       <div className="aspect-video rounded-2xl overflow-hidden border bg-black">
-        <video src={v.src} controls className="h-full w-full object-contain" />
+        {/* preload="none": el video del candidato pesa ~2,8 MB y vive en un bucket
+            de Supabase cuyo egress es el recurso escaso. Sin este atributo el
+            navegador empieza a bufferearlo apenas se abre el modal, aunque nadie
+            le dé play — y el equipo abre muchas fichas para leer el perfil sin
+            mirar el video. Así los bytes salen sólo cuando lo reproducen. */}
+        <video src={v.src} controls preload="none" className="h-full w-full object-contain" />
       </div>
     );
   }
