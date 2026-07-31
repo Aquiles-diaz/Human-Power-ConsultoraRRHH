@@ -7,6 +7,7 @@ tiene precedencia al construir photo_url. Corre con:
 
     PYTHONPATH=. .venv/bin/python backend/tests/test_auth_google_photo.py
 """
+import contextlib
 import os
 
 os.environ.setdefault("SECRET_KEY", "x" * 40)
@@ -27,6 +28,29 @@ from backend.ratelimit import limiter
 limiter.enabled = False  # sin rate limit en tests
 
 PICTURE = "https://lh3.googleusercontent.com/a/abc123=s96-c"
+
+# make_client pisa funciones de `auth` a nivel de módulo y pytest corre todos
+# los archivos en el mismo proceso: sin restaurarlas, el siguiente archivo
+# (orden alfabético) hereda los fakes y testea contra ellos en vez de contra el
+# código real. No se usa el monkeypatch de pytest porque estos tests también
+# corren standalone.
+_PARCHEADAS = (
+    "get_user_by_email",
+    "create_user",
+    "set_email_verified",
+    "set_profile_photo_url",
+    "touch_last_login",
+)
+
+
+@contextlib.contextmanager
+def _auth_intacto():
+    originales = {n: getattr(auth, n) for n in _PARCHEADAS}
+    try:
+        yield
+    finally:
+        for nombre, original in originales.items():
+            setattr(auth, nombre, original)
 
 
 def make_client(rec, *, idinfo, existing_user=None):
@@ -54,37 +78,26 @@ def post(client):
 
 
 def test_new_user_with_picture_stores_photo():
-    # make_client parchea auth.create_user (y compañía) a nivel de módulo sin
-    # restaurar: sin este try/finally, un test que corra después en el mismo
-    # proceso (orden alfabético de archivos) hereda este fake y create_user
-    # real nunca se llama.
-    original_create_user = auth.create_user
-    try:
+    with _auth_intacto():
         rec = {}
         idinfo = {"email": "g@test.com", "given_name": "Gina", "family_name": "Gómez",
                   "email_verified": True, "picture": PICTURE}
         r = post(make_client(rec, idinfo=idinfo))
         assert r.status_code == 200, (r.status_code, r.text)
         assert rec.get("photo") == (42, PICTURE), rec
-    finally:
-        auth.create_user = original_create_user
 
 
 def test_new_user_without_picture_does_not_store_photo():
-    original_create_user = auth.create_user
-    try:
+    with _auth_intacto():
         rec = {}
         idinfo = {"email": "g@test.com", "given_name": "Gina", "email_verified": True}
         r = post(make_client(rec, idinfo=idinfo))
         assert r.status_code == 200, (r.status_code, r.text)
         assert "photo" not in rec, "sin picture no debe tocar la foto"
-    finally:
-        auth.create_user = original_create_user
 
 
 def test_existing_user_does_not_overwrite_photo():
-    original_create_user = auth.create_user
-    try:
+    with _auth_intacto():
         rec = {}
         existing = {"id": 7, "email": "g@test.com", "name": "G", "last_name": "",
                     "password_hash": "x", "role": "user", "email_verified": True}
@@ -92,8 +105,6 @@ def test_existing_user_does_not_overwrite_photo():
         r = post(make_client(rec, idinfo=idinfo, existing_user=existing))
         assert r.status_code == 200, (r.status_code, r.text)
         assert "photo" not in rec, "un usuario existente no debe pisar su foto con la de Google"
-    finally:
-        auth.create_user = original_create_user
 
 
 def test_profile_out_uses_external_photo_when_no_upload():

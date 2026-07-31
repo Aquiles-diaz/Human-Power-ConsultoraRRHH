@@ -1,4 +1,5 @@
 import { GoogleLogin } from "@react-oauth/google";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
 import { getErrorMessage } from "@/lib/utils";
@@ -17,6 +18,30 @@ export default function GoogleAuthButton() {
         o
         <span className="h-px flex-1 bg-white/10" />
       </div>
+      {/* El alta con Google no lleva checkbox: es el camino más rápido del
+          sitio y no se le agrega fricción. El consentimiento se apoya en que
+          las condiciones estén a la vista ANTES de tocar el botón, porque
+          create_user sella terms_accepted_at también por este camino.
+          Vive acá adentro (y no en cada callsite) para que no se pueda
+          olvidar al sumar una pantalla nueva con login de Google.
+          Los links heredan el color del párrafo (currentColor): así una sola
+          regla sobre [data-legal-notice] re-tematiza el aviso entero en
+          superficies oscuras (ver AuthPage). */}
+      <p
+        data-legal-notice
+        className="mb-3 text-center text-[12px] leading-relaxed text-muted-foreground"
+      >
+        Al continuar con Google aceptás la{" "}
+        <Link to="/privacidad" target="_blank" className="font-medium underline underline-offset-2">
+          Política de Privacidad
+        </Link>{" "}
+        y los{" "}
+        <Link to="/terminos" target="_blank" className="font-medium underline underline-offset-2">
+          Términos y Condiciones
+        </Link>
+        .
+      </p>
+
       <div className="flex justify-center">
         <GoogleLogin
           onSuccess={async (resp) => {
