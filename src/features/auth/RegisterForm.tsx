@@ -1,4 +1,5 @@
 import React, { FormEvent, ChangeEvent, useState } from "react";
+import { Link } from "react-router-dom";
 import { User, Mail, Lock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AuthField from "./AuthField";
@@ -28,6 +29,7 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
   // Mensaje inline bajo "Repetir contraseña": aparece cuando el campo pierde
   // foco y no coincide, y se limpia solo (en cada tecleo) apenas coincide.
   const [confirmMismatch, setConfirmMismatch] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
   const passwordsMismatch = (pwd: string, confirm: string) => confirm.length > 0 && pwd !== confirm;
 
@@ -143,6 +145,28 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
         )}
       </div>
 
+      {/* Consentimiento explícito: el portal recibe CV, foto, video y datos de
+          contacto. Sin esto no hay base legal para tratarlos. */}
+      <label className="flex items-start gap-2.5 text-[13px] leading-relaxed text-slate-600">
+        <input
+          type="checkbox"
+          checked={aceptaTerminos}
+          onChange={(e) => setAceptaTerminos(e.currentTarget.checked)}
+          className="mt-0.5 size-4 shrink-0 rounded border-slate-300 accent-amber-500"
+        />
+        <span>
+          Acepto la{" "}
+          <Link to="/privacidad" target="_blank" className="font-medium text-slate-900 underline underline-offset-2">
+            Política de Privacidad
+          </Link>{" "}
+          y los{" "}
+          <Link to="/terminos" target="_blank" className="font-medium text-slate-900 underline underline-offset-2">
+            Términos y Condiciones
+          </Link>
+          .
+        </span>
+      </label>
+
       {shownError && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -153,7 +177,7 @@ export default function RegisterForm({ onSubmit, loading, error }: RegisterFormP
       <Button
         type="submit"
         variant="brand"
-        disabled={loading}
+        disabled={loading || !aceptaTerminos}
         className="h-11 w-full rounded-xl text-base"
       >
         {loading ? "Creando cuenta…" : "Crear cuenta"}

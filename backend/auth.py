@@ -134,10 +134,14 @@ def create_user(name: str, last_name: str, email: str, password: str) -> dict:
     with get_conn() as con:
         cur = con.cursor()
         # RETURNING reemplaza a cur.lastrowid (no aplica con IDENTITY en Postgres).
+        # terms_accepted_at se sella con now(): el front nunca manda un flag de
+        # aceptación porque llegar acá ya implica que el checkbox estaba
+        # tildado (si no, el botón de alta queda deshabilitado). Confiar en el
+        # reloj del servidor es más seguro que confiar en un booleano del cliente.
         cur.execute(
             """
-            INSERT INTO users (name, last_name, email, password_hash)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO users (name, last_name, email, password_hash, terms_accepted_at)
+            VALUES (%s, %s, %s, %s, now())
             RETURNING id, name, last_name, email, role
             """,
             (name.strip(), (last_name or "").strip(), email.strip().lower(), hashed_password),

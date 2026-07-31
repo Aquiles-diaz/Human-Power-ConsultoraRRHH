@@ -54,30 +54,46 @@ def post(client):
 
 
 def test_new_user_with_picture_stores_photo():
-    rec = {}
-    idinfo = {"email": "g@test.com", "given_name": "Gina", "family_name": "Gómez",
-              "email_verified": True, "picture": PICTURE}
-    r = post(make_client(rec, idinfo=idinfo))
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert rec.get("photo") == (42, PICTURE), rec
+    # make_client parchea auth.create_user (y compañía) a nivel de módulo sin
+    # restaurar: sin este try/finally, un test que corra después en el mismo
+    # proceso (orden alfabético de archivos) hereda este fake y create_user
+    # real nunca se llama.
+    original_create_user = auth.create_user
+    try:
+        rec = {}
+        idinfo = {"email": "g@test.com", "given_name": "Gina", "family_name": "Gómez",
+                  "email_verified": True, "picture": PICTURE}
+        r = post(make_client(rec, idinfo=idinfo))
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert rec.get("photo") == (42, PICTURE), rec
+    finally:
+        auth.create_user = original_create_user
 
 
 def test_new_user_without_picture_does_not_store_photo():
-    rec = {}
-    idinfo = {"email": "g@test.com", "given_name": "Gina", "email_verified": True}
-    r = post(make_client(rec, idinfo=idinfo))
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert "photo" not in rec, "sin picture no debe tocar la foto"
+    original_create_user = auth.create_user
+    try:
+        rec = {}
+        idinfo = {"email": "g@test.com", "given_name": "Gina", "email_verified": True}
+        r = post(make_client(rec, idinfo=idinfo))
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert "photo" not in rec, "sin picture no debe tocar la foto"
+    finally:
+        auth.create_user = original_create_user
 
 
 def test_existing_user_does_not_overwrite_photo():
-    rec = {}
-    existing = {"id": 7, "email": "g@test.com", "name": "G", "last_name": "",
-                "password_hash": "x", "role": "user", "email_verified": True}
-    idinfo = {"email": "g@test.com", "picture": PICTURE, "email_verified": True}
-    r = post(make_client(rec, idinfo=idinfo, existing_user=existing))
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert "photo" not in rec, "un usuario existente no debe pisar su foto con la de Google"
+    original_create_user = auth.create_user
+    try:
+        rec = {}
+        existing = {"id": 7, "email": "g@test.com", "name": "G", "last_name": "",
+                    "password_hash": "x", "role": "user", "email_verified": True}
+        idinfo = {"email": "g@test.com", "picture": PICTURE, "email_verified": True}
+        r = post(make_client(rec, idinfo=idinfo, existing_user=existing))
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert "photo" not in rec, "un usuario existente no debe pisar su foto con la de Google"
+    finally:
+        auth.create_user = original_create_user
 
 
 def test_profile_out_uses_external_photo_when_no_upload():

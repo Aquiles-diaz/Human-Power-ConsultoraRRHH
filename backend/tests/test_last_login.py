@@ -69,20 +69,35 @@ def _google_client(idinfo, existing_user, touched):
 
 
 def test_google_existing_user_touches():
-    touched = []
-    client = _google_client(
-        {"email": "u@x.com", "email_verified": True}, _fake_user("u@x.com"), touched
-    )
-    r = client.post("/auth/google", json={"credential": "fake"})
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert touched == [7]
+    # get_user_by_email y create_user quedan parcheados a nivel de módulo: sin
+    # restaurarlos, un test que corra después en el mismo proceso (orden
+    # alfabético de archivos) hereda el fake y create_user real nunca se llama.
+    original_get_user = auth.get_user_by_email
+    original_create_user = auth.create_user
+    try:
+        touched = []
+        client = _google_client(
+            {"email": "u@x.com", "email_verified": True}, _fake_user("u@x.com"), touched
+        )
+        r = client.post("/auth/google", json={"credential": "fake"})
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert touched == [7]
+    finally:
+        auth.get_user_by_email = original_get_user
+        auth.create_user = original_create_user
 
 
 def test_google_new_user_touches():
-    touched = []
-    client = _google_client(
-        {"email": "new@x.com", "email_verified": True, "given_name": "New"}, None, touched
-    )
-    r = client.post("/auth/google", json={"credential": "fake"})
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert touched == [33]
+    original_get_user = auth.get_user_by_email
+    original_create_user = auth.create_user
+    try:
+        touched = []
+        client = _google_client(
+            {"email": "new@x.com", "email_verified": True, "given_name": "New"}, None, touched
+        )
+        r = client.post("/auth/google", json={"credential": "fake"})
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert touched == [33]
+    finally:
+        auth.get_user_by_email = original_get_user
+        auth.create_user = original_create_user
