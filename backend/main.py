@@ -239,6 +239,7 @@ class ResumeItem(BaseModel):
     province: Optional[str] = None
     country: Optional[str] = None
     professional_area: Optional[str] = None
+    academic_title: Optional[str] = None
     education_level: Optional[str] = None
     experience_years: Optional[str] = None
     availability: Optional[str] = None
@@ -328,7 +329,7 @@ MAX_CV_PAGE = 500
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
-    "professional_area", "education_level", "experience_years",
+    "professional_area", "academic_title", "education_level", "experience_years",
     "availability", "salary_expectation", "headline", "video_url",
 ]
 
@@ -383,6 +384,7 @@ class ProfileOut(BaseModel):
     province: Optional[str] = None
     country: Optional[str] = None
     professional_area: Optional[str] = None
+    academic_title: Optional[str] = None
     education_level: Optional[str] = None
     languages: list[str] = Field(default_factory=list)
     experience_years: Optional[str] = None
@@ -402,6 +404,7 @@ class CandidateListItem(BaseModel):
     email: str
     headline: Optional[str] = None
     professional_area: Optional[str] = None
+    academic_title: Optional[str] = None
     education_level: Optional[str] = None
     experience_years: Optional[str] = None
     city: Optional[str] = None
@@ -1174,7 +1177,7 @@ def list_cvs_admin(
                    p.video_filename, p.video_url, r.status,
                    u.id AS user_id, u.name, u.last_name,
                    p.phone, p.age_range, p.city, p.province, p.country,
-                   p.professional_area, p.education_level, p.experience_years,
+                   p.professional_area, p.academic_title, p.education_level, p.experience_years,
                    p.availability, p.salary_expectation, p.languages, p.headline,
                    p.photo_filename, p.external_photo_url
             FROM resumes r
@@ -1211,6 +1214,7 @@ def list_cvs_admin(
                 province=r["province"],
                 country=r["country"],
                 professional_area=r["professional_area"],
+                academic_title=r["academic_title"],
                 education_level=r["education_level"],
                 experience_years=r["experience_years"],
                 availability=r["availability"],
@@ -1922,7 +1926,7 @@ def list_candidates(
     sql = """
         SELECT u.id, u.name, u.last_name, u.email,
                u.created_at, u.last_login_at,
-               p.headline, p.professional_area, p.education_level,
+               p.headline, p.professional_area, p.academic_title, p.education_level,
                p.experience_years, p.city, p.photo_filename, p.external_photo_url,
                p.cv_filename, p.video_filename, p.video_url
         FROM users u
@@ -1952,7 +1956,8 @@ def list_candidates(
         CandidateListItem(
             user_id=r["id"], name=r["name"], last_name=r["last_name"], email=r["email"],
             headline=r["headline"], professional_area=r["professional_area"],
-            education_level=r["education_level"], experience_years=r["experience_years"],
+            academic_title=r["academic_title"], education_level=r["education_level"],
+            experience_years=r["experience_years"],
             city=r["city"], photo_url=_photo_url(r["photo_filename"]) or r["external_photo_url"],
             has_cv=bool(r["cv_filename"]),
             has_video=bool(r["video_filename"]) or bool(r["video_url"]),
