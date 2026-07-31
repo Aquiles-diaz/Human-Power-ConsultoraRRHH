@@ -96,7 +96,7 @@ def make_client(state, executed):
     conn = FakeConn(state, executed)
     main._get_conn = lambda: conn
     # No tocar Storage real: la descarga se stubea a una Response mínima.
-    main._serve_private_file = lambda bucket, key, download_name: {"ok": True}
+    main._serve_private_file = lambda bucket, key, download_name, request=None: {"ok": True}
     return TestClient(main.app), conn
 
 

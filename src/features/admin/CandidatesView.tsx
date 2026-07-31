@@ -287,6 +287,11 @@ export default function CandidatesView() {
                     alt={`Foto de ${c.name} ${c.last_name ?? ""}`}
                     width={56}
                     height={56}
+                    // La grilla lista TODOS los candidatos sin paginar: sin lazy el
+                    // navegador baja las 164 fotos aunque en pantalla entren 10, y
+                    // ese egress es el que se agota en el plan Free de Supabase.
+                    loading="lazy"
+                    decoding="async"
                     className="size-14 rounded-full object-cover"
                   />
                 ) : (
