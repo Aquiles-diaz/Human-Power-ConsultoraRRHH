@@ -49,7 +49,7 @@ export default function FaqWidget() {
           initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="fixed bottom-24 right-4 z-50 flex h-[70vh] max-h-[560px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:right-6"
+          className="fixed bottom-[calc(6rem+var(--hp-notice-h))] right-4 z-50 flex h-[70vh] max-h-[min(560px,calc(100vh-var(--hp-notice-h)-7rem))] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:right-6"
         >
           <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export default function FaqWidget() {
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Cerrar ayuda" : "Abrir ayuda"}
         aria-expanded={open}
-        className="fixed bottom-4 right-4 z-50 size-14 rounded-full p-0 shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/50 sm:right-6"
+        className="fixed bottom-[calc(1rem+var(--hp-notice-h))] right-4 z-50 size-14 rounded-full p-0 shadow-lg shadow-amber-500/30 transition-[bottom] hover:shadow-xl hover:shadow-amber-500/50 sm:right-6"
       >
         {open ? <X className="size-6" /> : <MessageCircle className="size-6" />}
       </Button>

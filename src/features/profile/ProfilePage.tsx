@@ -610,8 +610,12 @@ export default function ProfilePage() {
                 </Row>
               </div>
 
-              {/* ── Barra fija de guardado ── */}
-              <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+              {/* ── Barra fija de guardado ──
+                  El `bottom` sale de --hp-notice-h: mientras está el aviso de
+                  almacenamiento (que también es una barra a ancho completo en
+                  bottom-0, y va por encima porque es z-50 contra z-30) esta se
+                  corre hacia arriba. Si no, "Guardar cambios" queda tapado. */}
+              <div className="fixed inset-x-0 bottom-[var(--hp-notice-h)] z-30 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
                 <div className="mx-auto flex max-w-4xl items-center justify-end gap-3 px-4 py-3 sm:px-6">
                   <span className="mr-auto hidden text-[13px] text-slate-500 sm:block">
                     Los cambios se guardan solo al presionar Guardar.
