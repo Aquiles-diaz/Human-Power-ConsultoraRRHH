@@ -49,7 +49,7 @@ export const PRIVACIDAD: LegalDoc = {
     {
       titulo: "Dónde se guardan",
       parrafos: [
-        "Los datos se almacenan en servidores de Supabase (Estados Unidos) y el sitio se sirve a través de Vercel. Eso implica una transferencia internacional de datos, que aceptás al usar el portal.",
+        "Los datos se almacenan en servidores de Supabase ubicados en Estados Unidos y Canadá, y el sitio se sirve a través de Vercel. Eso implica una transferencia internacional de datos, que aceptás al usar el portal.",
       ],
     },
     {
