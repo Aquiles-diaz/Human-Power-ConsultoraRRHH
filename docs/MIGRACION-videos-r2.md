@@ -1,8 +1,16 @@
 # Migración de los videos a Cloudflare R2
 
-> **Estado: documentado, sin ejecutar.** El código actual sigue usando el 2º
-> proyecto Supabase (`humanpower-videos`). Este documento es el plan completo
-> para cuando decidamos hacer el cambio. Nada de acá está aplicado todavía.
+> **Estado: documentado, sin ejecutar, y YA NO ES URGENTE.** El código actual
+> sigue usando el 2º proyecto Supabase (`humanpower-videos`). Este documento es
+> el plan completo para cuando decidamos hacer el cambio.
+>
+> **Corrección del 31/07/2026:** medido en el dashboard, los videos gastaron
+> **0,545 GB** en el ciclo de julio. El 237% de cached egress de la organización
+> (11,87 GB) venía del proyecto **principal**: las fotos de perfil se guardaban
+> crudas (140 MB en total) y la grilla de Candidatos las lista todas, así que una
+> sola carga bajaba los 140 MB. Se arregló achicándolas a WebP de 512 px
+> (`_shrink_image` + `scripts/shrink-photos.py`): 140 MB → 2,1 MB. La sección
+> "Por qué" de abajo apuntaba al culpable equivocado.
 
 ---
 
