@@ -2,6 +2,7 @@
 from __future__ import annotations
 from .db import get_conn as _get_conn, init_db, close_pool
 import html
+import io
 import json
 import logging
 import mimetypes
@@ -525,6 +526,44 @@ def _sniff_ok(data: bytes, kind: str) -> bool:
         )
     return False
 
+# Las fotos de perfil se usan como avatar: 56 px en la grilla de Candidatos y 88
+# px en el detalle. Guardarlas como salen del celular (hasta 5 MB) hacía que UNA
+# carga de la grilla bajara ~140 MB del bucket, que fue lo que reventó la cuota
+# de egress del plan Free. 512 px cubre pantallas retina con margen.
+PHOTO_MAX_PX = 512
+PHOTO_WEBP_QUALITY = 80
+
+
+def _shrink_image(data: bytes) -> tuple[bytes, Optional[str]]:
+    """Normaliza una foto de perfil a un avatar web: <=512 px, WebP, sin EXIF.
+
+    Devuelve (bytes, extensión nueva). Si Pillow no puede procesarla devuelve el
+    original y None: mejor subir una foto pesada que devolverle un 500 al
+    candidato por un formato raro.
+    """
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(io.BytesIO(data)) as img:
+            # exif_transpose respeta el Orientation del celular; sin esto las
+            # fotos verticales quedan acostadas al perder el EXIF más abajo.
+            img = ImageOps.exif_transpose(img)
+            # thumbnail nunca agranda: una foto ya chica se deja como está.
+            img.thumbnail((PHOTO_MAX_PX, PHOTO_MAX_PX), Image.LANCZOS)
+            if img.mode not in ("RGB", "RGBA"):
+                # WebP no guarda paleta: hay que pasar por RGB(A). Si la imagen
+                # tiene transparencia y se convierte a RGB, el fondo sale negro.
+                con_alfa = img.mode in ("LA", "PA") or "transparency" in img.info
+                img = img.convert("RGBA" if con_alfa else "RGB")
+            out = io.BytesIO()
+            # Sin exif=: el EXIF del celular trae GPS y modelo, y no tiene por
+            # qué viajar al bucket ni sumar bytes.
+            img.save(out, format="WEBP", quality=PHOTO_WEBP_QUALITY, method=6)
+        return out.getvalue(), ".webp"
+    except Exception:
+        log.warning("No se pudo achicar la foto (%d bytes); se sube el original", len(data))
+        return data, None
+
 # ── Helpers de puestos ──
 def _slugify(text: str) -> str:
     """Convierte un título en un slug ASCII para usar como id (ej: 'Analista Sr.' -> 'analista-sr')."""
@@ -606,8 +645,22 @@ def _content_disposition_attachment(filename: Optional[str], fallback: str = "de
     return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{utf8_name}'
 
 
-def _serve_private_file(bucket: str, key: str, download_name: str):
-    """Entrega un objeto privado del bucket según CV_DELIVERY (stream|redirect)."""
+def _serve_private_file(bucket: str, key: str, download_name: str, request: Optional[Request] = None):
+    """Entrega un objeto privado del bucket según CV_DELIVERY (stream|redirect).
+
+    La key lleva un uuid nuevo por subida, así que identifica al contenido: se
+    usa como ETag. Si el navegador manda ese mismo ETag en If-None-Match se le
+    contesta 304 sin bajar nada del bucket. Importa porque el visor del panel
+    remonta por candidato: sin esto, cada apertura de una ficha re-bajaba el PDF
+    entero de Supabase y ese egress es el que se agota en el plan Free.
+    """
+    etag = f'"{key}"'
+    # `private`: es el CV de una persona, ningún proxy compartido debe guardarlo.
+    # `must-revalidate` + max-age=0: el navegador pregunta siempre, pero la
+    # respuesta normal es un 304 de ~200 bytes.
+    cache_headers = {"ETag": etag, "Cache-Control": "private, max-age=0, must-revalidate"}
+    if request is not None and request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=cache_headers)
     if CV_DELIVERY == "redirect":
         try:
             url = storage.signed_url(bucket, key)
@@ -624,7 +677,7 @@ def _serve_private_file(bucket: str, key: str, download_name: str):
     except Exception:
         log.exception("No se pudo descargar %s/%s", bucket, key)
         raise HTTPException(status_code=502, detail="No se pudo entregar el archivo")
-    headers = {"Content-Disposition": _content_disposition_attachment(download_name)}
+    headers = {"Content-Disposition": _content_disposition_attachment(download_name), **cache_headers}
     return Response(content=data, media_type=_detect_mimetype(key), headers=headers)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1036,7 +1089,7 @@ async def apply_to_job(
     return UploadCvOut(resume_id=resume_id)
 
 @app.get("/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])
-def download_cv(cv_id: int):
+def download_cv(cv_id: int, request: Request):
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT filename, original_name, status FROM resumes WHERE id = %s", (cv_id,))
@@ -1054,7 +1107,7 @@ def download_cv(cv_id: int):
             )
             conn.commit()
 
-    return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
+    return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0], request)
 
 @app.get("/admin/cv", response_model=ListCvOut, dependencies=[Depends(require_admin)], tags=["admin"])
 def list_cvs_admin(
@@ -1549,7 +1602,6 @@ async def upload_my_photo(
     if Path(original).suffix.lower() not in settings.allowed_image_ext:
         raise HTTPException(status_code=400, detail="Solo se permiten imágenes JPG/PNG/WEBP")
     ext = Path(original).suffix.lower()
-    key = f"photo-{uuid.uuid4().hex}{ext}"
     data = await _read_upload_limited(
         file, settings.max_image_bytes, "Imagen demasiado grande (máx 5MB)"
     )
@@ -1559,7 +1611,11 @@ async def upload_my_photo(
         pass
     if not _sniff_ok(data, "image"):
         raise HTTPException(status_code=400, detail="El archivo no es una imagen JPG/PNG/WEBP válida")
-    _upload_or_502(storage.PHOTO_BUCKET, key, data, file.content_type or _detect_mimetype(original))
+    # Se guarda el avatar, no el original de la cámara: ver _shrink_image.
+    data, shrunk_ext = _shrink_image(data)
+    ext = shrunk_ext or ext
+    key = f"photo-{uuid.uuid4().hex}{ext}"
+    _upload_or_502(storage.PHOTO_BUCKET, key, data, _detect_mimetype(key))
 
     # Si la DB falla tras subir la imagen, borramos el objeto nuevo (compensación).
     try:
@@ -1581,18 +1637,18 @@ async def upload_my_photo(
         storage.remove(storage.PHOTO_BUCKET, old[0])  # borra la foto anterior del bucket
     return _profile_row_to_out(current_user, row)
 
-def _download_profile_cv(user_id: int):
+def _download_profile_cv(user_id: int, request: Optional[Request] = None):
     with get_db() as conn:
         row = conn.execute(
             "SELECT cv_filename, cv_original_name FROM profiles WHERE user_id = %s", (user_id,)
         ).fetchone()
     if not row or not row[0]:
         raise HTTPException(status_code=404, detail="Sin CV")
-    return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0])
+    return _serve_private_file(storage.CV_BUCKET, row[0], row[1] or row[0], request)
 
 @app.get("/me/profile/cv", tags=["profile"])
-def download_my_cv(current_user: dict = Depends(get_current_user)):
-    return _download_profile_cv(current_user["id"])
+def download_my_cv(request: Request, current_user: dict = Depends(get_current_user)):
+    return _download_profile_cv(current_user["id"], request)
 
 @app.post("/me/profile/video", response_model=ProfileOut, tags=["profile"])
 @limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
@@ -1919,8 +1975,8 @@ def get_candidate(user_id: int) -> ProfileOut:
     return _profile_row_to_out(dict(user), row)
 
 @app.get("/admin/candidates/{user_id}/cv", dependencies=[Depends(require_admin)], tags=["admin"])
-def download_candidate_cv(user_id: int):
-    return _download_profile_cv(user_id)
+def download_candidate_cv(user_id: int, request: Request):
+    return _download_profile_cv(user_id, request)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Rutas de autenticación (se incluyen al final, con app ya creada)

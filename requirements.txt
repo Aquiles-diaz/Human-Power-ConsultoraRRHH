@@ -22,6 +22,10 @@ supabase>=2.0
 python-dotenv>=1.0
 # Rate limiting (protección de fuerza bruta en login/register).
 slowapi>=0.1.9
+# Fotos de perfil: se guardan como avatar (<=512 px WebP) en vez de crudas. Entraban
+# hasta 5 MB para mostrarse a 56 px y la grilla de Candidatos bajaba ~140 MB por
+# carga: eso agotó la cuota de egress del plan Free (ver _shrink_image en main.py).
+Pillow>=11
 # Login con Google: verificación del ID token (endpoint /auth/google).
 # El extra [requests] trae la librería `requests`, que usa
 # google.auth.transport.requests para validar el token. Sin ella, /auth/google

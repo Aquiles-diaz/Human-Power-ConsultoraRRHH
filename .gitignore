@@ -29,6 +29,9 @@ __pycache__/
 *.pyd
 dev.db
 uploads/
+# Respaldo local de scripts/shrink-photos.py: son fotos de personas reales
+# bajadas del bucket. Nunca versionar.
+backup-fotos/
 # ── Secretos / variables de entorno (NUNCA versionar credenciales) ──
 .env
 .env.*
