@@ -96,8 +96,16 @@ Decisiones tomadas, no negociables por implementación:
 |---|---|
 | Responsable | Human Power \| RRHH (Rosario, Argentina) |
 | Contacto para ejercer derechos | **humanpower.rrhh@gmail.com** |
-| Conservación de los datos | **1 año** desde la última actividad |
+| Conservación de los datos | **Sin plazo fijo**: mientras la cuenta esté activa, y se borra a pedido |
 | Marco | Ley 25.326 de Protección de Datos Personales |
+
+Sobre la conservación: se evaluó poner "1 año desde la última actividad" y se
+descartó. Prometer un plazo obliga a que alguien ejecute el borrado al vencerlo,
+y hoy no hay ningún proceso automático que lo haga — el borrado de la Parte 3 es
+manual y a pedido. Una política que promete un plazo que nadie cumple es peor
+que una que no lo promete. El texto dice la verdad: *"conservamos tus datos
+mientras tu cuenta esté activa; podés pedir la baja cuando quieras y la
+ejecutamos"*.
 
 Tiene que declarar, porque es lo que el sistema realmente hace:
 
