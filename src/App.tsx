@@ -3,6 +3,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import LandingPage from "@/features/landing/LandingPage";
 import { RequireAuth, RequireRole, LoadingScreen } from "@/app/guards";
+import StorageNotice from "@/features/legal/StorageNotice";
 
 // OfertasPage va lazy: sale del bundle inicial y solo se descarga al entrar a /ofertas.
 // La landing queda eager por ser la entrada de "/".
@@ -36,6 +37,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <StorageNotice />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
