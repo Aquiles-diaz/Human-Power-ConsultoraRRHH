@@ -50,6 +50,7 @@ type Candidate = {
   headline?: string | null;
   professional_area?: string | null;
   education_level?: string | null;
+  academic_title?: string | null;
   experience_years?: string | null;
   city?: string | null;
   photo_url?: string | null;
@@ -398,6 +399,7 @@ export default function CandidatesView() {
                 <Info icon={<MapPin className="size-4" />} label="Ubicación" value={[active.city, active.province, active.country].filter(Boolean).join(", ")} />
                 <Info icon={<Briefcase className="size-4" />} label="Área profesional" value={active.professional_area} />
                 <Info icon={<GraduationCap className="size-4" />} label="Educación" value={active.education_level} />
+                <Info icon={<GraduationCap className="size-4" />} label="Título" value={active.academic_title} />
                 <Info icon={<Clock className="size-4" />} label="Experiencia" value={active.experience_years} />
                 <Info icon={<CalendarDays className="size-4" />} label="Disponibilidad" value={active.availability} />
                 <Info icon={<Wallet className="size-4" />} label="Pretensión salarial" value={active.salary_expectation} />

@@ -804,6 +804,7 @@ export function ApplicantDetail({
               <Field label="Ubicación" wrap="words">{location || "—"}</Field>
               <Field label="Área profesional" wrap="words">{cv.professional_area || "—"}</Field>
               <Field label="Educación" wrap="words">{cv.education_level || "—"}</Field>
+              <Field label="Título" wrap="words">{cv.academic_title || "—"}</Field>
               <Field label="Experiencia" wrap="words">{cv.experience_years || "—"}</Field>
               <Field label="Disponibilidad" wrap="words">{cv.availability || "—"}</Field>
               <Field label="Pretensión salarial" wrap="words">{cv.salary_expectation || "—"}</Field>
