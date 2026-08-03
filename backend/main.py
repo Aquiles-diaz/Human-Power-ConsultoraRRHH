@@ -2072,7 +2072,11 @@ def delete_candidate(user_id: int, current_user: dict = Depends(get_current_user
         ]
 
         cur = conn.execute("DELETE FROM resumes WHERE LOWER(email) = LOWER(%s)", (email,))
-        borradas = cur.rowcount if cur.rowcount and cur.rowcount > 0 else len(resume_keys)
+        # En psycopg3 el rowcount de un DELETE es siempre un entero confiable
+        # (0 en el peor caso): no hace falta -ni conviene- caer a
+        # len(resume_keys) como estimación. Si hubo una carrera con otro
+        # borrado del mismo candidato, acá tiene que decir 0 de verdad.
+        borradas = cur.rowcount
         # profiles y job_alert_subscriptions caen por ON DELETE CASCADE.
         conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()

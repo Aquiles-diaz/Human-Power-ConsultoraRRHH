@@ -61,7 +61,13 @@ class FakeCursor:
         elif s.startswith("select count(*) from resumes"):
             self._rows = [DualRow(["count"], [len(self.state["resume_keys"])])]
         elif s.startswith("delete from resumes"):
-            self.rowcount = len(self.state["resume_keys"])
+            # Por defecto simula un DELETE que sí afectó filas. Un test puede
+            # forzar `resumes_delete_rowcount` en el state para simular la
+            # carrera: hay claves de archivo (el SELECT previo las trajo)
+            # pero el DELETE ya no borra nada porque otro borrado ganó antes.
+            self.rowcount = self.state.get(
+                "resumes_delete_rowcount", len(self.state["resume_keys"])
+            )
             self.state["resumes_borradas"] = True
         elif s.startswith("delete from users"):
             self.state["user_borrado"] = True
@@ -155,6 +161,23 @@ def test_borra_todos_los_archivos():
         assert set(borrados) == {
             "cv-abc.pdf", "photo-abc.webp", "9/xyz.webm", "cv-post1.pdf", "cv-post2.pdf",
         }
+    finally:
+        _restaurar_storage()
+
+
+def test_el_conteo_de_borradas_es_el_rowcount_real_no_una_estimacion():
+    """Si el DELETE borra 0 filas de verdad (carrera con otro borrado del mismo
+    candidato), la respuesta tiene que decir 0 — no la cantidad de claves que
+    había *antes* de intentar borrar. Devolver `len(resume_keys)` como
+    fallback miente: le dice al admin que se eliminaron postulaciones que en
+    realidad seguían vivas en la base.
+    """
+    client, state, _ = make_client(borrados=[])
+    state["resumes_delete_rowcount"] = 0  # el DELETE no afectó ninguna fila
+    try:
+        r = client.delete("/admin/candidates/9")
+        assert r.status_code == 200
+        assert r.json()["deleted_applications"] == 0
     finally:
         _restaurar_storage()
 
