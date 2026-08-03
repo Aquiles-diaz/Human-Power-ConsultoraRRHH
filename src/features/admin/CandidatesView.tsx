@@ -41,6 +41,7 @@ import { CANDIDATES_CACHE_KEY, readAdminCache, writeAdminCache } from "./admin-c
 import { RubroChips } from "./RubroChips";
 import { CvPreview } from "./CvPreview";
 import { BTN_YELLOW } from "./ui";
+import ConfirmDeleteUser, { type DeletionSummary } from "./ConfirmDeleteUser";
 
 type Candidate = {
   user_id: number;
@@ -100,6 +101,8 @@ export default function CandidatesView() {
   const [onlyVideo, setOnlyVideo] = useState(false);
   const [active, setActive] = useState<Profile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [aBorrar, setABorrar] = useState<DeletionSummary | null>(null);
+  const [borrando, setBorrando] = useState(false);
   const detailReqId = useRef(0);
   const loadReqId = useRef(0);
 
@@ -152,6 +155,42 @@ export default function CandidatesView() {
       toast.error("No se pudo abrir el candidato", { description: getErrorMessage(e) });
     } finally {
       if (reqId === detailReqId.current) setLoadingDetail(false);
+    }
+  }
+
+  async function pedirBorrado(userId: number) {
+    try {
+      const res = await authFetch(`/admin/candidates/${userId}/deletion-summary`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
+      setABorrar(await res.json());
+    } catch (e) {
+      toast.error("No se pudo preparar la eliminación", { description: getErrorMessage(e) });
+    }
+  }
+
+  async function confirmarBorrado(userId: number) {
+    setBorrando(true);
+    try {
+      const res = await authFetch(`/admin/candidates/${userId}`, authHeaders, { method: "DELETE" });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      toast.success("Candidato eliminado");
+      setABorrar(null);
+      setActive(null);
+      // Saca al candidato borrado de la lista en memoria...
+      setItems((prev) => prev.filter((c) => c.user_id !== userId));
+      // ...y del cache de sessionStorage, o reaparece un instante al volver a
+      // entrar al panel (el useState inicial pinta con readAdminCache antes de
+      // que load() revalide). Se lee y reescribe el cache directo -no `items`-
+      // porque el cache siempre guarda la vista SIN filtros (ver load()) y acá
+      // puede haber filtros activos: mezclarlos rompería esa invariante.
+      const cacheado = readAdminCache<Candidate>(CANDIDATES_CACHE_KEY);
+      if (cacheado) {
+        writeAdminCache(CANDIDATES_CACHE_KEY, cacheado.filter((c) => c.user_id !== userId));
+      }
+    } catch (e) {
+      toast.error("No se pudo eliminar", { description: getErrorMessage(e) });
+    } finally {
+      setBorrando(false);
     }
   }
 
@@ -461,9 +500,28 @@ export default function CandidatesView() {
               <p className="mt-4 text-center text-xs text-white/50">
                 Vista de solo lectura · únicamente el candidato edita su información.
               </p>
+
+              <div className="mt-6 border-t border-neutral-800 pt-4">
+                <button
+                  type="button"
+                  onClick={() => pedirBorrado(active.user_id)}
+                  className="text-sm font-medium text-red-400 hover:text-red-300"
+                >
+                  Eliminar candidato
+                </button>
+              </div>
             </>
           )}
         </Modal>
+      )}
+
+      {aBorrar && active && (
+        <ConfirmDeleteUser
+          summary={aBorrar}
+          loading={borrando}
+          onCancel={() => setABorrar(null)}
+          onConfirm={() => confirmarBorrado(active.user_id)}
+        />
       )}
     </div>
   );
