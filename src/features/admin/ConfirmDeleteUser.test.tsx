@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import ConfirmDeleteUser from "./ConfirmDeleteUser";
 
 const SUMMARY = {
+  user_id: 1,
   email: "ana@test.com",
   name: "Ana Pérez",
   applications: 3,

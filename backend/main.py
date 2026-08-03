@@ -418,6 +418,7 @@ class CandidatesOut(BaseModel):
     items: list[CandidateListItem]
 
 class DeletionSummary(BaseModel):
+    user_id: int
     email: str
     name: str
     applications: int
@@ -1996,12 +1997,21 @@ def download_candidate_cv(user_id: int, request: Request):
     return _download_profile_cv(user_id, request)
 
 
-def _candidate_for_deletion(conn, user_id: int) -> dict:
-    """Trae usuario + claves de archivos, o corta con el status que corresponda."""
+def _candidate_for_deletion(conn, user_id: int, current_user: dict) -> dict:
+    """Trae usuario + claves de archivos, o corta con el status que corresponda.
+
+    Las guardas de auto-borrado y anti-admin viven acá (no en delete_candidate)
+    para que candidate_deletion_summary las comparta: sin esto, el resumen le
+    prometía al admin un borrado que el DELETE iba a rechazar con 403/400 recién
+    al confirmar. `current_user` es requerido a propósito -sin default- para que
+    un caller nuevo no pueda saltearse la guarda de auto-borrado por olvido.
+    """
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="No podés eliminar tu propia cuenta")
     row = conn.execute(
         """
         SELECT u.id, u.name, u.last_name, u.email, u.role,
-               p.cv_filename, p.photo_filename, p.video_filename
+               p.cv_filename, p.photo_filename, p.video_filename, p.video_url
         FROM users u
         LEFT JOIN profiles p ON p.user_id = u.id
         WHERE u.id = %s
@@ -2010,7 +2020,10 @@ def _candidate_for_deletion(conn, user_id: int) -> dict:
     ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Candidato no encontrado")
-    return dict(row)
+    c = dict(row)
+    if (c["role"] or "user") == "admin":
+        raise HTTPException(status_code=403, detail="No se puede eliminar a un administrador")
+    return c
 
 
 @app.get(
@@ -2019,20 +2032,27 @@ def _candidate_for_deletion(conn, user_id: int) -> dict:
     dependencies=[Depends(require_admin)],
     tags=["admin"],
 )
-def candidate_deletion_summary(user_id: int) -> DeletionSummary:
+def candidate_deletion_summary(
+    user_id: int, current_user: dict = Depends(get_current_user)
+) -> DeletionSummary:
     """Números reales para el modal de confirmación: qué se pierde exactamente."""
     with get_db() as conn:
-        c = _candidate_for_deletion(conn, user_id)
+        c = _candidate_for_deletion(conn, user_id, current_user)
         total = conn.execute(
             "SELECT COUNT(*) FROM resumes WHERE LOWER(email) = LOWER(%s)", (c["email"],)
         ).fetchone()[0]
     return DeletionSummary(
+        user_id=c["id"],
         email=c["email"],
         name=f"{c['name']} {c['last_name'] or ''}".strip(),
         applications=int(total),
         has_cv=bool(c["cv_filename"]),
         has_photo=bool(c["photo_filename"]),
-        has_video=bool(c["video_filename"]),
+        # Mismo criterio que list_candidates: un link de video pegado (video_url,
+        # sin archivo propio) también cuenta como "tiene video". Antes acá solo
+        # miraba video_filename y el modal de borrado decía "sin video" para un
+        # candidato que la grilla ya mostraba con badge de video.
+        has_video=bool(c["video_filename"]) or bool(c["video_url"]),
     )
 
 
@@ -2054,14 +2074,8 @@ def delete_candidate(user_id: int, current_user: dict = Depends(get_current_user
     de base dejaría filas apuntando a archivos que ya no existen. Así el peor
     caso es un objeto huérfano, que molesta pero no rompe nada.
     """
-    if user_id == current_user["id"]:
-        raise HTTPException(status_code=400, detail="No podés eliminar tu propia cuenta")
-
     with get_db() as conn:
-        c = _candidate_for_deletion(conn, user_id)
-        if (c["role"] or "user") == "admin":
-            raise HTTPException(status_code=403, detail="No se puede eliminar a un administrador")
-
+        c = _candidate_for_deletion(conn, user_id, current_user)
         email = c["email"]
         resume_keys = [
             r[0]

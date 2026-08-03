@@ -72,6 +72,7 @@ const PERFIL_ANA = {
 };
 
 const RESUMEN = {
+  user_id: 1,
   email: "ana@test.com",
   name: "Ana Pérez",
   applications: 3,
@@ -87,13 +88,21 @@ const fail = (status: number, detail: string) =>
 
 /** Respuesta del DELETE; cada test la ajusta antes de renderizar. */
 let respuestaDelete: Response = ok({ deleted_applications: 3, deleted_files: 2 });
+/** Rutas que recibieron un DELETE, en orden. El mock solo miraba el método
+ * (opts?.method === "DELETE") sin la ruta: un id equivocado en el código de
+ * producción hubiera pasado todos los tests igual. */
+let deleteUrls: string[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   respuestaDelete = ok({ deleted_applications: 3, deleted_files: 2 });
+  deleteUrls = [];
   authFetchMock.mockImplementation((path: string, _auth: unknown, opts?: { method?: string }) => {
-    if (opts?.method === "DELETE") return Promise.resolve(respuestaDelete);
+    if (opts?.method === "DELETE") {
+      deleteUrls.push(path);
+      return Promise.resolve(respuestaDelete);
+    }
     if (path.endsWith("/deletion-summary")) return Promise.resolve(ok(RESUMEN));
     if (path.startsWith("/admin/candidates?")) {
       const q = new URLSearchParams(path.split("?")[1] ?? "").get("q");
@@ -132,6 +141,21 @@ describe("CandidatesView · eliminar candidato", () => {
     // El cache conserva al resto. Si se reescribiera con la lista en memoria
     // (filtrada) quedaría vacío y el panel arrancaría mostrando de menos.
     expect(readAdminCache<Fila>(CANDIDATES_CACHE_KEY)).toEqual([BETO, CARO]);
+  });
+
+  it("el DELETE va a la ruta de Ana, no a cualquier candidato", async () => {
+    // Antes de este test, el mock solo miraba opts?.method === "DELETE": si el
+    // código mandara el borrado al user_id equivocado (p.ej. el del admin
+    // logueado, o el de otro candidato en pantalla), esta suite pasaba igual.
+    const user = userEvent.setup();
+    writeAdminCache(CANDIDATES_CACHE_KEY, TODOS);
+    render(<CandidatesView />);
+
+    await llegarAlaConfirmacion(user);
+    await user.click(screen.getByText("Eliminar definitivamente"));
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalled());
+
+    expect(deleteUrls).toEqual(["/admin/candidates/1"]);
   });
 
   it("el borrado no reaparece al volver a montar la vista", async () => {

@@ -520,12 +520,17 @@ export default function CandidatesView() {
         </Modal>
       )}
 
-      {aBorrar && active && (
+      {aBorrar && (
         <ConfirmDeleteUser
           summary={aBorrar}
           loading={borrando}
           onCancel={() => setABorrar(null)}
-          onConfirm={() => confirmarBorrado(active.user_id)}
+          // Confirma sobre el id del resumen (aBorrar), no sobre el del detalle
+          // abierto (active): son el mismo hoy porque pedirBorrado() siempre
+          // parte de active.user_id, pero nada lo garantiza estructuralmente.
+          // Sin user_id en DeletionSummary no había forma de afirmar que el
+          // modal borra a quien dice que borra.
+          onConfirm={() => confirmarBorrado(aBorrar.user_id)}
         />
       )}
     </div>

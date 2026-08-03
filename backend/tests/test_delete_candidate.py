@@ -6,6 +6,7 @@ desaparecer. Por eso el borrado de resumes es explícito.
 
     PYTHONPATH=. .venv/bin/python backend/tests/test_delete_candidate.py
 """
+import contextlib
 import os
 
 os.environ.setdefault("SECRET_KEY", "x" * 40)
@@ -26,11 +27,32 @@ limiter.enabled = False
 # esta rama con otros tests que tocan storage sin restaurar.
 _STORAGE_REMOVE_ORIGINAL = main.storage.remove
 _STORAGE_VIDEO_REMOVE_ORIGINAL = main.storage_video.remove
+_GET_CONN_ORIGINAL = main._get_conn
+
+# make_client también pisa main._get_conn (a la DB fake) y deja overrides de
+# require_admin/get_current_user (identidad de administrador) en
+# app.dependency_overrides. pytest corre todos los archivos en el mismo
+# proceso y este va antes alfabéticamente que test_last_login,
+# test_pipeline_status y test_terms_accepted: sin restaurar, esos heredan una
+# conexión falsa y una sesión de admin. Mismo criterio que
+# test_auth_google_photo._auth_intacto.
+
+
+@contextlib.contextmanager
+def _delete_candidate_intacto():
+    try:
+        yield
+    finally:
+        main._get_conn = _GET_CONN_ORIGINAL
+        main.storage.remove = _STORAGE_REMOVE_ORIGINAL
+        main.storage_video.remove = _STORAGE_VIDEO_REMOVE_ORIGINAL
+        main.app.dependency_overrides.clear()
 
 PERFIL = {
     "cv_filename": "cv-abc.pdf",
     "photo_filename": "photo-abc.webp",
     "video_filename": "9/xyz.webm",
+    "video_url": None,
 }
 
 
@@ -46,12 +68,16 @@ class FakeCursor:
         self.executed.append((s, params))
         if s.startswith("select u.id, u.name") or s.startswith("select u.email"):
             u = self.state["user"]
+            # Un test puede forzar state["perfil"] para simular variantes (p.ej.
+            # video pegado por link, sin archivo propio); si no, usa el default.
+            perfil = self.state.get("perfil", PERFIL)
             self._rows = (
                 [DualRow(
                     ["id", "name", "last_name", "email", "role",
-                     "cv_filename", "photo_filename", "video_filename"],
+                     "cv_filename", "photo_filename", "video_filename", "video_url"],
                     [u["id"], u["name"], u["last_name"], u["email"], u["role"],
-                     PERFIL["cv_filename"], PERFIL["photo_filename"], PERFIL["video_filename"]],
+                     perfil["cv_filename"], perfil["photo_filename"],
+                     perfil["video_filename"], perfil["video_url"]],
                 )]
                 if u
                 else []
@@ -97,6 +123,10 @@ class FakeConn:
 
     def commit(self):
         self.commits += 1
+        # get_db() instancia un FakeConn nuevo por request: el test no puede
+        # leer `self.commits` desde afuera. `state` sí es compartido (make_client
+        # lo devuelve), así que el conteo real vive ahí.
+        self.state["commits"] = self.state.get("commits", 0) + 1
 
     def close(self):
         pass
@@ -122,47 +152,83 @@ def make_client(role_objetivo="user", borrados=None):
     return TestClient(main.app), state, executed
 
 
-def _restaurar_storage():
-    """Repone las funciones reales de storage, hayan sido parcheadas o no."""
-    main.storage.remove = _STORAGE_REMOVE_ORIGINAL
-    main.storage_video.remove = _STORAGE_VIDEO_REMOVE_ORIGINAL
-
-
 def test_resumen_trae_los_numeros_reales():
-    client, _, _ = make_client()
-    try:
+    with _delete_candidate_intacto():
+        client, _, _ = make_client()
         r = client.get("/admin/candidates/9/deletion-summary")
         assert r.status_code == 200
         body = r.json()
+        assert body["user_id"] == 9, "el front confirma el borrado sobre este id, no sobre otro"
         assert body["applications"] == 2
         assert body["has_cv"] and body["has_photo"] and body["has_video"]
-    finally:
-        _restaurar_storage()
+
+
+def test_resumen_dice_video_cuando_solo_hay_link_pegado():
+    """list_candidates ya usa bool(video_filename) or bool(video_url) para el
+    badge de la grilla. Si el resumen solo mirara video_filename, un candidato
+    con link pegado (sin archivo propio) mostraría badge de video en la lista
+    y "sin video" acá — mismo bug que ya se evitó en list_candidates.
+    """
+    with _delete_candidate_intacto():
+        client, state, _ = make_client()
+        state["perfil"] = {
+            "cv_filename": None, "photo_filename": None,
+            "video_filename": None, "video_url": "https://youtu.be/xyz",
+        }
+        r = client.get("/admin/candidates/9/deletion-summary")
+        assert r.status_code == 200
+        assert r.json()["has_video"] is True
+
+
+def test_resumen_respeta_la_guarda_de_auto_borrado():
+    """Antes de este fix, el resumen (GET) no validaba auto-borrado ni admin:
+    solo el DELETE lo hacía. Un admin podía ver "se van a borrar 2
+    postulaciones..." sobre sí mismo y recién al confirmar se enteraba con un
+    400. Mover la guarda a _candidate_for_deletion la comparte con las dos rutas.
+    """
+    with _delete_candidate_intacto():
+        client, _, _ = make_client()
+        r = client.get("/admin/candidates/1/deletion-summary")  # 1 = el propio admin logueado
+        assert r.status_code == 400
+
+
+def test_resumen_respeta_la_guarda_anti_admin():
+    with _delete_candidate_intacto():
+        client, _, _ = make_client(role_objetivo="admin")
+        r = client.get("/admin/candidates/9/deletion-summary")
+        assert r.status_code == 403
 
 
 def test_borra_las_postulaciones_ademas_del_usuario():
     """resumes se vincula por email, no cascadea: si no se borra a mano quedan vivas."""
-    client, state, executed = make_client(borrados=[])
-    try:
+    with _delete_candidate_intacto():
+        client, state, executed = make_client(borrados=[])
         r = client.delete("/admin/candidates/9")
         assert r.status_code == 200
         assert state["user_borrado"] and state["resumes_borradas"]
-        borrado_resumes = next(s for s, _ in executed if s.startswith("delete from resumes"))
+        borrado_resumes, params_resumes = next(
+            (s, p) for s, p in executed if s.startswith("delete from resumes")
+        )
         assert "lower(email)" in borrado_resumes, "tiene que matchear sin importar mayúsculas"
-    finally:
-        _restaurar_storage()
+        # El parámetro real, no solo el SQL: si acá se colara el email del
+        # admin logueado en vez del candidato, este assert de arriba seguiría
+        # pasando igual. Lo que importa es A QUIÉN se borra.
+        assert params_resumes == ("Ana@Test.com",)
+
+        borrado_users, params_users = next(
+            (s, p) for s, p in executed if s.startswith("delete from users")
+        )
+        assert params_users == (9,), "tiene que borrar al candidato (9), no al admin logueado (1)"
 
 
 def test_borra_todos_los_archivos():
-    borrados = []
-    client, _, _ = make_client(borrados=borrados)
-    try:
+    with _delete_candidate_intacto():
+        borrados = []
+        client, _, _ = make_client(borrados=borrados)
         client.delete("/admin/candidates/9")
         assert set(borrados) == {
             "cv-abc.pdf", "photo-abc.webp", "9/xyz.webm", "cv-post1.pdf", "cv-post2.pdf",
         }
-    finally:
-        _restaurar_storage()
 
 
 def test_el_conteo_de_borradas_es_el_rowcount_real_no_una_estimacion():
@@ -172,38 +238,33 @@ def test_el_conteo_de_borradas_es_el_rowcount_real_no_una_estimacion():
     fallback miente: le dice al admin que se eliminaron postulaciones que en
     realidad seguían vivas en la base.
     """
-    client, state, _ = make_client(borrados=[])
-    state["resumes_delete_rowcount"] = 0  # el DELETE no afectó ninguna fila
-    try:
+    with _delete_candidate_intacto():
+        client, state, _ = make_client(borrados=[])
+        state["resumes_delete_rowcount"] = 0  # el DELETE no afectó ninguna fila
         r = client.delete("/admin/candidates/9")
         assert r.status_code == 200
         assert r.json()["deleted_applications"] == 0
-    finally:
-        _restaurar_storage()
 
 
 def test_no_podes_borrarte_a_vos_mismo():
-    client, _, _ = make_client(borrados=[])
-    try:
+    with _delete_candidate_intacto():
+        client, _, _ = make_client(borrados=[])
         r = client.delete("/admin/candidates/1")
         assert r.status_code == 400
-    finally:
-        _restaurar_storage()
 
 
 def test_no_se_puede_borrar_a_otro_admin():
-    client, _, _ = make_client(role_objetivo="admin", borrados=[])
-    try:
+    with _delete_candidate_intacto():
+        client, _, _ = make_client(role_objetivo="admin", borrados=[])
         r = client.delete("/admin/candidates/9")
         assert r.status_code == 403
-    finally:
-        _restaurar_storage()
 
 
 def test_si_falla_un_archivo_la_base_igual_queda_limpia():
     """El peor caso aceptable es un objeto huérfano en el bucket, no una fila viva."""
-    client, state, _ = make_client()
-    try:
+    with _delete_candidate_intacto():
+        client, state, _ = make_client()
+
         def explota(bucket, key):
             raise RuntimeError("bucket caído")
         main.storage.remove = explota
@@ -211,8 +272,20 @@ def test_si_falla_un_archivo_la_base_igual_queda_limpia():
         r = client.delete("/admin/candidates/9")
         assert r.status_code == 200
         assert state["user_borrado"] and state["resumes_borradas"]
-    finally:
-        _restaurar_storage()
+
+
+def test_borra_de_verdad_solo_si_commitea():
+    """Con autocommit=False (ver backend/db.py), sacar conn.commit() del
+    endpoint deja el DELETE colgado en la transacción: se revierte al cerrar
+    la conexión y en producción no se borra nada, aunque la respuesta diga
+    200. Sin este assert, alguien podría borrar esa línea y la suite entera
+    seguiría en verde.
+    """
+    with _delete_candidate_intacto():
+        client, state, _ = make_client(borrados=[])
+        r = client.delete("/admin/candidates/9")
+        assert r.status_code == 200
+        assert state["commits"] == 1
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

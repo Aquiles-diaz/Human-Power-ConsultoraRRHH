@@ -3,6 +3,7 @@ import { AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 
 export type DeletionSummary = {
+  user_id: number;
   email: string;
   name: string;
   applications: number;
