@@ -3,17 +3,87 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ChevronRight } from "lucide-react";
 import CargarCvButton from "@/components/shared/CargarCvButton";
 import UserMenu from "@/components/shared/UserMenu";
+import { useSectionHref } from "@/features/landing/section-link";
 
+type NavLinkData =
+  | { sectionId: string; href?: undefined; label: string }
+  | { href: string; sectionId?: undefined; label: string };
+
+/** Wordmark: ancla a #home en la landing, navega+scrollea desde otra ruta. */
+function Wordmark({ className }: { className?: string }) {
+  const { href, onClick } = useSectionHref("home");
+  return (
+    <a href={href} onClick={onClick} className={className} aria-label="Inicio">
+      <span className="font-bold text-white">
+        <span className="text-lg">Human Power</span>
+        <span className="ml-1 text-amber-400">| RRHH</span>
+      </span>
+    </a>
+  );
+}
+
+/** Un link del nav desktop: sección (con scroll cross-ruta) o ruta fija. */
+function DesktopNavLink({ link }: { link: NavLinkData }) {
+  const seccion = useSectionHref(link.sectionId ?? "");
+  const { href, onClick } = link.sectionId ? seccion : { href: link.href, onClick: undefined };
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      className="rounded-full px-3 py-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+    >
+      {link.label}
+    </a>
+  );
+}
+
+/** Igual que DesktopNavLink pero como motion.a, para el panel animado mobile. */
+function MobileNavLink({
+  link,
+  index,
+  onNavigate,
+}: {
+  link: NavLinkData;
+  index: number;
+  onNavigate: () => void;
+}) {
+  const seccion = useSectionHref(link.sectionId ?? "", onNavigate);
+  const { href, onClick } = link.sectionId
+    ? seccion
+    : { href: link.href, onClick: onNavigate };
+  return (
+    <motion.a
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.05 + index * 0.05, duration: 0.2 }}
+      href={href}
+      onClick={onClick}
+      className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-[15px] font-medium text-white/85 transition-colors hover:bg-amber-400/10 hover:text-white"
+    >
+      <span className="inline-flex items-center gap-2.5">
+        <span className="h-4 w-1 rounded-full bg-amber-400/0 transition-colors group-hover:bg-amber-400" />
+        {link.label}
+      </span>
+      <ChevronRight
+        size={16}
+        className="text-white/30 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-300"
+      />
+    </motion.a>
+  );
+}
+
+// Links de sección (id de ancla) vs. de ruta (Ofertas es una página propia,
+// no una sección de la landing): se distingue con `sectionId` para que el
+// render sepa cuándo resolver el href con useSectionHref y cuándo dejarlo fijo.
 export default function LandingHeader() {
   const [openNav, setOpenNav] = useState(false);
 
-  const navLinks = useMemo(
-    () =>
-      [
-        { href: "#servicios", label: "Servicios" },
-        { href: "/ofertas", label: "Ofertas" },
-        { href: "#contacto", label: "Contacto" },
-      ] as const,
+  const navLinks: NavLinkData[] = useMemo(
+    () => [
+      { sectionId: "servicios", label: "Servicios" },
+      { href: "/ofertas", label: "Ofertas" },
+      { sectionId: "contacto", label: "Contacto" },
+    ],
     []
   );
 
@@ -27,23 +97,12 @@ export default function LandingHeader() {
           aria-label="Principal"
         >
           {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="rounded-full px-3 py-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              {link.label}
-            </a>
+            <DesktopNavLink key={link.label} link={link} />
           ))}
         </nav>
 
         {/* Marca: wordmark de texto (sin logo en el navbar; el emblema vive en el hero) */}
-        <a href="#home" className="md:justify-self-center" aria-label="Inicio">
-          <span className="font-bold text-white">
-            <span className="text-lg">Human Power</span>
-            <span className="ml-1 text-amber-400">| RRHH</span>
-          </span>
-        </a>
+        <Wordmark className="md:justify-self-center" />
 
         {/* Acciones (desktop, derecha) */}
         <div className="hidden items-center gap-2 md:flex md:justify-self-end">
@@ -91,24 +150,12 @@ export default function LandingHeader() {
               aria-label="Navegación móvil"
             >
               {navLinks.map((link, i) => (
-                <motion.a
-                  key={link.href}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 + i * 0.05, duration: 0.2 }}
-                  onClick={() => setOpenNav(false)}
-                  href={link.href}
-                  className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-[15px] font-medium text-white/85 transition-colors hover:bg-amber-400/10 hover:text-white"
-                >
-                  <span className="inline-flex items-center gap-2.5">
-                    <span className="h-4 w-1 rounded-full bg-amber-400/0 transition-colors group-hover:bg-amber-400" />
-                    {link.label}
-                  </span>
-                  <ChevronRight
-                    size={16}
-                    className="text-white/30 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-300"
-                  />
-                </motion.a>
+                <MobileNavLink
+                  key={link.label}
+                  link={link}
+                  index={i}
+                  onNavigate={() => setOpenNav(false)}
+                />
               ))}
 
               {/* CTA principal del candidato — en mobile el header no lo muestra arriba */}
