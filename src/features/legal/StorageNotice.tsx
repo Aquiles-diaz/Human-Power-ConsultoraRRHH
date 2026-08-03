@@ -105,13 +105,19 @@ export default function StorageNotice() {
       className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm"
     >
       <div className="mx-auto flex max-w-5xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Copy corto a propósito: la función legal del aviso es avisar y ofrecer
+            la política completa. El detalle de qué se guarda exactamente (sesión,
+            caché de ofertas, último login, que Vercel Analytics no usa cookies)
+            vive en /privacidad, que es adonde va igual cualquiera que lo quiera
+            leer. Ese detalle acá costaba 178px a 320px de ancho —un cuarto de la
+            pantalla— y tapaba el buscador del hero, que es la acción principal de
+            la landing. No alargar sin volver a medir el alto en mobile. */}
         <p className="text-[13px] leading-relaxed text-slate-600">
-          Usamos el almacenamiento de tu navegador solo para mantener tu sesión y
-          que el sitio cargue más rápido. No usamos cookies de publicidad.{" "}
+          Usamos almacenamiento local para mantener tu sesión. No usamos cookies de
+          publicidad.{" "}
           <Link to="/privacidad" className="font-medium text-slate-900 underline underline-offset-2">
             Ver la Política de Privacidad
           </Link>
-          .
         </p>
         <button
           type="button"
