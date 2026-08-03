@@ -49,6 +49,36 @@ describe("contenido legal", () => {
     expect(texto).toContain("Canadá");
   });
 
+  it("la privacidad nombra a Render y a Brevo como encargados de datos", () => {
+    // Art. 6, Ley 25.326: la enumeración de encargados tiene que estar
+    // completa. Render corre el backend (por ahí pasan CV/foto/video antes de
+    // llegar al storage, y quedan los logs); Brevo manda los mails y recibe
+    // nombre+correo del candidato. Sobre la sección puntual, no todo el
+    // documento: así cae si alguien los saca de acá y los deja sueltos en
+    // otro lado (o los borra directamente).
+    const donde = seccion(PRIVACIDAD, "Dónde se guardan");
+    expect(donde).toBeDefined();
+    const texto = (donde?.parrafos ?? []).join(" ");
+    expect(texto).toContain("Render");
+    expect(texto).toContain("Brevo");
+  });
+
+  it("la privacidad declara que el video y la foto se acceden por enlace directo sin login", () => {
+    // El bucket de videos es público (storage_video.py: public_url() arma la
+    // URL sin firma) y /uploads/{key} sirve la foto sin Depends(get_current_user).
+    // El CV en cambio SÍ exige sesión (download_my_cv exige get_current_user).
+    // Declarar esto es una decisión explícita del dueño del sitio (no cambiar
+    // la infraestructura); el test cae si alguien la borra sin querer.
+    const donde = seccion(PRIVACIDAD, "Dónde se guardan");
+    expect(donde).toBeDefined();
+    const texto = (donde?.parrafos ?? []).join(" ").toLowerCase();
+    expect(texto).toContain("enlace");
+    expect(texto).toMatch(/(sin|no pide) (iniciar sesión|inicio de sesión)/);
+    expect(texto).toContain("no vence");
+    // El contraste con el CV protegido tiene que seguir explícito.
+    expect(texto).toMatch(/currículum.*(distinto|autorizada|iniciado sesión)/);
+  });
+
   it("no promete un plazo de conservación que nadie ejecuta", () => {
     // Se decidió no fijar plazo: no hay proceso automático que lo cumpla.
     // Ver docs/SPEC-perfil-legal-borrado.md.

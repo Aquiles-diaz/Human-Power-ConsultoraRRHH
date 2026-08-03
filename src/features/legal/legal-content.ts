@@ -29,7 +29,7 @@ export const PRIVACIDAD: LegalDoc = {
       parrafos: [
         "Cuando creás una cuenta te pedimos nombre, apellido y correo electrónico.",
         "Si completás tu perfil, podés cargar además: teléfono, fecha de nacimiento, ciudad, provincia y país, área profesional, título obtenido, nivel de educación, años de experiencia, disponibilidad, pretensión salarial, idiomas, tu currículum, una foto de perfil y un video de presentación.",
-        "Todos esos datos son opcionales salvo los del alta. Vos elegís cuánto contás.",
+        "De todo eso, lo único que es obligatorio para poder postularte a una búsqueda es el currículum, el teléfono, la ciudad y el área profesional. El resto —incluido el video— es opcional: vos elegís cuánto más contás.",
       ],
     },
     {
@@ -49,7 +49,8 @@ export const PRIVACIDAD: LegalDoc = {
     {
       titulo: "Dónde se guardan",
       parrafos: [
-        "Los datos se almacenan en servidores de Supabase ubicados en Estados Unidos y Canadá, y el sitio se sirve a través de Vercel. Eso implica una transferencia internacional de datos, que aceptás al usar el portal.",
+        "Los datos se almacenan en servidores de Supabase ubicados en Estados Unidos y Canadá, y el sitio se sirve a través de Vercel. Nuestro servidor corre en Render: por ahí pasan tu currículum, tu foto y tu video antes de llegar al almacenamiento, y ahí quedan los registros (logs) del servidor. Los correos que te mandamos (verificación, recuperación de contraseña, alertas de empleo) salen a través de Brevo, que recibe tu nombre y tu dirección de correo electrónico para poder enviarlos. Eso implica una transferencia internacional de datos, que aceptás al usar el portal.",
+        "Tu video de presentación y tu foto de perfil se sirven por un enlace directo que no pide inicio de sesión: cualquiera que tenga ese enlace puede verlos, y el enlace no vence. Tu currículum es distinto: para descargarlo hace falta haber iniciado sesión con una cuenta autorizada.",
       ],
     },
     {
@@ -71,14 +72,15 @@ export const PRIVACIDAD: LegalDoc = {
       titulo: "Cookies y almacenamiento en tu navegador",
       parrafos: [
         "Este sitio no usa cookies de publicidad ni de terceros para seguirte.",
-        "Usamos el almacenamiento local de tu navegador para cosas estrictamente funcionales: mantener tu sesión iniciada, recordar la última vez que entraste y guardar una copia de las ofertas para que carguen más rápido. Si lo borrás, simplemente vas a tener que iniciar sesión de nuevo.",
+        "Usamos el almacenamiento local de tu navegador para cosas estrictamente funcionales: mantener tu sesión iniciada, recordar la última vez que entraste, guardar una copia de las ofertas para que carguen más rápido y recordar que ya cerraste este aviso. Si lo borrás, simplemente vas a tener que iniciar sesión de nuevo y este aviso va a volver a aparecer.",
+        "Si accedés al panel de administración, además guardamos ahí una copia temporal de los datos de candidatos en el almacenamiento de la pestaña (sessionStorage), que se borra sola al cerrarla.",
         "Medimos las visitas al sitio con Vercel Analytics, que no usa cookies ni te identifica de forma individual.",
       ],
     },
     {
       titulo: "Cambios",
       parrafos: [
-        "Si actualizamos esta política, cambiamos la fecha del encabezado. Los cambios importantes los avisamos por correo a las cuentas activas.",
+        "Si actualizamos esta política, cambiamos la fecha del encabezado. Ante un cambio importante, podremos avisar también por correo a las cuentas activas.",
       ],
     },
   ],
@@ -114,6 +116,7 @@ export const TERMINOS: LegalDoc = {
       titulo: "Contenido que subís",
       parrafos: [
         "El currículum, la foto y el video que subas siguen siendo tuyos. Al cargarlos nos autorizás a usarlos con un único fin: presentarte a búsquedas laborales.",
+        "Tu foto y tu video quedan accesibles por un enlace directo que no requiere iniciar sesión y que no vence: son públicos para quien tenga el enlace, aunque los usemos solo para presentarte a búsquedas. Tu currículum es distinto: solo se accede a él con una cuenta autorizada.",
         "No subas contenido de terceros sin permiso, ni material ofensivo o ilegal.",
       ],
     },
