@@ -184,8 +184,13 @@ const JobDetail: React.FC<{
 
     {/* CTA siempre visible — footer anclado con sombra hacia arriba que lo despega
         del contenido. En mobile ocupa todo el ancho (mejor toque); desde sm queda
-        alineado a la derecha y con ancho automático, para no verse como una barra. */}
-    <div className="sticky bottom-0 z-10 border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        alineado a la derecha y con ancho automático, para no verse como una barra.
+        El `bottom` sale de --hp-notice-h: en mobile este panel no tiene el límite
+        de alto que sí tiene desde `lg:` (ver el contenedor en OfertasPage), así que
+        "sticky bottom-0" queda pegado al fondo real del viewport, justo donde
+        StorageNotice (fixed, z-50) dibuja su barra. Sin este corrimiento el botón
+        "Postularme" queda tapado por completo. */}
+    <div className="sticky bottom-[var(--hp-notice-h)] z-10 border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="mx-auto flex max-w-3xl justify-end">
         <Button
           variant="brand"
