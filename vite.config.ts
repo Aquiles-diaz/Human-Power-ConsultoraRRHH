@@ -1,6 +1,7 @@
 // vite.config.ts
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { fileURLToPath, URL } from "node:url";
@@ -54,5 +55,12 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
     css: true,
+    // Los agentes dejan worktrees (copias enteras del repo) en .claude/worktrees/.
+    // Sin esto vitest levanta también los tests de esas copias: los conteos salen
+    // inflados, la corrida tarda ~3x, y —lo peor— una copia rancia puede poner el
+    // gate en rojo por código que no está en la rama, o en verde tapando algo que
+    // sí se rompió. Extendemos los defaults en vez de pisarlos: si se escribe
+    // `exclude` a mano se pierden node_modules, dist y los demás que ya trae.
+    exclude: [...configDefaults.exclude, "**/.claude/**"],
   },
 });
