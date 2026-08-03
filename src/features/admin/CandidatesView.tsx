@@ -105,6 +105,7 @@ export default function CandidatesView() {
   const [borrando, setBorrando] = useState(false);
   const detailReqId = useRef(0);
   const loadReqId = useRef(0);
+  const borradoReqId = useRef(0);
 
   const load = useCallback(async () => {
     const reqId = ++loadReqId.current;
@@ -159,11 +160,15 @@ export default function CandidatesView() {
   }
 
   async function pedirBorrado(userId: number) {
+    const reqId = ++borradoReqId.current;
     try {
       const res = await authFetch(`/admin/candidates/${userId}/deletion-summary`, authHeaders);
       if (!res.ok) throw new Error(await parseApiError(res));
-      setABorrar(await res.json());
+      const data = await res.json();
+      if (reqId !== borradoReqId.current) return; // llegó un pedido más nuevo: descartar
+      setABorrar(data);
     } catch (e) {
+      if (reqId !== borradoReqId.current) return;
       toast.error("No se pudo preparar la eliminación", { description: getErrorMessage(e) });
     }
   }

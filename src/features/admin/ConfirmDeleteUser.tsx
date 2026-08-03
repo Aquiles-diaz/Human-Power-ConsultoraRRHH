@@ -65,10 +65,11 @@ export default function ConfirmDeleteUser({ summary, onCancel, onConfirm, loadin
       />
 
       <div className="mt-6 flex justify-end gap-3">
+        {/* Sin autoFocus: Modal hace focus() sobre el contenedor del diálogo en
+            un useEffect (corre después del commit) y se lo robaría igual. */}
         <button
           type="button"
           onClick={onCancel}
-          autoFocus
           className="rounded-xl border border-neutral-700 px-4 py-2 text-sm font-medium text-white/80 hover:bg-neutral-800"
         >
           Cancelar
