@@ -100,8 +100,12 @@ describe("--hp-notice-h · contrato con sus consumidores", () => {
       "../jobs/OfertasPage.tsx",
     ];
     for (const rel of consumidores) {
-      expect(leer(rel), `${rel} debería referenciar --hp-notice-h`).toContain(
-        "--hp-notice-h",
+      // "var(--hp-notice-h)" es la forma en que la variable se USA dentro de
+      // una clase; los tres consumidores también la mencionan en un comentario
+      // explicativo, así que buscar solo "--hp-notice-h" no distingue "la usa"
+      // de "alguien revirtió la clase a bottom-0 y dejó el comentario".
+      expect(leer(rel), `${rel} debería referenciar var(--hp-notice-h)`).toContain(
+        "var(--hp-notice-h)",
       );
     }
   });
