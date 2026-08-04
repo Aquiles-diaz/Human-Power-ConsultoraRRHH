@@ -132,8 +132,14 @@ const JobDetail: React.FC<{
       </div>
     </div>
 
-    {/* Cuerpo scrolleable */}
-    <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+    {/* Cuerpo scrolleable — el padding inferior suma --hp-notice-h: el footer
+        con el CTA es "sticky", así que al llegar al fondo real del scroll
+        vuelve a su posición de flujo (deja de estar pegado) y se dibuja justo
+        debajo del contenido. Sin este margen extra, StorageNotice (fixed,
+        z-50) queda por encima del footer y tapa el botón "Postularme" en ese
+        punto exacto del scroll. Con la variable en 0px (sin aviso) el padding
+        vuelve a ser el de siempre. */}
+    <div className="flex-1 overflow-y-auto p-5 pb-[calc(1.25rem+var(--hp-notice-h))] sm:p-6 sm:pb-[calc(1.5rem+var(--hp-notice-h))]">
       <div className="mx-auto max-w-3xl space-y-8">
         {job.description && (
           <section>
