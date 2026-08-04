@@ -173,7 +173,13 @@ export default function CandidatesView() {
     }
   }
 
-  async function confirmarBorrado(userId: number) {
+  async function confirmarBorrado(userId: number | undefined) {
+    if (userId === undefined) {
+      toast.error("No se pudo eliminar", {
+        description: "No se encontró el id del candidato. Recargá la página e intentá de nuevo.",
+      });
+      return;
+    }
     setBorrando(true);
     try {
       const res = await authFetch(`/admin/candidates/${userId}`, authHeaders, { method: "DELETE" });
@@ -530,7 +536,16 @@ export default function CandidatesView() {
           // parte de active.user_id, pero nada lo garantiza estructuralmente.
           // Sin user_id en DeletionSummary no había forma de afirmar que el
           // modal borra a quien dice que borra.
-          onConfirm={() => confirmarBorrado(aBorrar.user_id)}
+          //
+          // El `?? active?.user_id` es un fallback temporal por la ventana de
+          // deploy: Vercel publica el front antes de que Render termine de
+          // publicar el backend. En ese lapso el front nuevo puede pegarle al
+          // backend viejo, que todavía no devuelve user_id en /deletion-summary,
+          // y aBorrar.user_id llega undefined → DELETE /admin/candidates/undefined
+          // (422) y el borrado queda roto hasta que Render despliegue. Se puede
+          // sacar este fallback una vez que el backend nuevo esté desplegado y
+          // no haga falta convivir con la versión vieja.
+          onConfirm={() => confirmarBorrado(aBorrar.user_id ?? active?.user_id)}
         />
       )}
     </div>
