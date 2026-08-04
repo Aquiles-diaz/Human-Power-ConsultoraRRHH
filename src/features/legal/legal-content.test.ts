@@ -79,6 +79,22 @@ describe("contenido legal", () => {
     expect(texto).toMatch(/currículum.*(distinto|autorizada|iniciado sesión)/);
   });
 
+  it("los términos declaran que el video y la foto se acceden por enlace directo sin login", () => {
+    // Mismo hallazgo que en la privacidad (ver el test anterior), pero acá es
+    // donde estaba originalmente: "Contenido que subís" es la sección que
+    // habla de lo que el usuario carga (CV, foto, video) y de cómo se accede
+    // a cada cosa. Sin esta guarda, alguien puede borrar el párrafo de acá sin
+    // que caiga ningún test (la guarda de PRIVACIDAD no cubre a TERMINOS).
+    const contenido = seccion(TERMINOS, "Contenido que subís");
+    expect(contenido).toBeDefined();
+    const texto = (contenido?.parrafos ?? []).join(" ").toLowerCase();
+    expect(texto).toContain("enlace");
+    expect(texto).toMatch(/(sin|no pide|no requiere) (iniciar sesión|inicio de sesión)/);
+    expect(texto).toContain("no vence");
+    // El contraste con el CV protegido tiene que seguir explícito.
+    expect(texto).toMatch(/currículum.*(distinto|autorizada|iniciado sesión)/);
+  });
+
   it("no promete un plazo de conservación que nadie ejecuta", () => {
     // Se decidió no fijar plazo: no hay proceso automático que lo cumpla.
     // Ver docs/SPEC-perfil-legal-borrado.md.
