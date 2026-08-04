@@ -1,5 +1,10 @@
 # Perfil reordenado + páginas legales + borrado de usuarios
 
+> **Estado: implementado el 2026-08-04**, en la rama `feat/perfil-legal-borrado`
+> (28 commits). La migración ya está aplicada a la base de producción. Sin
+> pushear: falta la prueba en vivo con sesión real, en particular ejecutar un
+> borrado de punta a punta contra la base.
+>
 > Diseño acordado el 2026-07-31. Tres entregas independientes que van juntas en
 > el mismo push, antes de deployar los fixes de egress ya commiteados.
 
