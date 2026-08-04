@@ -62,7 +62,14 @@ const CARO: Fila = { user_id: 3, name: "Caro", last_name: "Díaz", email: "caro@
 const TODOS = [ANA, BETO, CARO];
 
 const PERFIL_ANA = {
-  user_id: 1,
+  // Distinto del user_id de RESUMEN (1) a propósito: si el código confirmara
+  // el borrado con el id del detalle abierto (active.user_id, que sale de
+  // acá) en vez del id del resumen (aBorrar.user_id), ambos valiendo 1 no lo
+  // hubiera distinguido. Con valores distintos, el test de la ruta del DELETE
+  // cae si se usa el id equivocado. RESUMEN mantiene el 1 porque tiene que
+  // seguir coincidiendo con ANA.user_id en TODOS: son la misma persona, y el
+  // filtrado del cache/lista tras borrar depende de ese id real.
+  user_id: 42,
   name: "Ana",
   last_name: "Pérez",
   email: "ana@test.com",
