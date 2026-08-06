@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Clapperboard, Video, Upload, Trash2, Link2, RotateCcw, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,12 @@ import { getVideoEmbed, isAllowedVideoUrl } from "@/lib/video-embeds";
 import type { Profile } from "./types";
 import { uploadVideo, deleteVideo, saveVideoUrl } from "./video-api";
 import { validateVideoFile, getVideoDuration, videoDurationError } from "./video-upload";
-import VideoStudio from "./VideoStudio";
+
+// VideoStudio son ~23 kB que solo hacen falta si el candidato decide grabar, y
+// la mayoría sube el video o no usa la solapa. Diferirlo saca ese peso del
+// chunk del perfil sin costo percibido: al tocar "Grabar" el usuario ya está
+// esperando el permiso de cámara.
+const VideoStudio = React.lazy(() => import("./VideoStudio"));
 
 type Props = {
   authHeaders: Record<string, string>;
@@ -256,14 +261,22 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
       </div>
 
       {studio && (
-        <VideoStudio
-          authHeaders={authHeaders}
-          onClose={() => setStudio(false)}
-          onSaved={(p) => {
-            onUpdated(p);
-            setStudio(false);
-          }}
-        />
+        <React.Suspense
+          fallback={
+            <div className="grid place-items-center py-16 text-white/50">
+              Preparando la cámara…
+            </div>
+          }
+        >
+          <VideoStudio
+            authHeaders={authHeaders}
+            onClose={() => setStudio(false)}
+            onSaved={(p) => {
+              onUpdated(p);
+              setStudio(false);
+            }}
+          />
+        </React.Suspense>
       )}
     </section>
   );

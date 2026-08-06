@@ -41,6 +41,7 @@ import { CANDIDATES_CACHE_KEY, readAdminCache, writeAdminCache } from "./admin-c
 import { RubroChips } from "./RubroChips";
 import { CvPreview } from "./CvPreview";
 import { BTN_YELLOW } from "./ui";
+import ConfirmDeleteUser, { type DeletionSummary } from "./ConfirmDeleteUser";
 
 type Candidate = {
   user_id: number;
@@ -50,6 +51,7 @@ type Candidate = {
   headline?: string | null;
   professional_area?: string | null;
   education_level?: string | null;
+  academic_title?: string | null;
   experience_years?: string | null;
   city?: string | null;
   photo_url?: string | null;
@@ -99,8 +101,11 @@ export default function CandidatesView() {
   const [onlyVideo, setOnlyVideo] = useState(false);
   const [active, setActive] = useState<Profile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [aBorrar, setABorrar] = useState<DeletionSummary | null>(null);
+  const [borrando, setBorrando] = useState(false);
   const detailReqId = useRef(0);
   const loadReqId = useRef(0);
+  const borradoReqId = useRef(0);
 
   const load = useCallback(async () => {
     const reqId = ++loadReqId.current;
@@ -151,6 +156,52 @@ export default function CandidatesView() {
       toast.error("No se pudo abrir el candidato", { description: getErrorMessage(e) });
     } finally {
       if (reqId === detailReqId.current) setLoadingDetail(false);
+    }
+  }
+
+  async function pedirBorrado(userId: number) {
+    const reqId = ++borradoReqId.current;
+    try {
+      const res = await authFetch(`/admin/candidates/${userId}/deletion-summary`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const data = await res.json();
+      if (reqId !== borradoReqId.current) return; // llegó un pedido más nuevo: descartar
+      setABorrar(data);
+    } catch (e) {
+      if (reqId !== borradoReqId.current) return;
+      toast.error("No se pudo preparar la eliminación", { description: getErrorMessage(e) });
+    }
+  }
+
+  async function confirmarBorrado(userId: number | undefined) {
+    if (userId === undefined) {
+      toast.error("No se pudo eliminar", {
+        description: "No se encontró el id del candidato. Recargá la página e intentá de nuevo.",
+      });
+      return;
+    }
+    setBorrando(true);
+    try {
+      const res = await authFetch(`/admin/candidates/${userId}`, authHeaders, { method: "DELETE" });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      toast.success("Candidato eliminado");
+      setABorrar(null);
+      setActive(null);
+      // Saca al candidato borrado de la lista en memoria...
+      setItems((prev) => prev.filter((c) => c.user_id !== userId));
+      // ...y del cache de sessionStorage, o reaparece un instante al volver a
+      // entrar al panel (el useState inicial pinta con readAdminCache antes de
+      // que load() revalide). Se lee y reescribe el cache directo -no `items`-
+      // porque el cache siempre guarda la vista SIN filtros (ver load()) y acá
+      // puede haber filtros activos: mezclarlos rompería esa invariante.
+      const cacheado = readAdminCache<Candidate>(CANDIDATES_CACHE_KEY);
+      if (cacheado) {
+        writeAdminCache(CANDIDATES_CACHE_KEY, cacheado.filter((c) => c.user_id !== userId));
+      }
+    } catch (e) {
+      toast.error("No se pudo eliminar", { description: getErrorMessage(e) });
+    } finally {
+      setBorrando(false);
     }
   }
 
@@ -398,6 +449,7 @@ export default function CandidatesView() {
                 <Info icon={<MapPin className="size-4" />} label="Ubicación" value={[active.city, active.province, active.country].filter(Boolean).join(", ")} />
                 <Info icon={<Briefcase className="size-4" />} label="Área profesional" value={active.professional_area} />
                 <Info icon={<GraduationCap className="size-4" />} label="Educación" value={active.education_level} />
+                <Info icon={<GraduationCap className="size-4" />} label="Título" value={active.academic_title} />
                 <Info icon={<Clock className="size-4" />} label="Experiencia" value={active.experience_years} />
                 <Info icon={<CalendarDays className="size-4" />} label="Disponibilidad" value={active.availability} />
                 <Info icon={<Wallet className="size-4" />} label="Pretensión salarial" value={active.salary_expectation} />
@@ -459,9 +511,42 @@ export default function CandidatesView() {
               <p className="mt-4 text-center text-xs text-white/50">
                 Vista de solo lectura · únicamente el candidato edita su información.
               </p>
+
+              <div className="mt-6 border-t border-neutral-800 pt-4">
+                <button
+                  type="button"
+                  onClick={() => pedirBorrado(active.user_id)}
+                  className="text-sm font-medium text-red-400 hover:text-red-300"
+                >
+                  Eliminar candidato
+                </button>
+              </div>
             </>
           )}
         </Modal>
+      )}
+
+      {aBorrar && (
+        <ConfirmDeleteUser
+          summary={aBorrar}
+          loading={borrando}
+          onCancel={() => setABorrar(null)}
+          // Confirma sobre el id del resumen (aBorrar), no sobre el del detalle
+          // abierto (active): son el mismo hoy porque pedirBorrado() siempre
+          // parte de active.user_id, pero nada lo garantiza estructuralmente.
+          // Sin user_id en DeletionSummary no había forma de afirmar que el
+          // modal borra a quien dice que borra.
+          //
+          // El `?? active?.user_id` es un fallback temporal por la ventana de
+          // deploy: Vercel publica el front antes de que Render termine de
+          // publicar el backend. En ese lapso el front nuevo puede pegarle al
+          // backend viejo, que todavía no devuelve user_id en /deletion-summary,
+          // y aBorrar.user_id llega undefined → DELETE /admin/candidates/undefined
+          // (422) y el borrado queda roto hasta que Render despliegue. Se puede
+          // sacar este fallback una vez que el backend nuevo esté desplegado y
+          // no haga falta convivir con la versión vieja.
+          onConfirm={() => confirmarBorrado(aBorrar.user_id ?? active?.user_id)}
+        />
       )}
     </div>
   );

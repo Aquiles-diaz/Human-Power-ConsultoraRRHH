@@ -3,6 +3,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import LandingPage from "@/features/landing/LandingPage";
 import { RequireAuth, RequireRole, LoadingScreen } from "@/app/guards";
+import StorageNotice from "@/features/legal/StorageNotice";
 
 // OfertasPage va lazy: sale del bundle inicial y solo se descarga al entrar a /ofertas.
 // La landing queda eager por ser la entrada de "/".
@@ -14,6 +15,8 @@ const ForgotPasswordPage = React.lazy(() => import("@/features/auth/ForgotPasswo
 const ResetPasswordPage = React.lazy(() => import("@/features/auth/ResetPasswordPage"));
 const VerifyEmailPage = React.lazy(() => import("@/features/auth/VerifyEmailPage"));
 const AlertUnsubscribedPage = React.lazy(() => import("@/features/profile/AlertUnsubscribedPage"));
+const PrivacidadPage = React.lazy(() => import("@/features/legal/PrivacidadPage"));
+const TerminosPage = React.lazy(() => import("@/features/legal/TerminosPage"));
 const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
 
 // Cada vez que cambia la ruta, vuelve el scroll al tope: sin esto las páginas
@@ -34,6 +37,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <StorageNotice />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
@@ -81,6 +85,22 @@ export default function App() {
           element={
             <React.Suspense fallback={<LoadingScreen />}>
               <AlertUnsubscribedPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/privacidad"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <PrivacidadPage />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/terminos"
+          element={
+            <React.Suspense fallback={<LoadingScreen />}>
+              <TerminosPage />
             </React.Suspense>
           }
         />

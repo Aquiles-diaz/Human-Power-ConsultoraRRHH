@@ -26,6 +26,14 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 38 92% 50%;
     --radius: 0.75rem;
+
+    /* Alto real de la barra de aviso de almacenamiento (StorageNotice).
+       Vale 0px mientras la barra no está, y el propio componente lo actualiza
+       con su alto medido mientras está visible. Lo consumen los elementos
+       fijos de abajo (el FAB de ayuda, la barra de guardado del perfil) para
+       correrse hacia arriba y no quedar tapados ni apilados encima.
+       Ver src/features/legal/StorageNotice.tsx. */
+    --hp-notice-h: 0px;
   }
 }
 

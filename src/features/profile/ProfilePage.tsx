@@ -459,7 +459,6 @@ export default function ProfilePage() {
                   desc="Información básica de contacto y ubicación."
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <TextField label="Titular del perfil / Especialización" value={form.headline} placeholder="Ej: Recursos Humanos" onChange={(v) => setField("headline", v)} />
                     <TextField
                       label="Teléfono"
                       value={form.phone}
@@ -489,11 +488,43 @@ export default function ProfilePage() {
                 <Row
                   id="sec-professional"
                   title="Perfil profesional"
-                  desc="Tu experiencia, formación e idiomas."
+                  desc="Tu formación, tu experiencia e idiomas."
                 >
+                  {/* Lo que define al candidato va primero; la situación
+                      laboral es secundaria y va abajo. */}
+                  <p className="mb-3 text-[13px] font-semibold text-slate-900">
+                    Tu formación y área
+                  </p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <TextField
+                        label="Titular del perfil"
+                        value={form.headline}
+                        placeholder="Ej: Recursos Humanos"
+                        maxLength={120}
+                        onChange={(v) => setField("headline", v)}
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Cómo te presentás en una línea.
+                      </p>
+                    </div>
                     <SelectField label="Área profesional" value={form.professional_area} options={PROFESSIONAL_AREAS} onChange={(v) => setField("professional_area", v)} />
-                    <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
+                    <TextField
+                      label="Título obtenido"
+                      value={form.academic_title}
+                      placeholder="Ej: Licenciado en Administración"
+                      maxLength={120}
+                      onChange={(v) => setField("academic_title", v)}
+                    />
+                    <div className="sm:col-span-2">
+                      <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
+                    </div>
+                  </div>
+
+                  <p className="mb-3 mt-8 text-[13px] font-semibold text-slate-900">
+                    Situación laboral
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <SelectField label="Experiencia" value={form.experience_years} options={EXPERIENCE_OPTIONS} onChange={(v) => setField("experience_years", v)} />
                     <SelectField label="Disponibilidad" value={form.availability} options={AVAILABILITY_OPTIONS} onChange={(v) => setField("availability", v)} />
                     <TextField label="Pretensión salarial" value={form.salary_expectation} placeholder="Ej: $800.000 ARS" onChange={(v) => setField("salary_expectation", v)} />
@@ -579,8 +610,12 @@ export default function ProfilePage() {
                 </Row>
               </div>
 
-              {/* ── Barra fija de guardado ── */}
-              <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+              {/* ── Barra fija de guardado ──
+                  El `bottom` sale de --hp-notice-h: mientras está el aviso de
+                  almacenamiento (que también es una barra a ancho completo en
+                  bottom-0, y va por encima porque es z-50 contra z-30) esta se
+                  corre hacia arriba. Si no, "Guardar cambios" queda tapado. */}
+              <div className="fixed inset-x-0 bottom-[var(--hp-notice-h)] z-30 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
                 <div className="mx-auto flex max-w-4xl items-center justify-end gap-3 px-4 py-3 sm:px-6">
                   <span className="mr-auto hidden text-[13px] text-slate-500 sm:block">
                     Los cambios se guardan solo al presionar Guardar.

@@ -239,6 +239,7 @@ class ResumeItem(BaseModel):
     province: Optional[str] = None
     country: Optional[str] = None
     professional_area: Optional[str] = None
+    academic_title: Optional[str] = None
     education_level: Optional[str] = None
     experience_years: Optional[str] = None
     availability: Optional[str] = None
@@ -328,7 +329,7 @@ MAX_CV_PAGE = 500
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
-    "professional_area", "education_level", "experience_years",
+    "professional_area", "academic_title", "education_level", "experience_years",
     "availability", "salary_expectation", "headline", "video_url",
 ]
 
@@ -383,6 +384,7 @@ class ProfileOut(BaseModel):
     province: Optional[str] = None
     country: Optional[str] = None
     professional_area: Optional[str] = None
+    academic_title: Optional[str] = None
     education_level: Optional[str] = None
     languages: list[str] = Field(default_factory=list)
     experience_years: Optional[str] = None
@@ -402,6 +404,7 @@ class CandidateListItem(BaseModel):
     email: str
     headline: Optional[str] = None
     professional_area: Optional[str] = None
+    academic_title: Optional[str] = None
     education_level: Optional[str] = None
     experience_years: Optional[str] = None
     city: Optional[str] = None
@@ -413,6 +416,19 @@ class CandidateListItem(BaseModel):
 
 class CandidatesOut(BaseModel):
     items: list[CandidateListItem]
+
+class DeletionSummary(BaseModel):
+    user_id: int
+    email: str
+    name: str
+    applications: int
+    has_cv: bool = False
+    has_photo: bool = False
+    has_video: bool = False
+
+class DeletionResult(BaseModel):
+    deleted_applications: int
+    deleted_files: int
 
 # ── Puestos / ofertas ──
 # Salida en camelCase para coincidir con el tipo `Job` del frontend (postedAt,
@@ -1174,7 +1190,7 @@ def list_cvs_admin(
                    p.video_filename, p.video_url, r.status,
                    u.id AS user_id, u.name, u.last_name,
                    p.phone, p.age_range, p.city, p.province, p.country,
-                   p.professional_area, p.education_level, p.experience_years,
+                   p.professional_area, p.academic_title, p.education_level, p.experience_years,
                    p.availability, p.salary_expectation, p.languages, p.headline,
                    p.photo_filename, p.external_photo_url
             FROM resumes r
@@ -1211,6 +1227,7 @@ def list_cvs_admin(
                 province=r["province"],
                 country=r["country"],
                 professional_area=r["professional_area"],
+                academic_title=r["academic_title"],
                 education_level=r["education_level"],
                 experience_years=r["experience_years"],
                 availability=r["availability"],
@@ -1922,7 +1939,7 @@ def list_candidates(
     sql = """
         SELECT u.id, u.name, u.last_name, u.email,
                u.created_at, u.last_login_at,
-               p.headline, p.professional_area, p.education_level,
+               p.headline, p.professional_area, p.academic_title, p.education_level,
                p.experience_years, p.city, p.photo_filename, p.external_photo_url,
                p.cv_filename, p.video_filename, p.video_url
         FROM users u
@@ -1952,7 +1969,8 @@ def list_candidates(
         CandidateListItem(
             user_id=r["id"], name=r["name"], last_name=r["last_name"], email=r["email"],
             headline=r["headline"], professional_area=r["professional_area"],
-            education_level=r["education_level"], experience_years=r["experience_years"],
+            academic_title=r["academic_title"], education_level=r["education_level"],
+            experience_years=r["experience_years"],
             city=r["city"], photo_url=_photo_url(r["photo_filename"]) or r["external_photo_url"],
             has_cv=bool(r["cv_filename"]),
             has_video=bool(r["video_filename"]) or bool(r["video_url"]),
@@ -1977,6 +1995,130 @@ def get_candidate(user_id: int) -> ProfileOut:
 @app.get("/admin/candidates/{user_id}/cv", dependencies=[Depends(require_admin)], tags=["admin"])
 def download_candidate_cv(user_id: int, request: Request):
     return _download_profile_cv(user_id, request)
+
+
+def _candidate_for_deletion(conn, user_id: int, current_user: dict) -> dict:
+    """Trae usuario + claves de archivos, o corta con el status que corresponda.
+
+    Las guardas de auto-borrado y anti-admin viven acá (no en delete_candidate)
+    para que candidate_deletion_summary las comparta: sin esto, el resumen le
+    prometía al admin un borrado que el DELETE iba a rechazar con 403/400 recién
+    al confirmar. `current_user` es requerido a propósito -sin default- para que
+    un caller nuevo no pueda saltearse la guarda de auto-borrado por olvido.
+    """
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="No podés eliminar tu propia cuenta")
+    row = conn.execute(
+        """
+        SELECT u.id, u.name, u.last_name, u.email, u.role,
+               p.cv_filename, p.photo_filename, p.video_filename, p.video_url
+        FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE u.id = %s
+        """,
+        (user_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    c = dict(row)
+    if (c["role"] or "user") == "admin":
+        raise HTTPException(status_code=403, detail="No se puede eliminar a un administrador")
+    return c
+
+
+@app.get(
+    "/admin/candidates/{user_id}/deletion-summary",
+    response_model=DeletionSummary,
+    dependencies=[Depends(require_admin)],
+    tags=["admin"],
+)
+def candidate_deletion_summary(
+    user_id: int, current_user: dict = Depends(get_current_user)
+) -> DeletionSummary:
+    """Números reales para el modal de confirmación: qué se pierde exactamente."""
+    with get_db() as conn:
+        c = _candidate_for_deletion(conn, user_id, current_user)
+        total = conn.execute(
+            "SELECT COUNT(*) FROM resumes WHERE LOWER(email) = LOWER(%s)", (c["email"],)
+        ).fetchone()[0]
+    return DeletionSummary(
+        user_id=c["id"],
+        email=c["email"],
+        name=f"{c['name']} {c['last_name'] or ''}".strip(),
+        applications=int(total),
+        has_cv=bool(c["cv_filename"]),
+        has_photo=bool(c["photo_filename"]),
+        # Mismo criterio que list_candidates: un link de video pegado (video_url,
+        # sin archivo propio) también cuenta como "tiene video". Antes acá solo
+        # miraba video_filename y el modal de borrado decía "sin video" para un
+        # candidato que la grilla ya mostraba con badge de video.
+        has_video=bool(c["video_filename"]) or bool(c["video_url"]),
+    )
+
+
+@app.delete(
+    "/admin/candidates/{user_id}",
+    response_model=DeletionResult,
+    dependencies=[Depends(require_admin)],
+    tags=["admin"],
+)
+def delete_candidate(user_id: int, current_user: dict = Depends(get_current_user)) -> DeletionResult:
+    """Elimina al candidato de verdad: cuenta, perfil, postulaciones y archivos.
+
+    `resumes` no tiene FK a users (se vincula por email), así que la cascada NO
+    alcanza: sin el DELETE explícito quedarían vivas las postulaciones de
+    alguien que pidió desaparecer.
+
+    Orden a propósito: primero se juntan las claves, después se borran las filas
+    en transacción, y recién al final los objetos del bucket. Al revés, un fallo
+    de base dejaría filas apuntando a archivos que ya no existen. Así el peor
+    caso es un objeto huérfano, que molesta pero no rompe nada.
+    """
+    with get_db() as conn:
+        c = _candidate_for_deletion(conn, user_id, current_user)
+        email = c["email"]
+        resume_keys = [
+            r[0]
+            for r in conn.execute(
+                "SELECT filename FROM resumes WHERE LOWER(email) = LOWER(%s)", (email,)
+            ).fetchall()
+            if r[0]
+        ]
+
+        cur = conn.execute("DELETE FROM resumes WHERE LOWER(email) = LOWER(%s)", (email,))
+        # En psycopg3 el rowcount de un DELETE es siempre un entero confiable
+        # (0 en el peor caso): no hace falta -ni conviene- caer a
+        # len(resume_keys) como estimación. Si hubo una carrera con otro
+        # borrado del mismo candidato, acá tiene que decir 0 de verdad.
+        borradas = cur.rowcount
+        # profiles y job_alert_subscriptions caen por ON DELETE CASCADE.
+        conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+
+    archivos = 0
+    for key in resume_keys + ([c["cv_filename"]] if c["cv_filename"] else []):
+        if _remove_quietly(storage.remove, storage.CV_BUCKET, key):
+            archivos += 1
+    if c["photo_filename"] and _remove_quietly(storage.remove, storage.PHOTO_BUCKET, c["photo_filename"]):
+        archivos += 1
+    if c["video_filename"] and _remove_quietly(storage_video.remove, None, c["video_filename"]):
+        archivos += 1
+
+    log.info("Candidato %s eliminado: %d postulaciones, %d archivos", user_id, borradas, archivos)
+    return DeletionResult(deleted_applications=borradas, deleted_files=archivos)
+
+
+def _remove_quietly(fn, bucket: Optional[str], key: str) -> bool:
+    """Borra un objeto sin dejar que un fallo de Storage tumbe la respuesta.
+
+    La base ya está limpia cuando esto corre: si el bucket falla, el dato
+    sensible igual desapareció. Queda el log para limpiar el huérfano a mano.
+    """
+    try:
+        return bool(fn(bucket, key) if bucket is not None else fn(key))
+    except Exception as e:
+        log.warning("No se pudo borrar el archivo %s: %s", key, e)
+        return False
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Rutas de autenticación (se incluyen al final, con app ya creada)

@@ -5,6 +5,7 @@ de DB jamás rompa el login.
 
     PYTHONPATH=. .venv/bin/python -m pytest backend/tests/test_last_login.py -q
 """
+import contextlib
 import os
 
 os.environ.setdefault("SECRET_KEY", "x" * 40)
@@ -20,6 +21,29 @@ from backend.ratelimit import limiter
 
 limiter.enabled = False
 
+# Los fakes de este archivo pisan funciones de `auth` a nivel de módulo y
+# pytest corre todos los archivos en el mismo proceso: sin restaurarlas, el
+# siguiente archivo (orden alfabético) hereda los fakes y testea contra ellos
+# en vez de contra el código real. No se usa el monkeypatch de pytest porque
+# estos tests también corren standalone.
+_PARCHEADAS = (
+    "get_user_by_email",
+    "create_user",
+    "set_email_verified",
+    "set_profile_photo_url",
+    "touch_last_login",
+)
+
+
+@contextlib.contextmanager
+def _auth_intacto():
+    originales = {n: getattr(auth, n) for n in _PARCHEADAS}
+    try:
+        yield
+    finally:
+        for nombre, original in originales.items():
+            setattr(auth, nombre, original)
+
 
 def _fake_user(email):
     return {
@@ -34,21 +58,23 @@ def _fake_user(email):
 
 
 def test_login_ok_touches_last_login():
-    auth.get_user_by_email = lambda email: _fake_user(email)
-    touched = []
-    auth.touch_last_login = lambda uid: touched.append(uid)
-    r = TestClient(app).post("/login", json={"email": "u@x.com", "password": "correcta123"})
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert touched == [7]
+    with _auth_intacto():
+        auth.get_user_by_email = lambda email: _fake_user(email)
+        touched = []
+        auth.touch_last_login = lambda uid: touched.append(uid)
+        r = TestClient(app).post("/login", json={"email": "u@x.com", "password": "correcta123"})
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert touched == [7]
 
 
 def test_login_wrong_password_does_not_touch():
-    auth.get_user_by_email = lambda email: _fake_user(email)
-    touched = []
-    auth.touch_last_login = lambda uid: touched.append(uid)
-    r = TestClient(app).post("/login", json={"email": "u@x.com", "password": "incorrecta9"})
-    assert r.status_code == 401
-    assert touched == []
+    with _auth_intacto():
+        auth.get_user_by_email = lambda email: _fake_user(email)
+        touched = []
+        auth.touch_last_login = lambda uid: touched.append(uid)
+        r = TestClient(app).post("/login", json={"email": "u@x.com", "password": "incorrecta9"})
+        assert r.status_code == 401
+        assert touched == []
 
 
 def _google_client(idinfo, existing_user, touched):
@@ -69,20 +95,22 @@ def _google_client(idinfo, existing_user, touched):
 
 
 def test_google_existing_user_touches():
-    touched = []
-    client = _google_client(
-        {"email": "u@x.com", "email_verified": True}, _fake_user("u@x.com"), touched
-    )
-    r = client.post("/auth/google", json={"credential": "fake"})
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert touched == [7]
+    with _auth_intacto():
+        touched = []
+        client = _google_client(
+            {"email": "u@x.com", "email_verified": True}, _fake_user("u@x.com"), touched
+        )
+        r = client.post("/auth/google", json={"credential": "fake"})
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert touched == [7]
 
 
 def test_google_new_user_touches():
-    touched = []
-    client = _google_client(
-        {"email": "new@x.com", "email_verified": True, "given_name": "New"}, None, touched
-    )
-    r = client.post("/auth/google", json={"credential": "fake"})
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert touched == [33]
+    with _auth_intacto():
+        touched = []
+        client = _google_client(
+            {"email": "new@x.com", "email_verified": True, "given_name": "New"}, None, touched
+        )
+        r = client.post("/auth/google", json={"credential": "fake"})
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert touched == [33]

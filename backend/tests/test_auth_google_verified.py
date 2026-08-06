@@ -9,6 +9,7 @@ controlado, y se stubbea la capa de DB.
 
     PYTHONPATH=. .venv/bin/python backend/tests/test_auth_google_verified.py
 """
+import contextlib
 import os
 
 os.environ.setdefault("SECRET_KEY", "x" * 40)
@@ -22,6 +23,29 @@ from backend import auth
 from backend.ratelimit import limiter
 
 limiter.enabled = False
+
+# make_client pisa funciones de `auth` a nivel de módulo y pytest corre todos
+# los archivos en el mismo proceso: sin restaurarlas, el siguiente archivo
+# (orden alfabético) hereda los fakes y testea contra ellos en vez de contra el
+# código real. No se usa el monkeypatch de pytest porque estos tests también
+# corren standalone.
+_PARCHEADAS = (
+    "get_user_by_email",
+    "create_user",
+    "set_email_verified",
+    "set_profile_photo_url",
+    "touch_last_login",
+)
+
+
+@contextlib.contextmanager
+def _auth_intacto():
+    originales = {n: getattr(auth, n) for n in _PARCHEADAS}
+    try:
+        yield
+    finally:
+        for nombre, original in originales.items():
+            setattr(auth, nombre, original)
 
 
 def make_client(idinfo, existing_user=None, record=None):
@@ -50,28 +74,31 @@ def _post(client):
 
 
 def test_verified_email_new_user_ok():
-    idinfo = {"email": "new@gmail.com", "email_verified": True, "given_name": "New"}
-    client, rec = make_client(idinfo)
-    r = _post(client)
-    assert r.status_code == 200, (r.status_code, r.text)
-    assert "created" in rec, "debe crear el usuario"
+    with _auth_intacto():
+        idinfo = {"email": "new@gmail.com", "email_verified": True, "given_name": "New"}
+        client, rec = make_client(idinfo)
+        r = _post(client)
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert "created" in rec, "debe crear el usuario"
 
 
 def test_unverified_email_is_rejected():
-    idinfo = {"email": "spoof@gmail.com", "email_verified": False, "given_name": "X"}
-    client, rec = make_client(idinfo)
-    r = _post(client)
-    assert r.status_code == 401, (r.status_code, r.text, "email no verificado por Google debe rechazarse")
-    assert "created" not in rec, "no debe crear ni linkear cuenta con email no verificado"
+    with _auth_intacto():
+        idinfo = {"email": "spoof@gmail.com", "email_verified": False, "given_name": "X"}
+        client, rec = make_client(idinfo)
+        r = _post(client)
+        assert r.status_code == 401, (r.status_code, r.text, "email no verificado por Google debe rechazarse")
+        assert "created" not in rec, "no debe crear ni linkear cuenta con email no verificado"
 
 
 def test_verified_email_existing_user_ok():
-    existing = {"id": 1, "email": "known@gmail.com", "name": "K", "last_name": "",
-                "role": "user", "email_verified": True}
-    idinfo = {"email": "known@gmail.com", "email_verified": True}
-    client, rec = make_client(idinfo, existing_user=existing)
-    r = _post(client)
-    assert r.status_code == 200, (r.status_code, r.text)
+    with _auth_intacto():
+        existing = {"id": 1, "email": "known@gmail.com", "name": "K", "last_name": "",
+                    "role": "user", "email_verified": True}
+        idinfo = {"email": "known@gmail.com", "email_verified": True}
+        client, rec = make_client(idinfo, existing_user=existing)
+        r = _post(client)
+        assert r.status_code == 200, (r.status_code, r.text)
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

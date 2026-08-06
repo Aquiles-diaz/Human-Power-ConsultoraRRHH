@@ -63,3 +63,6 @@ vite.config.d.ts
 docs/superpowers/
 # Reportes de QA/seguridad: listan hallazgos; NO publicar en repo público
 docs/QA-predeploy-*.md
+# Config local de Claude Code: incluye worktrees (copias completas del repo).
+# No versionar; un git add -A distraído los commitearía enteros.
+.claude/

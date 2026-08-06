@@ -13,6 +13,7 @@ export type Profile = {
   province?: string | null;
   country?: string | null;
   professional_area?: string | null;
+  academic_title?: string | null;
   education_level?: string | null;
   languages: string[];
   experience_years?: string | null;
@@ -35,6 +36,7 @@ export const PROFILE_TEXT_FIELDS = [
   "province",
   "country",
   "professional_area",
+  "academic_title",
   "education_level",
   "experience_years",
   "availability",

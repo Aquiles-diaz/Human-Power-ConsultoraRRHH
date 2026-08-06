@@ -39,7 +39,7 @@ class _FakeConn:
 
 _ROW = {
     "id": 1, "name": "Ana", "last_name": "Pérez", "email": "ana@x.com",
-    "headline": None, "professional_area": None, "education_level": None,
+    "headline": None, "professional_area": None, "academic_title": None, "education_level": None,
     "experience_years": None, "city": None, "photo_filename": None,
     "external_photo_url": None, "cv_filename": None, "video_filename": None,
     "video_url": None,

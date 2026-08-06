@@ -89,7 +89,11 @@ export default function AuthPage() {
               </Link>
             </div>
           ) : (
-          <div className="[&_form]:max-w-none [&_label]:text-white/80 [&_input]:bg-white/5 [&_input]:text-white [&_input]:border-white/10 [&_input::placeholder]:text-white/30">
+          /* Tarjeta oscura: el aviso legal del botón de Google trae un gris
+             pensado para fondo claro (el modal de AuthSection), así que acá se
+             aclara. Sus links heredan currentColor, con lo cual esta única
+             regla alcanza para todo el párrafo. */
+          <div className="[&_form]:max-w-none [&_label]:text-white/80 [&_input]:bg-white/5 [&_input]:text-white [&_input]:border-white/10 [&_input::placeholder]:text-white/30 [&_[data-legal-notice]]:text-white/60">
             <LoginForm onSubmit={handleLogin} loading={loading} error={error} />
             <GoogleAuthButton />
           </div>

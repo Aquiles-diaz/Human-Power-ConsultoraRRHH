@@ -23,6 +23,7 @@ export type ResumeRow = {
   country?: string | null;
   professional_area?: string | null;
   education_level?: string | null;
+  academic_title?: string | null;
   experience_years?: string | null;
   availability?: string | null;
   salary_expectation?: string | null;

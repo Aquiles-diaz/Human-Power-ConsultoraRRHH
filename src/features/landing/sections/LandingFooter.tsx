@@ -29,6 +29,12 @@ export default function LandingFooter() {
               >
                 <Instagram className="size-3.5" /> Instagram
               </a>
+              <Link to="/privacidad" className="hover:text-white/80 transition-colors">
+                Privacidad
+              </Link>
+              <Link to="/terminos" className="hover:text-white/80 transition-colors">
+                Términos
+              </Link>
             </div>
           </div>
 
