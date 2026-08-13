@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapPin,
   Search,
@@ -133,15 +133,15 @@ const JobDetail: React.FC<{
       </div>
     </div>
 
-    {/* Cuerpo — scrollea con la página (scroll natural del documento, sin
-        scroll interno). El padding inferior suma --hp-notice-h: el footer
-        con el CTA es "sticky", así que al llegar al fondo real del scroll
-        vuelve a su posición de flujo (deja de estar pegado) y se dibuja justo
-        debajo del contenido. Sin este margen extra, StorageNotice (fixed,
-        z-50) queda por encima del footer y tapa el botón "Postularme" en ese
-        punto exacto del scroll. Con la variable en 0px (sin aviso) el padding
-        vuelve a ser el de siempre. */}
-    <div className="p-5 pb-[calc(1.25rem+var(--hp-notice-h))] sm:p-6 sm:pb-[calc(1.5rem+var(--hp-notice-h))]">
+    {/* Cuerpo. El padding inferior extra con --hp-notice-h es SOLO hasta lg:
+        en mobile la card scrollea con el documento y el footer con el CTA es
+        "sticky", así que al llegar al fondo real del scroll vuelve a su
+        posición de flujo justo donde StorageNotice (fixed, z-50) dibuja su
+        barra — sin este margen el botón "Postularme" queda tapado en ese punto
+        exacto. Desde lg la card es un scrollport cuyo alto ya resta la barra
+        (max-h de la columna), la barra no tapa nada y el padding vuelve al
+        normal. Con la variable en 0px (sin aviso) tampoco cambia nada. */}
+    <div className="p-5 pb-[calc(1.25rem+var(--hp-notice-h))] sm:p-6 sm:pb-[calc(1.5rem+var(--hp-notice-h))] lg:pb-6">
       <div className="mx-auto max-w-3xl space-y-8">
         {job.description && (
           <section>
@@ -190,14 +190,18 @@ const JobDetail: React.FC<{
       </div>
     </div>
 
-    {/* CTA siempre visible — footer anclado con sombra hacia arriba que lo despega
-        del contenido. En mobile ocupa todo el ancho (mejor toque); desde sm queda
-        alineado a la derecha y con ancho automático, para no verse como una barra.
-        El `bottom` sale de --hp-notice-h: el panel scrollea con el documento en
-        todos los tamaños, así que "sticky bottom-0" quedaría pegado al fondo real
-        del viewport, justo donde StorageNotice (fixed, z-50) dibuja su barra. Sin
-        este corrimiento el botón "Postularme" queda tapado por completo. */}
-    <div className="sticky bottom-[var(--hp-notice-h)] z-10 rounded-b-2xl border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+    {/* CTA siempre visible — footer sticky al fondo del contenedor de scroll,
+        con sombra hacia arriba que lo despega del contenido. En mobile ocupa
+        todo el ancho (mejor toque); desde sm queda alineado a la derecha y con
+        ancho automático, para no verse como una barra. El `bottom` es
+        responsive: en mobile el contenedor de scroll es el documento y el
+        fondo real del viewport es donde StorageNotice (fixed, z-50) dibuja su
+        barra, así que se corre con --hp-notice-h (sin esto el botón
+        "Postularme" queda tapado por completo — bug ya visto). Desde lg el
+        contenedor de scroll es la card (sticky ancla contra el ancestro con
+        overflow) y el alto de la columna ya resta la barra, con lo cual el
+        fondo de la card queda arriba de ella y bottom-0 alcanza. */}
+    <div className="sticky bottom-[var(--hp-notice-h)] z-10 rounded-b-2xl border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] lg:bottom-0">
       <div className="mx-auto flex max-w-3xl justify-end">
         <Button
           variant="brand"
@@ -497,6 +501,9 @@ const OfertasPage: React.FC = () => {
   const [mobileDetail, setMobileDetail] = useState(false); // en mobile, mostrar detalle a pantalla completa
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filtersOpen, setFiltersOpen] = useState(false); // mobile: selects secundarios colapsados
+  // Scrollport del detalle (desde lg la card tiene overflow propio): al elegir
+  // otro aviso hay que rebobinarlo para que el nuevo se vea desde el título.
+  const detailScrollRef = useRef<HTMLDivElement | null>(null);
 
   // En hard-load de /ofertas/:id el server (api/job-page.ts) inyecta un JSON-LD
   // con id="hp-job-ld". Al montar, el cliente toma posesión: se remueve para
@@ -599,10 +606,11 @@ const OfertasPage: React.FC = () => {
     setSelectedId(id);
     setMobileDetail(true);
     navigate(`/ofertas/${id}`);
-    // Solo en lg: el ScrollToTop de App.tsx no resetea dentro de /ofertas, y
-    // con el detalle scrolleando con el documento el aviso nuevo podría quedar
-    // fuera de vista si la lista estaba scrolleada bien abajo.
-    scrollTopOnSelect();
+    // Solo en lg: el ScrollToTop de App.tsx no resetea dentro de /ofertas.
+    // Alinea el grid arriba (scroll del documento) y rebobina el scrollport
+    // del detalle: si se estaba leyendo abajo de un aviso y se elige otro, el
+    // nuevo debe verse desde el título.
+    scrollTopOnSelect(detailScrollRef.current);
   }
 
   return (
@@ -610,7 +618,10 @@ const OfertasPage: React.FC = () => {
       <Header />
 
       <main className="min-h-screen bg-slate-50 text-slate-900">
-        <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        {/* Desde lg el layout es app-like (dos paneles con scroll propio) y
+            aprovecha el ancho de notebook/PC: screen-2xl (1536px) con px-8.
+            En mobile/tablet conserva el max-w-7xl de siempre. */}
+        <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:max-w-screen-2xl lg:px-8 lg:py-10">
           {/* Encabezado — oculto en mobile cuando se ve el detalle (pantalla completa) */}
           <div className={`mb-6 ${mobileDetail ? "hidden lg:block" : ""}`}>
             <p className="t-eyebrow">
@@ -699,7 +710,7 @@ const OfertasPage: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(340px,410px)_1fr]">
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-28 w-full rounded-2xl" />
@@ -738,19 +749,24 @@ const OfertasPage: React.FC = () => {
             </div>
           ) : (
             // ── Layout estilo LinkedIn: lista (izq) + detalle (der) ──
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
-              {/* Lista — desde lg queda fija (sticky bajo el header, top-24 como
-                  el resto del sitio) con scroll propio, estilo LinkedIn: el
-                  detalle scrollea con el documento y la lista acompaña sin irse
-                  de pantalla. El max-h resta también --hp-notice-h: con la barra
-                  de aviso visible (fixed al fondo, z-50) el final de la lista
-                  quedaría tapado; sin barra la variable vale 0px y no cambia
-                  nada. El par -m-1/p-1 da un colchón para que la sombra
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(340px,410px)_1fr]">
+              {/* Lista — desde lg, panel detenido (sticky bajo el header,
+                  top-24 como el resto del sitio) con alto acotado y scroll
+                  propio, estilo LinkedIn actual: scrollear el detalle no mueve
+                  las ofertas y viceversa. El max-h resta también --hp-notice-h:
+                  con la barra de aviso visible (fixed al fondo, z-50) el final
+                  de la lista quedaría tapado; sin barra la variable vale 0px y
+                  no cambia nada. overscroll-contain SOLO en la lista, a
+                  propósito: llegar al fondo de las ofertas no debe arrastrar la
+                  página (la lista se navega, no se "termina"); el detalle queda
+                  sin contain para que, al terminar de leer, la rueda siga hacia
+                  el documento y se llegue al final de la página con
+                  naturalidad. El par -m-1/p-1 da un colchón para que la sombra
                   de las tarjetas no se recorte contra el borde del área con
                   overflow. Todo con prefijo lg:; en mobile la lista sigue en el
                   flujo normal (y se oculta con el detalle a pantalla completa). */}
               <div
-                className={`space-y-3 lg:sticky lg:top-24 lg:-m-1 lg:block lg:max-h-[calc(100vh-120px-var(--hp-notice-h))] lg:self-start lg:overflow-y-auto lg:p-1 ${
+                className={`space-y-3 lg:sticky lg:top-24 lg:-m-1 lg:block lg:max-h-[calc(100vh-120px-var(--hp-notice-h))] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:p-1 ${
                   mobileDetail ? "hidden" : "block"
                 }`}
               >
@@ -772,13 +788,21 @@ const OfertasPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Detalle — la card crece con su contenido y scrollea con la
-                  página (sin alto acotado ni scroll interno; la que queda
-                  sticky es la lista). self-start evita que la card se estire
-                  hasta el alto de la fila cuando el aviso es corto. */}
+              {/* Detalle — desde lg, mismo tratamiento que la lista: card
+                  detenida (sticky top-24) con alto acotado y scroll propio. El
+                  scrollport es LA CARD ENTERA — el encabezado del aviso
+                  scrollea junto con el cuerpo, no queda fijo — así el área de
+                  lectura ocupa casi todo el alto del viewport y no se repite el
+                  viejo "recuadro cortito" que nacía de partir header fijo +
+                  cuerpo con scroll chico. Sin overscroll-contain a propósito
+                  (ver comentario de la lista). self-start evita que la card se
+                  estire hasta el alto de la fila cuando el aviso es corto. En
+                  mobile la card crece con su contenido y scrollea con el
+                  documento, como siempre. */}
               {selectedJob && (
                 <div
-                  className={`rounded-2xl border border-slate-200 bg-white shadow lg:block lg:self-start ${
+                  ref={detailScrollRef}
+                  className={`rounded-2xl border border-slate-200 bg-white shadow lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-120px-var(--hp-notice-h))] lg:self-start lg:overflow-y-auto ${
                     mobileDetail ? "block" : "hidden"
                   }`}
                 >
