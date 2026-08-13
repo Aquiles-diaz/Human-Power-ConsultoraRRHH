@@ -37,7 +37,10 @@ Cuenta: **humanpower.rrhh@gmail.com**
      desarrollador. Guardá. (Podés dejarla en modo "Testing"; igual funciona.)
 4. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**:
    - Tipo de aplicación: **Aplicación web**.
-   - **Orígenes de JavaScript autorizados** (agregá los dos):
+   - **Orígenes de JavaScript autorizados** (agregá los tres; durante la
+     transición de dominio hacen falta AMBOS orígenes de producción, porque el
+     `.vercel.app` viejo sigue accesible hasta que el redirect lo cubra todo):
+     - `https://www.humanpower.com.ar`
      - `https://human-power-rrhh.vercel.app`
      - `http://localhost:5173`
    - **URIs de redireccionamiento autorizados**: no hacen falta para este flujo
@@ -60,7 +63,7 @@ SMTP_USER=humanpower.rrhh@gmail.com
 SMTP_PASSWORD=<las 16 letras del App Password, sin espacios>
 SMTP_FROM=Human Power RRHH <humanpower.rrhh@gmail.com>
 CONTACT_TO=humanpower.rrhh@gmail.com
-FRONTEND_URL=https://human-power-rrhh.vercel.app
+FRONTEND_URL=https://www.humanpower.com.ar
 GOOGLE_CLIENT_ID=<tu-client-id>.apps.googleusercontent.com
 ```
 

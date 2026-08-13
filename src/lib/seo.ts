@@ -1,6 +1,7 @@
 // Constantes y helpers de SEO compartidos. Las URLs absolutas se arman con SITE_URL:
-// si se migra a un dominio propio, se cambia acá (y en index.html, sitemap.xml y robots.txt).
-export const SITE_URL = "https://human-power-rrhh.vercel.app";
+// si cambia el dominio, se cambia acá (y en index.html y robots.txt; el sitemap
+// es dinámico en api/sitemap.ts y ya toma esta constante).
+export const SITE_URL = "https://www.humanpower.com.ar";
 
 export const DEFAULT_TITLE = "Human Power | Consultora integral de RRHH";
 export const DEFAULT_DESCRIPTION =

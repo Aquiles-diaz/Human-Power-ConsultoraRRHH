@@ -15,7 +15,7 @@ Este repositorio es **full-stack**: incluye el **frontend** (React + TypeScript 
 
 ## ✨ Demo
 
-- **Producción:** [human-power-rrhh.vercel.app](https://human-power-rrhh.vercel.app)
+- **Producción:** [www.humanpower.com.ar](https://www.humanpower.com.ar)
 
 ### 🖼️ Capturas
 

@@ -9,5 +9,6 @@ Disallow: /login
 Disallow: /recuperar
 Disallow: /reset-password
 Disallow: /verify-email
+Disallow: /alertas/baja
 
-Sitemap: https://human-power-rrhh.vercel.app/sitemap.xml
+Sitemap: https://www.humanpower.com.ar/sitemap.xml

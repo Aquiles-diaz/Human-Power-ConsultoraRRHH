@@ -25,10 +25,12 @@ services:
         value: "0" # esquema gestionado por migraciones (ya aplicado en Supabase cloud)
       - key: PG_DISABLE_PREPARE
         value: "1" # requerido por el transaction pooler de Supabase
+      # Ambos orígenes durante la transición de dominio: el dominio propio (el
+      # canónico) y el .vercel.app viejo (links ya compartidos, cachés, bots).
       - key: CORS_ORIGINS
-        value: https://human-power-rrhh.vercel.app
+        value: https://www.humanpower.com.ar,https://human-power-rrhh.vercel.app
       - key: FRONTEND_URL
-        value: https://human-power-rrhh.vercel.app
+        value: https://www.humanpower.com.ar
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
