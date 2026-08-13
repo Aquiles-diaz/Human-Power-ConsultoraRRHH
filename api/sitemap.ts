@@ -1,10 +1,17 @@
 // Función serverless de Vercel: sitemap dinámico en /sitemap.xml (rewrite en
 // vercel.json). Emite las rutas fijas (/, /ofertas, /privacidad, /terminos)
-// más una URL por aviso
-// publicado, leyendo el endpoint público de la API. Imports relativos a src/:
-// el bundler de funciones de Vercel no resuelve el alias "@/" de Vite.
+// más una URL por aviso publicado, leyendo el endpoint público de la API.
+//
+// AUTOCONTENIDA a propósito (cero imports relativos): package.json declara
+// "type": "module" y en modo ESM el runtime @vercel/node compila api/*.ts SIN
+// bundlear — un import a ../src quedaría tal cual en el .js emitido y Node no
+// lo resuelve en runtime (ERR_MODULE_NOT_FOUND en /var/task). Por eso SITE_URL
+// vive copiada acá y se exporta: api-job-page.test.ts verifica la paridad
+// contra src/lib/seo.ts.
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { SITE_URL } from "../src/lib/seo";
+
+// = src/lib/seo.ts (copia; ver comentario de cabecera)
+export const SITE_URL = "https://www.humanpower.com.ar";
 
 const API_URL = "https://human-power-api.onrender.com";
 

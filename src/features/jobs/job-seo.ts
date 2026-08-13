@@ -1,8 +1,9 @@
 // JSON-LD JobPosting para Google for Jobs. Se emite SOLO en el detalle
 // (/ofertas/:jobId): Google descarta este schema en páginas de listado.
-// Import relativo (no "@/"): este módulo también lo consume api/job-page.ts
-// (función serverless de Vercel), cuyo bundler no resuelve el alias de Vite.
-import { SITE_URL } from "../../lib/seo";
+// OJO: api/job-page.ts lleva una COPIA de jobPostingLd (el runtime ESM de
+// Vercel no bundlea api/, no puede importar de src/); la paridad entre ambas
+// la ata src/features/jobs/api-job-page.test.ts.
+import { SITE_URL } from "@/lib/seo";
 import { type Job } from "./jobs-data";
 
 // Los avisos no tienen vencimiento real (se despublican a mano), pero Google

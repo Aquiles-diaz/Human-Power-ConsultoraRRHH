@@ -1,6 +1,23 @@
-import { describe, it, expect } from "vitest";
-import { injectJobHead } from "./job-head";
+// Tests de api/job-page.ts y api/sitemap.ts (funciones serverless de Vercel).
+//
+// ¿Por qué esas funciones DUPLICAN SITE_URL/jobPostingLd/injectJobHead en vez
+// de importarlos de src/? package.json declara "type": "module" y en modo ESM
+// el runtime @vercel/node compila api/*.ts SIN bundlear: un import relativo a
+// ../src queda tal cual en el .js emitido y Node no lo resuelve en runtime
+// (ERR_MODULE_NOT_FOUND en /var/task; src/ ni siquiera viaja compilado). Estos
+// tests importan las copias directamente desde api/ —vitest resuelve TS
+// extensionless sin problema, y el import de "@vercel/node" es type-only, se
+// borra al compilar— y el bloque de paridad del final ata cada copia a su
+// original de src/ para que no diverjan en silencio.
+import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+  injectJobHead,
+  jobPostingLd as apiJobPostingLd,
+  SITE_URL as API_SITE_URL,
+} from "../../../api/job-page";
+import { SITE_URL as SITEMAP_SITE_URL } from "../../../api/sitemap";
 import { SITE_URL, DEFAULT_DESCRIPTION } from "@/lib/seo";
+import { jobPostingLd } from "./job-seo";
 import { type Job } from "./jobs-data";
 
 const job: Job = {
@@ -72,6 +89,8 @@ describe("injectJobHead", () => {
   });
 
   it("sin shortDescription cae en DEFAULT_DESCRIPTION", () => {
+    // DEFAULT_DESCRIPTION viene de src/lib/seo.ts: si la copia inlineada en
+    // api/job-page.ts divergiera, este assert también lo atraparía.
     const out = injectJobHead(HTML, { ...job, shortDescription: "" });
     expect(out).toContain(`name="description" content="${DEFAULT_DESCRIPTION}"`);
   });
@@ -151,5 +170,42 @@ describe("injectJobHead", () => {
     expect(parsed["@type"]).toBe("JobPosting");
     expect(String(parsed.description)).toContain("<p>");
     expect(String(parsed.description)).toContain("&lt;/script&gt; malicioso");
+  });
+});
+
+describe("paridad api/ ↔ src/ (las copias inlineadas no pueden divergir)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("SITE_URL es idéntica en api/job-page, api/sitemap y src/lib/seo", () => {
+    expect(API_SITE_URL).toBe(SITE_URL);
+    expect(SITEMAP_SITE_URL).toBe(SITE_URL);
+  });
+
+  it("jobPostingLd de api y de src emiten JSON idéntico (aviso presencial completo)", () => {
+    // validThrough se sintetiza sumando 45 días a postedAt (o a "hoy" si no
+    // hay fecha): reloj congelado para que ambas copias vean el mismo ahora.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 13, 12, 0, 0));
+    // Comillas, & y <> en los textos: si una copia escapara distinto (p. ej.
+    // usara el escape de atributos, que sí toca las comillas), el JSON difiere.
+    const completo: Job = {
+      ...job,
+      description: 'Reparto "puerta a puerta" & entregas <urgentes> en zona sur.',
+      shortDescription: 'Reparto "express" & algo más',
+    };
+    expect(JSON.stringify(apiJobPostingLd(completo))).toBe(
+      JSON.stringify(jobPostingLd(completo))
+    );
+  });
+
+  it("jobPostingLd de api y de src emiten JSON idéntico (remoto, sin salary ni postedAt)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 13, 12, 0, 0));
+    // Remoto activa jobLocationType TELECOMMUTE + applicantLocationRequirements;
+    // sin postedAt, validThrough sale del reloj (congelado arriba).
+    const remoto: Job = { ...job, type: "Remoto", salary: "", postedAt: "", location: "" };
+    expect(JSON.stringify(apiJobPostingLd(remoto))).toBe(JSON.stringify(jobPostingLd(remoto)));
   });
 });
