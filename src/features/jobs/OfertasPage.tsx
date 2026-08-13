@@ -51,6 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo, initials } from "./job-ui";
 import { jobPostingLd } from "./job-seo";
 import { resolveJobRoute } from "./job-routing";
+import { scrollTopOnSelect } from "./select-scroll";
 import { JobListItem } from "./JobListItem";
 import ApplySuccess from "./ApplySuccess";
 import SlowLoadingHint from "@/components/shared/SlowLoadingHint";
@@ -76,7 +77,7 @@ const JobDetail: React.FC<{
   onApply: () => void;
   onBack?: () => void;
 }> = ({ job, onApply, onBack }) => (
-  <div className="flex h-full flex-col">
+  <div>
     {/* Encabezado del detalle */}
     <div className="border-b border-slate-100 p-5 sm:p-6">
       {/* Columna de lectura: limita el ancho del texto para una medida cómoda */}
@@ -132,14 +133,15 @@ const JobDetail: React.FC<{
       </div>
     </div>
 
-    {/* Cuerpo scrolleable — el padding inferior suma --hp-notice-h: el footer
+    {/* Cuerpo — scrollea con la página (scroll natural del documento, sin
+        scroll interno). El padding inferior suma --hp-notice-h: el footer
         con el CTA es "sticky", así que al llegar al fondo real del scroll
         vuelve a su posición de flujo (deja de estar pegado) y se dibuja justo
         debajo del contenido. Sin este margen extra, StorageNotice (fixed,
         z-50) queda por encima del footer y tapa el botón "Postularme" en ese
         punto exacto del scroll. Con la variable en 0px (sin aviso) el padding
         vuelve a ser el de siempre. */}
-    <div className="flex-1 overflow-y-auto p-5 pb-[calc(1.25rem+var(--hp-notice-h))] sm:p-6 sm:pb-[calc(1.5rem+var(--hp-notice-h))]">
+    <div className="p-5 pb-[calc(1.25rem+var(--hp-notice-h))] sm:p-6 sm:pb-[calc(1.5rem+var(--hp-notice-h))]">
       <div className="mx-auto max-w-3xl space-y-8">
         {job.description && (
           <section>
@@ -191,12 +193,11 @@ const JobDetail: React.FC<{
     {/* CTA siempre visible — footer anclado con sombra hacia arriba que lo despega
         del contenido. En mobile ocupa todo el ancho (mejor toque); desde sm queda
         alineado a la derecha y con ancho automático, para no verse como una barra.
-        El `bottom` sale de --hp-notice-h: en mobile este panel no tiene el límite
-        de alto que sí tiene desde `lg:` (ver el contenedor en OfertasPage), así que
-        "sticky bottom-0" queda pegado al fondo real del viewport, justo donde
-        StorageNotice (fixed, z-50) dibuja su barra. Sin este corrimiento el botón
-        "Postularme" queda tapado por completo. */}
-    <div className="sticky bottom-[var(--hp-notice-h)] z-10 border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        El `bottom` sale de --hp-notice-h: el panel scrollea con el documento en
+        todos los tamaños, así que "sticky bottom-0" quedaría pegado al fondo real
+        del viewport, justo donde StorageNotice (fixed, z-50) dibuja su barra. Sin
+        este corrimiento el botón "Postularme" queda tapado por completo. */}
+    <div className="sticky bottom-[var(--hp-notice-h)] z-10 rounded-b-2xl border-t border-slate-100 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="mx-auto flex max-w-3xl justify-end">
         <Button
           variant="brand"
@@ -497,6 +498,14 @@ const OfertasPage: React.FC = () => {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filtersOpen, setFiltersOpen] = useState(false); // mobile: selects secundarios colapsados
 
+  // En hard-load de /ofertas/:id el server (api/job-page.ts) inyecta un JSON-LD
+  // con id="hp-job-ld". Al montar, el cliente toma posesión: se remueve para
+  // que el <JsonLd> client-side sea la única fuente y no quede stale al navegar
+  // a otro aviso o al listado. Idempotente (StrictMode double-invoke ok).
+  useEffect(() => {
+    document.getElementById("hp-job-ld")?.remove();
+  }, []);
+
   const locations = useMemo(
     () => [...new Set(jobs.map((j) => j.location).filter(Boolean))],
     [jobs]
@@ -570,18 +579,30 @@ const OfertasPage: React.FC = () => {
           description: jobForSeo.shortDescription || DEFAULT_DESCRIPTION,
           path: `/ofertas/${jobForSeo.id}`,
         }
-      : {
-          title: "Ofertas de empleo | Human Power",
-          description:
-            "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
-          path: "/ofertas",
-        }
+      : routeRes.kind === "pending"
+        ? // Deep-link con jobs todavía cargando: no tocar nada ({} es no-op de
+          // useSeo). Aplicar acá la rama de listado pisaría el title/canonical
+          // por-aviso que ya sirvió api/job-page.ts, y si la API está fría
+          // durante el render de Googlebot el aviso quedaría con
+          // canonical=/ofertas. Confirmado el aviso entra la rama por-aviso;
+          // resuelto como redirect/not-found, recién ahí la de listado.
+          {}
+        : {
+            title: "Ofertas de empleo | Human Power",
+            description:
+              "Explorá las búsquedas laborales abiertas en Human Power y postulate online con tu CV. Encontrá tu próximo desafío profesional.",
+            path: "/ofertas",
+          }
   );
 
   function handleSelect(id: string) {
     setSelectedId(id);
     setMobileDetail(true);
     navigate(`/ofertas/${id}`);
+    // Solo en lg: el ScrollToTop de App.tsx no resetea dentro de /ofertas, y
+    // con el detalle scrolleando con el documento el aviso nuevo podría quedar
+    // fuera de vista si la lista estaba scrolleada bien abajo.
+    scrollTopOnSelect();
   }
 
   return (
@@ -718,9 +739,18 @@ const OfertasPage: React.FC = () => {
           ) : (
             // ── Layout estilo LinkedIn: lista (izq) + detalle (der) ──
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
-              {/* Lista */}
+              {/* Lista — desde lg queda fija (sticky bajo el header, top-24 como
+                  el resto del sitio) con scroll propio, estilo LinkedIn: el
+                  detalle scrollea con el documento y la lista acompaña sin irse
+                  de pantalla. El max-h resta también --hp-notice-h: con la barra
+                  de aviso visible (fixed al fondo, z-50) el final de la lista
+                  quedaría tapado; sin barra la variable vale 0px y no cambia
+                  nada. El par -m-1/p-1 da un colchón para que la sombra
+                  de las tarjetas no se recorte contra el borde del área con
+                  overflow. Todo con prefijo lg:; en mobile la lista sigue en el
+                  flujo normal (y se oculta con el detalle a pantalla completa). */}
               <div
-                className={`space-y-3 lg:block ${
+                className={`space-y-3 lg:sticky lg:top-24 lg:-m-1 lg:block lg:max-h-[calc(100vh-120px-var(--hp-notice-h))] lg:self-start lg:overflow-y-auto lg:p-1 ${
                   mobileDetail ? "hidden" : "block"
                 }`}
               >
@@ -742,10 +772,13 @@ const OfertasPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Detalle */}
+              {/* Detalle — la card crece con su contenido y scrollea con la
+                  página (sin alto acotado ni scroll interno; la que queda
+                  sticky es la lista). self-start evita que la card se estire
+                  hasta el alto de la fila cuando el aviso es corto. */}
               {selectedJob && (
                 <div
-                  className={`rounded-2xl border border-slate-200 bg-white shadow lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-180px)] lg:overflow-hidden ${
+                  className={`rounded-2xl border border-slate-200 bg-white shadow lg:block lg:self-start ${
                     mobileDetail ? "block" : "hidden"
                   }`}
                 >

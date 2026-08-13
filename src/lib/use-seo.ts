@@ -15,6 +15,10 @@ type SeoProps = {
  *
  * Sirve para Google (que ejecuta JS y lee el DOM final) y para el título de la
  * pestaña. Los crawlers sociales (sin JS) siguen viendo los defaults de index.html.
+ *
+ * Llamar con `{}` es un no-op contractual (no toca ningún tag): OfertasPage lo
+ * usa para no pisar el head por-aviso que sirvió api/job-page.ts mientras un
+ * deep-link a /ofertas/:id sigue resolviéndose (jobs cargando).
  */
 export function useSeo({ title, description, path }: SeoProps): void {
   useEffect(() => {

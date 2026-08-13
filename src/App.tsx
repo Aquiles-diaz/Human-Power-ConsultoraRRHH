@@ -21,6 +21,12 @@ const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
 
 // Cada vez que cambia la ruta, vuelve el scroll al tope: sin esto las páginas
 // nuevas heredan la posición de scroll de la anterior.
+// Excepción: moverse DENTRO de /ofertas (lista ↔ /ofertas/:id) no resetea.
+// Ahí el scroll lo maneja la propia página: en desktop, handleSelect hace su
+// scrollTo suave al elegir un aviso (select-scroll.ts); en mobile, el detalle
+// a pantalla completa conserva el flujo natural. Entrar a /ofertas/:id por
+// link directo o desde otra página sí cae acá (prev es null u otra ruta) y
+// arranca arriba, como corresponde.
 function ScrollToTop() {
   const { pathname } = useLocation();
   const prev = React.useRef<string | null>(null);
