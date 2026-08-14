@@ -1,4 +1,5 @@
-"""Tests de /auth/google: el alta por Google pre-carga la foto del perfil.
+"""Tests de /auth/google: el alta por Google pre-carga la foto del perfil y la
+respuesta avisa (`created`) si esta request creó la cuenta o fue un login más.
 
 Sin DB ni red reales: se mockea verify_oauth2_token y se stubbean las funciones
 de datos de `auth`. La foto de Google es una URL externa (no un objeto del bucket)
@@ -105,6 +106,27 @@ def test_existing_user_does_not_overwrite_photo():
         r = post(make_client(rec, idinfo=idinfo, existing_user=existing))
         assert r.status_code == 200, (r.status_code, r.text)
         assert "photo" not in rec, "un usuario existente no debe pisar su foto con la de Google"
+
+
+def test_new_user_response_marks_created():
+    # `created` es lo único que distingue un ALTA por Google de un login de
+    # alguien que ya tenía cuenta: el front lo usa para no contar dos veces el
+    # registro en la métrica de conversión.
+    with _auth_intacto():
+        idinfo = {"email": "g@test.com", "given_name": "Gina", "email_verified": True}
+        r = post(make_client({}, idinfo=idinfo))
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert r.json()["created"] is True, r.text
+
+
+def test_existing_user_response_is_not_created():
+    with _auth_intacto():
+        existing = {"id": 7, "email": "g@test.com", "name": "G", "last_name": "",
+                    "password_hash": "x", "role": "user", "email_verified": True}
+        idinfo = {"email": "g@test.com", "email_verified": True}
+        r = post(make_client({}, idinfo=idinfo, existing_user=existing))
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert r.json()["created"] is False, "un login de cuenta existente no es un alta"
 
 
 def test_profile_out_uses_external_photo_when_no_upload():

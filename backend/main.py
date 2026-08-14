@@ -711,6 +711,51 @@ def root_head() -> Response:
     # UptimeRobot) reciben 405 aunque GET / ande perfecto.
     return Response(status_code=200)
 
+
+def _db_alive() -> bool:
+    """`SELECT 1` contra Postgres. True si la base contesta, False si no.
+
+    Nunca propaga la excepción: el detalle (que puede traer host, usuario o
+    fragmentos de la connection string) va SOLO al log; al cliente le llega un
+    booleano. Un health-check no es lugar para filtrar infraestructura.
+    """
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            row = cur.fetchone()
+        return bool(row) and row[0] == 1
+    except Exception:
+        log.exception("Health check: la base de datos no respondió")
+        return False
+
+
+@app.get("/health", tags=["default"])
+@limiter.limit("30/minute")
+def health(request: Request) -> JSONResponse:
+    """Health REAL de la API: 200 si la base responde, 503 si no.
+
+    `GET /` contesta OK aunque Postgres esté caído (no toca la DB), así que un
+    monitor apuntado ahí nunca se entera de la falla que más duele: la app
+    arriba pero sin datos. Este endpoint sí toca la base. Para el storage de
+    videos existe `/health/video`, que es diagnóstico y no cuenta acá.
+    """
+    db_ok = _db_alive()
+    return JSONResponse(
+        status_code=200 if db_ok else 503,
+        content={"status": "ok" if db_ok else "degraded", "db": db_ok},
+    )
+
+
+@app.head("/health", include_in_schema=False)
+@limiter.limit("30/minute")
+def health_head(request: Request) -> Response:
+    # Mismo motivo que en `/`: FastAPI no deriva HEAD de un @app.get, y varios
+    # monitores de uptime pegan con HEAD. Sin esto recibirían 405 y alertarían
+    # "caído" con la API sana (ya pasó con UptimeRobot en `/`). Sin body: lo
+    # que importa es el código, y se corre el mismo chequeo de DB.
+    return Response(status_code=200 if _db_alive() else 503)
+
 @app.post("/contacto", response_model=ContactOut, tags=["default"])
 @limiter.limit("5/minute")
 def contacto(request: Request, dto: ContactDTO) -> ContactOut:

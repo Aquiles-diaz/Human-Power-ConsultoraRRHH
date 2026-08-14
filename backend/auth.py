@@ -64,6 +64,12 @@ class TokenData(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+    # True solo cuando ESTA request creó la cuenta. /auth/google sirve para
+    # registrarse y para iniciar sesión, y desde el navegador los dos casos se
+    # ven idénticos: sin este flag, la métrica de altas contaría también cada
+    # login de alguien que ya tenía cuenta. /login y /register no lo setean
+    # (default false); el registro por email ya se distingue por el endpoint.
+    created: bool = False
 
 class PasswordResetRequestDTO(BaseModel):
     email: EmailStr
@@ -312,6 +318,7 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
         raise HTTPException(status_code=401, detail="Tu email de Google no está verificado.")
 
     user = get_user_by_email(email)
+    created = not user
     if not user:
         name = idinfo.get("given_name") or idinfo.get("name") or email.split("@")[0]
         last_name = idinfo.get("family_name") or ""
@@ -327,7 +334,7 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
 
     touch_last_login(user["id"])
     access_token = create_access_token(data={"sub": email})
-    return {"access_token": access_token, "user": user}
+    return {"access_token": access_token, "user": user, "created": created}
 
 # 👇 3. El endpoint ahora usa la dependencia de forma estándar
 @router.get("/me", response_model=UserOut)

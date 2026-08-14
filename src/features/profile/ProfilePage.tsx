@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError, photoSrc } from "@/lib/api";
+import { trackCvSubido, trackPerfilCompleto } from "@/lib/analytics";
 import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
 import { validateCvFile } from "@/features/landing/data";
@@ -92,6 +93,21 @@ export default function ProfilePage() {
     () => computeProfileCompletion(profile),
     [profile],
   );
+
+  // Hito "perfil al 100%": se mide la TRANSICIÓN, no el estado. El ref arranca
+  // en null y la primera medición solo lo siembra, así abrir el perfil ya
+  // completo (o recargar la página) no vuelve a contar el hito. Con StrictMode
+  // el efecto se re-ejecuta al montar: la segunda pasada compara contra el
+  // mismo valor sembrado y tampoco dispara.
+  const percentRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!profile) return; // todavía sin datos: no hay contra qué comparar
+    const prev = percentRef.current;
+    percentRef.current = completion.percent;
+    if (prev !== null && prev < 100 && completion.percent === 100) {
+      trackPerfilCompleto();
+    }
+  }, [profile, completion.percent]);
 
   async function resendVerification() {
     try {
@@ -210,9 +226,15 @@ export default function ProfilePage() {
       e.target.value = "";
       return;
     }
+    // Se lee ANTES del await: `profile` es el valor del render actual y
+    // uploadFile va a pisarlo con el perfil nuevo (que siempre tiene CV).
+    const reemplazo = !!profile?.has_cv;
     setCvUploading(true);
     try {
       await uploadFile("/me/profile/cv", file, "CV actualizado");
+      // Paso del embudo: sin CV no se puede postular. Sin nombre de archivo ni
+      // nada del candidato, solo si fue su primer CV o un reemplazo.
+      trackCvSubido({ reemplazo });
     } catch (err) {
       toast.error("No se pudo subir el CV", { description: getErrorMessage(err) });
     } finally {

@@ -1,7 +1,17 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { track } from "@vercel/analytics";
 import VideoTab from "./VideoTab";
 import * as api from "./video-api";
+
+vi.mock("@vercel/analytics", () => ({ track: vi.fn() }));
+vi.mock("./video-upload", async (orig) => {
+  const actual = await orig<typeof import("./video-upload")>();
+  // jsdom no carga media: `onloadedmetadata` nunca dispara y getVideoDuration
+  // se quedaría colgado para siempre. El resto (validateVideoFile, límites) es
+  // el código real.
+  return { ...actual, getVideoDuration: vi.fn().mockResolvedValue(12) };
+});
 
 vi.mock("./video-api", async (orig) => {
   const actual = await orig<typeof import("./video-api")>();
@@ -75,5 +85,50 @@ describe("VideoTab", () => {
     fireEvent.click(await screen.findByRole("button", { name: /s[ií], eliminar/i }));
     await waitFor(() => expect(mockApi.deleteVideo).toHaveBeenCalledWith(headers));
     await waitFor(() => expect(onUpdated).toHaveBeenCalled());
+  });
+});
+
+// El video es el diferencial del producto: cuántos candidatos lo cargan —y por
+// qué camino— es el dato de negocio de esta pantalla.
+describe("VideoTab · evento video_grabado", () => {
+  const trackMock = track as unknown as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => vi.clearAllMocks());
+
+  function subirArchivo() {
+    const input = screen.getByTestId("video-file-input") as HTMLInputElement;
+    const file = new File([new Uint8Array(1)], "v.webm", { type: "video/webm" });
+    Object.defineProperty(file, "size", { value: 1000 });
+    fireEvent.change(input, { target: { files: [file] } });
+  }
+
+  it("cuenta el video subido como archivo", async () => {
+    mockApi.uploadVideo.mockResolvedValue({ video_url: "https://vid/x.webm" });
+    render(<VideoTab authHeaders={headers} videoUrl={null} onUpdated={vi.fn()} />);
+    subirArchivo();
+    await waitFor(() => expect(trackMock).toHaveBeenCalledWith("video_grabado", { origen: "archivo" }));
+  });
+
+  it("no cuenta nada si la subida falla", async () => {
+    mockApi.uploadVideo.mockRejectedValue(new Error("500"));
+    const onUpdated = vi.fn();
+    render(<VideoTab authHeaders={headers} videoUrl={null} onUpdated={onUpdated} />);
+    subirArchivo();
+    await waitFor(() => expect(mockApi.uploadVideo).toHaveBeenCalled());
+    await waitFor(() => expect(onUpdated).not.toHaveBeenCalled());
+    expect(trackMock).not.toHaveBeenCalled();
+  });
+
+  it("el link pegado se cuenta aparte (origen=link) y sin mandar la URL", async () => {
+    mockApi.saveVideoUrl.mockResolvedValue({ video_url: "https://youtu.be/abc" });
+    render(<VideoTab authHeaders={headers} videoUrl={null} onUpdated={vi.fn()} />);
+    fireEvent.click(screen.getByText(/pegá el link/i));
+    fireEvent.change(screen.getByLabelText(/link del video/i), {
+      target: { value: "https://youtu.be/abc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /guardar link/i }));
+    await waitFor(() => expect(trackMock).toHaveBeenCalledWith("video_grabado", { origen: "link" }));
+    // La URL puede identificar a la persona (su cuenta de TikTok/IG): nunca viaja.
+    expect(JSON.stringify(trackMock.mock.calls)).not.toContain("youtu.be");
   });
 });

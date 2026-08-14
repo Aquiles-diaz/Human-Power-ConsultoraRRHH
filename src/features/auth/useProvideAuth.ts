@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, parseApiError, setUnauthorizedHandler } from "@/lib/api";
+import { trackRegistroCompletado } from "@/lib/analytics";
 
 const TOKEN_KEY = "hp_token";
 
@@ -15,7 +16,15 @@ export type User = {
 
 type LoginPayload = { email: string; password: string };
 type RegisterPayload = { name: string; last_name?: string; email: string; password: string };
-type LoginResponse = { access_token: string; token_type: string; user?: User };
+// `created` solo lo manda /auth/google: true cuando ESE login creó la cuenta.
+// Sin ese dato, "registro con Google" sería indistinguible de un login de
+// alguien que ya tenía cuenta y el conteo de altas quedaría inflado.
+type LoginResponse = {
+  access_token: string;
+  token_type: string;
+  user?: User;
+  created?: boolean;
+};
 
 // Toast de bienvenida reutilizado por login y loginWithGoogle (evita duplicar el
 // armado del nombre y el copy en dos lugares).
@@ -108,6 +117,10 @@ export function useProvideAuth() {
 
         if (!res.ok) throw new Error(`Registro falló ${await parseApiError(res)}`);
 
+        // La cuenta ya existe (con o sin token en la respuesta): es un alta.
+        // Sin propiedades más allá del método: nada que identifique a la persona.
+        trackRegistroCompletado("email");
+
         const { access_token, user } = (await res.json()) as LoginResponse;
         if (access_token) {
           // El backend ya devuelve token: dejamos la sesión iniciada (auto-login).
@@ -144,6 +157,9 @@ export function useProvideAuth() {
         saveToken(data.access_token);
         const loggedUser = data.user ?? { email: "" };
         setUser(loggedUser);
+        // /auth/google sirve para registrarse Y para iniciar sesión: solo
+        // contamos alta cuando el backend avisa que creó la cuenta.
+        if (data.created) trackRegistroCompletado("google");
         showWelcomeToast(loggedUser, "google");
       } finally {
         setLoading(false);

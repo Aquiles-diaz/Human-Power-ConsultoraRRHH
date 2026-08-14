@@ -34,6 +34,7 @@ import { useSeo } from "@/lib/use-seo";
 import { DEFAULT_DESCRIPTION } from "@/lib/seo";
 import { useAuth } from "@/features/auth/AuthContext";
 import { authFetch, parseApiError } from "@/lib/api";
+import { trackPostulacionEnviada } from "@/lib/analytics";
 import { getErrorMessage } from "@/lib/utils";
 import {
   computeApplyReadiness,
@@ -311,6 +312,16 @@ const ApplyModal: React.FC<{
       const res = await authFetch(`/apply`, getAuthHeader(), { method: "POST", body: fd });
       if (!res.ok) throw new Error(await parseApiError(res));
       clearPendingApplication(); // si venía del banner de retorno, el ciclo cerró
+      // Cierre del embudo: recién acá la postulación existe en el backend.
+      // Solo datos del AVISO y booleanos del perfil; nada del candidato.
+      // `desdePerfil` es hoy siempre true (el backend snapshotea el CV del
+      // perfil y el modal no acepta adjunto), pero se manda igual para que el
+      // evento no cambie de forma si vuelve un camino de subida directa.
+      trackPostulacionEnviada({
+        categoria: job.category,
+        conVideo: !readiness.videoMissing,
+        desdePerfil: true,
+      });
       setDone(true);
       toast.success("¡Postulación enviada!", {
         description: `Tu CV fue enviado para "${job.title}".`,

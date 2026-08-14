@@ -3,6 +3,7 @@ import { Clapperboard, Video, Upload, Trash2, Link2, RotateCcw, Loader2, Play } 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/utils";
+import { trackVideoGrabado } from "@/lib/analytics";
 import { getVideoEmbed, isAllowedVideoUrl } from "@/lib/video-embeds";
 import type { Profile } from "./types";
 import { uploadVideo, deleteVideo, saveVideoUrl } from "./video-api";
@@ -58,7 +59,10 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
     }
     setBusy(true);
     try {
-      onUpdated(await uploadVideo(authHeaders, f));
+      const updated = await uploadVideo(authHeaders, f);
+      // Recién con el perfil devuelto por el backend el video existe de verdad.
+      trackVideoGrabado("archivo");
+      onUpdated(updated);
       toast.success("Video actualizado");
     } catch (err) {
       toast.error("No se pudo subir el video", { description: getErrorMessage(err) });
@@ -75,7 +79,12 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
     }
     setBusy(true);
     try {
-      onUpdated(await saveVideoUrl(authHeaders, url));
+      const updated = await saveVideoUrl(authHeaders, url);
+      // El link se cuenta como video cargado, con `origen` aparte para poder
+      // separar en el dashboard cuántos usan de verdad el estudio del sitio.
+      // NO se manda la URL: puede llevar el usuario de TikTok/IG de la persona.
+      trackVideoGrabado("link");
+      onUpdated(updated);
       toast.success("Video actualizado");
       setLinkOpen(false);
       setLink("");
@@ -272,6 +281,8 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
             authHeaders={authHeaders}
             onClose={() => setStudio(false)}
             onSaved={(p) => {
+              // El estudio solo llama onSaved con la subida ya confirmada.
+              trackVideoGrabado("grabado");
               onUpdated(p);
               setStudio(false);
             }}
