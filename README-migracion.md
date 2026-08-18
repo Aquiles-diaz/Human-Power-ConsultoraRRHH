@@ -76,14 +76,22 @@ cp .env.example backend/.env
 
 ## 4. Crear el esquema en Postgres
 
-Cualquiera de estas opciones (idempotentes):
+El esquema vive en `supabase/migrations/`, y esa es la **única** fuente de
+verdad: son los mismos archivos que se aplican al cloud. (Antes había además un
+snapshot consolidado en `migrations/001_schema.sql`; se eliminó porque se
+desincronizó en silencio y dejaba las bases nuevas sin `academic_title` ni
+`terms_accepted_at` — con `POST /register` reventando — y sin RLS.)
 
-- **SQL Editor de Supabase:** pegá y ejecutá `migrations/001_schema.sql`.
+Cualquiera de estas opciones (todas idempotentes; el orden lo da el timestamp
+del nombre de archivo):
+
+- **CLI de Supabase:** `supabase db push`.
 - **psql:**
   ```bash
-  psql "$DIRECT_URL" -f migrations/001_schema.sql
+  for f in supabase/migrations/*.sql; do psql "$DIRECT_URL" -f "$f"; done
   ```
-- **Automático:** al arrancar el backend, `init_db()` aplica ese mismo archivo.
+- **Automático:** al arrancar el backend con `RUN_INIT_DB=1`, `init_db()` las
+  aplica todas en orden.
 
 ---
 

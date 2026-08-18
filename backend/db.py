@@ -8,7 +8,7 @@ Reemplaza al cliente SQLite original. Se mantiene la MISMA interfaz pública
     `sqlite3.Row`: se accede por índice (row[0]) y por nombre (row["id"]),
     y `dict(row)` funciona igual que antes.
   * Las queries usan placeholders `%s` (psycopg) en vez de `?` (SQLite).
-  * `init_db()` aplica `migrations/001_schema.sql` de forma idempotente.
+  * `init_db()` aplica `supabase/migrations/*.sql` en orden, de forma idempotente.
 """
 from __future__ import annotations
 
@@ -62,7 +62,23 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # los prepared statements automáticos de psycopg. None = desactivado.
 _PREPARE_THRESHOLD = None if os.getenv("PG_DISABLE_PREPARE", "1") == "1" else 5
 
-MIGRATION_FILE = Path(__file__).parent.parent / "migrations" / "001_schema.sql"
+# Única fuente de verdad del esquema: las MISMAS migraciones que se aplican al
+# cloud con el CLI de Supabase. Antes init_db() aplicaba un snapshot aparte
+# (migrations/001_schema.sql) que se desincronizó sin que nada lo detectara: le
+# faltaban profiles.academic_title, users.terms_accepted_at y los ENABLE RLS, así
+# que cualquier base nueva levantada por la app arrancaba rota (POST /register
+# reventaba). Con una sola carpeta, dev y producción no pueden divergir.
+MIGRATIONS_DIR = Path(__file__).parent.parent / "supabase" / "migrations"
+
+
+def migration_files() -> list[Path]:
+    """Migraciones en orden cronológico.
+
+    Los nombres arrancan con un timestamp (20260609164200_…), así que el orden
+    alfabético ES el cronológico — y el orden importa: la que agrega una columna
+    tiene que correr después de la que crea la tabla.
+    """
+    return sorted(MIGRATIONS_DIR.glob("*.sql"))
 
 
 # ── Row factory: filas con acceso dual (índice + nombre), como sqlite3.Row ────
@@ -270,21 +286,26 @@ def close_pool() -> None:
 
 # ── Inicialización del esquema ────────────────────────────────────────────────
 def init_db() -> None:
-    """Aplica el esquema (idempotente) leyendo migrations/001_schema.sql.
+    """Aplica las migraciones de supabase/migrations/ en orden cronológico.
 
-    Todas las sentencias usan IF NOT EXISTS, así que correrlo en cada arranque
-    es seguro. Si el archivo no existe, avisa pero no rompe el import.
+    Son las MISMAS que se aplican al cloud, así que una base levantada por acá
+    queda idéntica a producción. Todas son idempotentes (IF NOT EXISTS, o
+    ENABLE ROW LEVEL SECURITY, que no falla al repetirse), y hay un test que lo
+    verifica sobre el contenido de la carpeta: correr esto en cada arranque es
+    seguro. Si la carpeta no está, avisa pero no rompe el import.
     """
     if not DATABASE_URL:
         log.warning("init_db(): DATABASE_URL vacía; salteo la inicialización del esquema.")
         return
-    if not MIGRATION_FILE.is_file():
-        log.warning("init_db(): no encontré %s; salteo.", MIGRATION_FILE)
+    archivos = migration_files()
+    if not archivos:
+        log.warning("init_db(): no encontré migraciones en %s; salteo.", MIGRATIONS_DIR)
         return
-    print("Inicializando la base de datos (Postgres)...")
-    sql = MIGRATION_FILE.read_text(encoding="utf-8")
+    print(f"Inicializando la base de datos (Postgres): {len(archivos)} migraciones...")
     with psycopg.connect(DATABASE_URL, autocommit=True, prepare_threshold=None) as conn:
-        conn.execute(sql)  # psycopg ejecuta varias sentencias separadas por ';'
+        for archivo in archivos:
+            # Una por una y no concatenadas: si alguna falla, el error dice cuál.
+            conn.execute(archivo.read_text(encoding="utf-8"))
     print("Base de datos inicializada con éxito.")
 
 
