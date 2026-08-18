@@ -8,6 +8,8 @@ import logging
 import mimetypes
 import os
 import re
+
+import psycopg
 import unicodedata
 import uuid
 from urllib.parse import quote
@@ -1013,6 +1015,15 @@ def _persist_resume(
             )
             resume_id = cur.fetchone()[0]
             conn.commit()
+    except psycopg.errors.UniqueViolation:
+        # Carrera contra el chequeo previo de /apply: ese SELECT y este INSERT
+        # van en transacciones distintas, así que dos requests simultáneas pasan
+        # las dos por el chequeo y la segunda choca contra
+        # `uq_resumes_active_application`. Sin traducir, una devolvía 201 y la
+        # otra un 500 genérico — con un doble clic normal, no hace falta carga.
+        # El contrato para este caso ya existe y es el mismo 409 del chequeo.
+        storage.remove(storage.CV_BUCKET, key)
+        raise HTTPException(status_code=409, detail="Ya te postulaste a este puesto.")
     except Exception:
         storage.remove(storage.CV_BUCKET, key)
         raise
