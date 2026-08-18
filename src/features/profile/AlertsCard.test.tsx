@@ -41,6 +41,34 @@ describe("AlertsCard", () => {
     expect(new Set(calledWith)).toEqual(new Set(["hoteleria", "comercial"]));
   });
 
+  it("si la carga falla, no ofrece guardar: un PUT vacío borraría las suscripciones reales", async () => {
+    // PUT /me/alerts es un reemplazo total (DELETE + INSERT). Con la carga
+    // fallada, `selected` queda vacío y los chips se pintan igual que los de un
+    // usuario sin ninguna suscripción: guardar desde ahí borra en silencio las
+    // que la persona sí tenía. Es indistinguible a la vista, así que el único
+    // arreglo posible es no dejar guardar hasta saber el estado real.
+    mockApi.getMyAlerts.mockRejectedValue(new Error("timeout"));
+    render(<AlertsCard authHeaders={headers} />);
+
+    await screen.findByText(/no pudimos cargar tus alertas/i);
+    expect(screen.queryByRole("button", { name: /^guardar$/i })).toBeNull();
+    expect(mockApi.updateMyAlerts).not.toHaveBeenCalled();
+  });
+
+  it("reintentar vuelve a cargar y devuelve la card a su estado normal", async () => {
+    mockApi.getMyAlerts.mockRejectedValueOnce(new Error("timeout"));
+    mockApi.getMyAlerts.mockResolvedValueOnce(["hoteleria"]);
+    render(<AlertsCard authHeaders={headers} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /reintentar/i }));
+
+    const chip = await screen.findByRole("button", {
+      name: /hotelería \/ turismo \/ gastronomía/i,
+    });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^guardar$/i })).toBeInTheDocument();
+  });
+
   it("si guardar falla, muestra toast de error y rehabilita el botón", async () => {
     const { toast } = await import("sonner");
     mockApi.getMyAlerts.mockResolvedValue([]);
