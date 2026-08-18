@@ -38,6 +38,7 @@ import { type ResumeRow, initials } from "./resume-row";
 import { CvPreview } from "./CvPreview";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import { buildCvQuery } from "./cv-query";
+import { panelKpis } from "./panel-kpis";
 import ApplicationsView from "./ApplicationsView";
 import BaseGeneralView from "./BaseGeneralView";
 
@@ -71,6 +72,9 @@ export default function AdminPanel() {
   // Conteo REAL en la base (no el largo de la página) y si quedaron filas afuera.
   const [total, setTotal] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  // Conteos agregados por el backend (no derivables de la página; ver panel-kpis).
+  const [pending, setPending] = useState<number | null>(null);
+  const [linked, setLinked] = useState<number | null>(null);
   // "recent" = las últimas N (lo de siempre); "all" = resultado de una búsqueda
   // server-side sobre todo el histórico.
   const [scope, setScope] = useState<"recent" | "all">("recent");
@@ -100,6 +104,8 @@ export default function AdminPanel() {
       setCvs(data.items || []);
       setTotal(data.total ?? null);
       setHasMore(!!data.has_more);
+      setPending(data.pending ?? null);
+      setLinked(data.linked ?? null);
       setScope(isServerSearch ? "all" : "recent");
       // Se cachea SOLO la vista sin filtros: guardar un resultado filtrado haría
       // que la próxima entrada al panel pintara ese subset como si fuera el total.
@@ -170,26 +176,14 @@ export default function AdminPanel() {
     });
   }, [q, cvs, dateFrom, dateTo]);
 
-  // Postulaciones sin revisar: estado "received" del pipeline y no retiradas.
-  // Marcarlas "Vista" (PATCH ya existente) las saca del contador solo.
-  const newCount = useMemo(
-    () =>
-      cvs.filter(
-        (c) => (c.pipeline_status ?? "received") === "received" && !c.withdrawn_at,
-      ).length,
-    [cvs],
+  // KPIs de las StatCard. `total`/`pending`/`linked` los agrega el backend sobre
+  // TODA la población filtrada: calcularlos sobre `cvs` mostraba el largo de la
+  // página (500) como si fuera el total real (601). Ver panel-kpis.ts.
+  const kpis = useMemo(
+    () => panelKpis({ rows: cvs, total, pending, linked, now: new Date() }),
+    [cvs, total, pending, linked],
   );
-
-  // Recibidos hoy (para tarjeta de stats)
-  const todayCount = useMemo(() => {
-    const today = ymd();
-    // Localizamos el instante (created_at ahora viene en UTC con Z) antes de
-    // comparar contra "hoy" local; un slice del string comparaba la fecha UTC.
-    return cvs.filter((r) => {
-      const d = new Date(r.created_at);
-      return !Number.isNaN(d.getTime()) && ymd(d) === today;
-    }).length;
-  }, [cvs]);
+  const newCount = kpis.pending;
 
   const hasFilters = !!(dateFrom || dateTo || q.trim());
 
@@ -291,24 +285,27 @@ export default function AdminPanel() {
         <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
           <StatCard
             icon={<FileText className="size-5" />}
-            label="Total recibidos"
-            value={cvs.length}
+            // Con una búsqueda server-side activa los conteos son DE ESA
+            // búsqueda. Mantener el rótulo "Total recibidos" hacía que el
+            // número pareciera el de la base entera.
+            label={scope === "all" ? "Resultados" : "Total recibidos"}
+            value={kpis.total}
           />
           <StatCard
             icon={<Briefcase className="size-5" />}
             label="Postulaciones"
-            value={cvs.filter((c) => c.job_id).length}
+            value={kpis.linked}
           />
           <StatCard
             icon={<CalendarClock className="size-5" />}
             label="Hoy"
-            value={todayCount}
+            value={kpis.today}
             accent
           />
           <StatCard
             icon={<Inbox className="size-5" />}
             label="Sin revisar"
-            value={newCount}
+            value={kpis.pending}
             hero
           />
         </div>

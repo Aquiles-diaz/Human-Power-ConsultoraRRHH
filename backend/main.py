@@ -270,6 +270,11 @@ class ListCvOut(BaseModel):
     # página); `has_more` avisa que quedaron filas afuera del tope.
     total: Optional[int] = None
     has_more: bool = False
+    # KPIs de los StatCard del panel. Van acá y no calculados en el navegador
+    # porque se cuentan sobre TODA la población filtrada, no sobre la página: las
+    # filas que faltan son justamente las que el cliente no puede contar.
+    pending: Optional[int] = None   # sin revisar: status "received" y no retiradas
+    linked: Optional[int] = None    # con puesto asociado (job_id no nulo)
 
 # ── Métricas del panel (dashboard "Resumen") ──
 # Espejan el tipo `AdminStats` de src/features/admin/admin-stats.ts para que el
@@ -1342,21 +1347,42 @@ def list_cvs_admin(
         # exacto. Sólo se paga el COUNT(*) cuando de verdad quedó algo afuera.
         # (Además de ahorrar una consulta, esto evita emitir un COUNT en el caso
         # habitual, que es el 100% de los listados de hoy.)
+        pending = linked = None
         if len(rows) < limit:
             total = offset + len(rows)
+            # Los KPIs se cuentan sobre la población ENTERA, así que sólo se
+            # pueden derivar acá si esta página la contiene toda. Con offset > 0
+            # tenemos un tramo suelto: se dejan en None y el panel cae a su
+            # cálculo local, que en esa vista es lo mismo que había antes.
+            if offset == 0:
+                pending = sum(
+                    1 for r in rows if r.pipeline_status == "received" and not r.withdrawn_at
+                )
+                linked = sum(1 for r in rows if r.job_id)
         else:
             cur.execute(
                 f"""
-                SELECT count(*)
+                SELECT count(*),
+                       count(*) FILTER (
+                           WHERE COALESCE(r.status, 'received') = 'received'
+                             AND r.withdrawn_at IS NULL
+                       ),
+                       count(*) FILTER (WHERE r.job_id IS NOT NULL)
                   FROM resumes r
                   LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
                 {where_sql}
                 """,
                 tuple(params),
             )
-            total = cur.fetchone()[0]
+            total, pending, linked = cur.fetchone()
 
-    return ListCvOut(items=rows, total=total, has_more=offset + len(rows) < total)
+    return ListCvOut(
+        items=rows,
+        total=total,
+        has_more=offset + len(rows) < total,
+        pending=pending,
+        linked=linked,
+    )
 
 # Meses abreviados en español para las etiquetas del gráfico. La app es
 # monolingüe, así que la etiqueta sale del server y el front es un consumidor

@@ -60,7 +60,10 @@ class FakeCursor:
 
     def fetchone(self):
         if self._count is not None:
-            return [self._count]
+            # El agregado devuelve (total, pending, linked): el fake tiene que
+            # espejar la forma del SELECT real o el endpoint revienta al
+            # desempaquetar. Los KPIs propios se testean en test_admin_cv_kpis.
+            return [self._count, 0, 0]
         return DualRow(CV_COLS, [self._rows[0].get(c) for c in CV_COLS]) if self._rows else None
 
     def fetchall(self):
