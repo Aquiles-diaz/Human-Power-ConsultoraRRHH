@@ -76,6 +76,14 @@ APPLY_RATE_LIMIT_MIN = os.getenv("APPLY_RATE_LIMIT_MIN", "10/minute")
 APPLY_RATE_LIMIT_HOUR = os.getenv("APPLY_RATE_LIMIT_HOUR", "40/hour")
 PROFILE_UPLOAD_RATE_LIMIT_MIN = os.getenv("PROFILE_UPLOAD_RATE_LIMIT_MIN", "10/minute")
 PROFILE_UPLOAD_RATE_LIMIT_HOUR = os.getenv("PROFILE_UPLOAD_RATE_LIMIT_HOUR", "40/hour")
+# Entrega de fotos (/uploads/{key}): es de LECTURA, pero cada request que no
+# corta en un 304 baja el objeto entero de Supabase. Sin tope, 10 req/s sobre una
+# URL legítima son ~1,8 GB/hora de egress, y al agotarse la cuota Free dejan de
+# servirse también los CVs. Los números tienen que dejar pasar el caso legítimo
+# más pesado —el admin abriendo la grilla, hoy 562 fotos de una— y aun así cortar
+# el martilleo sostenido: 3000/hora son ~105 MB/hora, 17x menos que sin tope.
+PHOTO_SERVE_RATE_LIMIT_MIN = os.getenv("PHOTO_SERVE_RATE_LIMIT_MIN", "600/minute")
+PHOTO_SERVE_RATE_LIMIT_HOUR = os.getenv("PHOTO_SERVE_RATE_LIMIT_HOUR", "3000/hour")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1970,7 +1978,9 @@ def alerts_unsubscribe(token: str = ""):
     return RedirectResponse(dest_ok, status_code=302)
 
 @app.get("/uploads/{key}", tags=["default"])
-def serve_upload(key: str):
+@limiter.limit(PHOTO_SERVE_RATE_LIMIT_HOUR)
+@limiter.limit(PHOTO_SERVE_RATE_LIMIT_MIN)
+def serve_upload(request: Request, key: str):
     """Sirve una foto de perfil desde el bucket privado.
 
     Reemplaza el antiguo mount StaticFiles. Se mantiene la ruta /uploads/<key>
@@ -1981,6 +1991,15 @@ def serve_upload(key: str):
     # backslashes, null bytes, etc.) sin depender de chequeos parciales.
     if not re.fullmatch(r"photo-[0-9a-f]{32}\.(?:jpg|jpeg|png|webp)", key, re.IGNORECASE):
         raise HTTPException(status_code=404, detail="No encontrado")
+    # Mismo ETag condicional que los CVs (_serve_private_file): la key lleva un
+    # uuid nuevo por subida, así que identifica al contenido. El `immutable` de
+    # abajo evita el pedido mientras la foto siga en la cache del navegador; el
+    # 304 cubre lo que ese cache NO cubre —recarga forzada, cache desalojada—,
+    # que hoy re-baja del bucket los ~35 kB de cada avatar de la grilla.
+    etag = f'"{key}"'
+    cache_headers = {"ETag": etag, "Cache-Control": "private, max-age=31536000, immutable"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=cache_headers)
     try:
         data = storage.download_bytes(storage.PHOTO_BUCKET, key)
     except storage.StorageObjectNotFound:
@@ -1998,7 +2017,7 @@ def serve_upload(key: str):
         # minutos, y el egress del plan Free se consume con eso más que con nada.
         # Sigue `private` porque son fotos de personas: sólo cachea el navegador,
         # nunca un proxy compartido.
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        headers=cache_headers,
     )
 
 # ──────────────────────────────────────────────────────────────────────────────
