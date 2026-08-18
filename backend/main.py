@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from starlette.responses import JSONResponse, Response, RedirectResponse
 
@@ -165,6 +166,12 @@ class MaxBodySizeMiddleware:
 # salga con los headers de CORS. Techo = mayor límite por endpoint (CV 15MB) + 1MB
 # de overhead del multipart.
 app.add_middleware(MaxBodySizeMiddleware, max_bytes=settings.max_upload_bytes + 1024 * 1024)
+
+# Los listados del panel son JSON muy repetitivo (los mismos nombres de campo por
+# fila) y comprimen ~8-10x. Sin esto, /admin/cv con 1000 filas son ~1,13 MB por
+# request contra una instancia de 0,1 CPU; comprimido, ~130 kB. `minimum_size`
+# evita gastar CPU en respuestas chicas, donde el overhead no se amortiza.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
