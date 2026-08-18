@@ -263,7 +263,7 @@ function jobToInput(j: AdminJob): JobInput {
   };
 }
 
-function JobFormModal({
+export function JobFormModal({
   initial,
   jobId,
   auth,
@@ -362,11 +362,15 @@ function JobFormModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4"
-      onMouseDown={onCancel}
+      // El fondo NO descarta. Antes tenía onMouseDown={onCancel} y sin
+      // confirmación: cargar el aviso, autocompletar y corregir descripción,
+      // requisitos, beneficios y demás —10+ campos— se perdía entero con un
+      // mousedown al costado, sin nada que lo recupere. Para salir están la X y
+      // Cancelar, que son explícitos; un formulario largo no puede depender de
+      // que la mano no se desvíe.
     >
       <form
         onSubmit={submit}
-        onMouseDown={(e) => e.stopPropagation()}
         className="my-8 w-full max-w-2xl space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
