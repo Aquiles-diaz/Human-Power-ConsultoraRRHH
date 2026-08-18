@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useAdminStats } from "./use-admin-stats";
-import { resolveRange, cvsInRange, type Range, type StatCv } from "./admin-stats";
+import { resolveRange, cvsInRange, rowsOfMonth, type Range, type StatCv } from "./admin-stats";
 import { RangeFilter } from "./RangeFilter";
 import { KpiCard } from "./KpiCard";
 import { Modal } from "@/components/ui/Modal";
@@ -62,7 +62,7 @@ export default function ResumenDashboard({
   };
   const openMonth = (ym: string) => {
     if (!raw) return;
-    const rows = (raw.cvs as CvRow[]).filter((c) => (c.created_at || "").slice(0, 7) === ym);
+    const rows = rowsOfMonth(raw.cvs as CvRow[], ym);
     setModal({ title: `Postulaciones de ${ym}`, rows, showJob: true });
   };
   const openJob = (jobId: string) => {

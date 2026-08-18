@@ -127,3 +127,44 @@ describe("useAdminStats", () => {
     expect(result.current.stats).toBeNull();
   });
 });
+
+describe("useAdminStats · filas del drill-down", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("pide las filas acotadas al MISMO rango que los KPIs", async () => {
+    // Los KPIs salen de /admin/stats (agregado en SQL, sin tope) y las filas de
+    // los modales de /admin/cv (tope de 500, orden id DESC). Pidiéndolas sin
+    // fechas, tocar la barra de un mes viejo abría un modal que decía "No hay
+    // postulaciones en este período" sobre un mes que el gráfico mostraba con
+    // 80: el mes existe, pero sus filas quedaron fuera de las últimas 500.
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (url.includes("/admin/stats") ? STATS : { items: [] }),
+        } as Response;
+      }),
+    );
+
+    const range = resolveRange("month", new Date("2026-07-15T12:00:00-03:00"));
+    renderHook(() => useAdminStats(range));
+
+    await waitFor(() => expect(urls.some((u) => u.includes("/admin/cv"))).toBe(true));
+    const cvUrl = urls.find((u) => u.includes("/admin/cv"))!;
+    expect(cvUrl).toContain("date_from=");
+    expect(cvUrl).toContain("date_to=");
+
+    // Y exactamente el mismo rango que los KPIs: si difirieran, el modal
+    // volvería a contradecir al número que lo abrió.
+    const statsUrl = urls.find((u) => u.includes("/admin/stats"))!;
+    const par = (u: string, k: string) => new URL(u, "http://x").searchParams.get(k);
+    expect(par(cvUrl, "date_from")).toBe(par(statsUrl, "date_from"));
+    expect(par(cvUrl, "date_to")).toBe(par(statsUrl, "date_to"));
+  });
+});

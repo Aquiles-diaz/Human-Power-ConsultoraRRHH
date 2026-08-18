@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveRange, computeStats, cvsInRange } from "./admin-stats";
+import { resolveRange, computeStats, cvsInRange, monthKey, rowsOfMonth } from "./admin-stats";
 
 const NOW = new Date("2026-06-15T12:00:00");
 
@@ -75,5 +75,35 @@ describe("computeStats", () => {
 describe("cvsInRange", () => {
   it("filtra por el rango (3 en junio)", () => {
     expect(cvsInRange(CVS, resolveRange("month", NOW))).toHaveLength(3);
+  });
+});
+
+describe("rowsOfMonth (drill-down por mes)", () => {
+  it("agrupa con el MISMO criterio que el gráfico, no con un slice del ISO", () => {
+    // El gráfico agrupa en hora local (monthKey). El drill-down cortaba el
+    // string ISO, que está en UTC: una postulación del 31/03 22:00 ART
+    // (= 01/04 01:00 UTC) se contaba en marzo en la barra y se buscaba en
+    // abril al abrir el modal, así que no aparecía en ninguno de los dos.
+    const bordes = [
+      "2026-04-01T01:00:00Z", // 31/03 22:00 ART
+      "2026-01-01T02:00:00Z", // 31/12 23:00 ART (además cambia de año)
+      "2026-07-01T00:30:00Z", // 30/06 21:30 ART
+    ];
+    for (const created_at of bordes) {
+      const ym = monthKey(created_at); // lo que usa la barra del gráfico
+      expect(rowsOfMonth([{ created_at }], ym)).toHaveLength(1);
+    }
+  });
+
+  it("no arrastra filas de otros meses", () => {
+    const rows = [
+      { created_at: "2026-07-10T12:00:00Z" },
+      { created_at: "2026-08-10T12:00:00Z" },
+    ];
+    expect(rowsOfMonth(rows, "2026-07")).toHaveLength(1);
+  });
+
+  it("descarta fechas inválidas en vez de romper", () => {
+    expect(rowsOfMonth([{ created_at: "no-es-fecha" }], "2026-07")).toHaveLength(0);
   });
 });

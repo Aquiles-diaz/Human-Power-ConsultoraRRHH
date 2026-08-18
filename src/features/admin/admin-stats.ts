@@ -29,10 +29,23 @@ const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(
 // en UTC. Con la Z que ahora emite el backend, new Date() interpreta el instante
 // en UTC y getMonth() lo baja a local (un slice del string tomaba el mes UTC, que
 // difiere cerca del cambio de mes).
-const monthKey = (iso: string) => {
+export const monthKey = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
+
+/**
+ * Filas de un mes `ym` ("2026-07"), para el drill-down del gráfico por mes.
+ *
+ * Usa monthKey a propósito: el dashboard cortaba el string ISO (`.slice(0,7)`),
+ * que viene en UTC, mientras la barra del gráfico agrupa en hora local. Una
+ * postulación del 31/03 22:00 ART caía en la barra de marzo pero se buscaba en
+ * abril: no aparecía en ninguno de los dos modales. Agrupar dos veces con
+ * criterios distintos es la forma más fácil de que el detalle contradiga al
+ * total que lo abrió.
+ */
+export const rowsOfMonth = <T extends { created_at: string }>(rows: T[], ym: string): T[] =>
+  rows.filter((r) => monthKey(r.created_at) === ym);
 
 export function resolveRange(key: RangeKey, now: Date, custom?: { from: Date | null; to: Date | null }): Range {
   switch (key) {

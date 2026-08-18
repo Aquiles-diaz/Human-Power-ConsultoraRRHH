@@ -17,8 +17,12 @@ type Raw = { cvs: StatCv[] };
  * Un número mal que se ve bien es peor que una fila que falta.
  *
  * Se sigue trayendo `/admin/cv` en paralelo, pero SOLO para las filas de los
- * modales de drill-down del dashboard. Esas listas mantienen el tope de 500 que
- * ya tenían; el arreglo de ese lado es la paginación con filtros server-side.
+ * modales de drill-down del dashboard, y con EL MISMO rango de fechas que los
+ * KPIs. Pidiéndolas sin fechas, el tope de 500 (orden id DESC) se comía los
+ * meses viejos enteros: tocar una barra que el gráfico mostraba con 80
+ * postulaciones abría un modal que decía "No hay postulaciones en este
+ * período". Acotando por rango, las filas que llegan son las del período que
+ * se está mirando.
  */
 export function useAdminStats(range: Range) {
   const { getAuthHeader } = useAuth();
@@ -41,10 +45,12 @@ export function useAdminStats(range: Range) {
       // como instante, así el server no tiene que adivinar zona horaria.
       if (fromMs !== null) params.set("date_from", new Date(fromMs).toISOString());
       if (toMs !== null) params.set("date_to", new Date(toMs).toISOString());
+      const qs = params.toString();
 
       const [statsRes, cvRes] = await Promise.all([
         authFetch(`/admin/stats?${params}`, auth),
-        authFetch(`/admin/cv`, auth),
+        // Sin rango ("todo el tiempo") no hay querystring que agregar.
+        authFetch(`/admin/cv${qs ? `?${qs}` : ""}`, auth),
       ]);
       if (!statsRes.ok) throw new Error(await parseApiError(statsRes));
       setStats(await statsRes.json());
