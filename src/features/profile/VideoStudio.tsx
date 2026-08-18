@@ -281,6 +281,11 @@ export default function VideoStudio({ authHeaders, onClose, onSaved }: Props) {
       setError(v);
       return;
     }
+    // Recordar el archivo es lo que hace recuperable un fallo de subida: sin
+    // esto, el catch de save() caía en la fase "ready" —la de cámara— sin que
+    // existiera stream (elegir archivo no llama a activateCamera), y desde ahí
+    // el estudio quedaba trabado sin forma de reintentar.
+    fileRef.current = f;
     void save(f);
   }
 

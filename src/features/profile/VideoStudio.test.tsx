@@ -353,4 +353,42 @@ describe("VideoStudio", () => {
     fireEvent.change(input, { target: { files: [good] } });
     await waitFor(() => expect(mockApi.uploadVideo).toHaveBeenCalledWith(headers, good));
   });
+
+  it("si falla la subida de un archivo, el estudio queda usable (no congelado)", async () => {
+    // onPickFile nunca seteaba fileRef, así que el catch de save() caía en la
+    // fase "ready" — la de cámara — SIN que existiera un stream (nunca se llamó
+    // activateCamera al elegir archivo). Desde ahí, tocar Grabar arrancaba el
+    // countdown y beginRecording hacía `if (!stream) return`: la fase quedaba
+    // en "countdown" para siempre, con el botón de grabar deshabilitado, el de
+    // detener sin renderizar y ningún mensaje. Sólo servía "Salir del estudio".
+    mockApi.uploadVideo.mockRejectedValue(new Error("se cayó la red"));
+    render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const input = screen.getByTestId("studio-file-input") as HTMLInputElement;
+    const good = new File([new Uint8Array(10)], "v.mp4", { type: "video/mp4" });
+    Object.defineProperty(good, "size", { value: 1000 });
+    fireEvent.change(input, { target: { files: [good] } });
+
+    await waitFor(() => expect(screen.getByText(/se cayó la red/i)).toBeInTheDocument());
+    // Con el archivo recordado, el reintento es directo: no hay que volver a
+    // elegirlo ni pasar por una cámara que no se activó.
+    expect(screen.getByRole("button", { name: /usar este video/i })).toBeInTheDocument();
+  });
+
+  it("pedir grabar sin cámara activa avisa en vez de colgar la fase", async () => {
+    // Red de seguridad del callejón sin salida: beginRecording tenía un
+    // `return` mudo que dejaba la fase en "countdown" sin forma de salir.
+    stubCamera(() => Promise.reject(new Error("sin permiso")));
+    render(<VideoStudio authHeaders={headers} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /activar cámara/i }));
+
+    // La cámara falló, así que no hay stream. El fallback de subir archivo tiene
+    // que seguir disponible: sin él, el estudio no sirve para nada.
+    await waitFor(() => expect(screen.getByTestId("studio-file-input")).toBeInTheDocument());
+    // Y no puede quedar ningún botón deshabilitado esperando un countdown que
+    // nunca va a terminar.
+    const grabar = screen.queryByRole("button", { name: /^grabar$/i });
+    expect(grabar === null || !grabar.hasAttribute("disabled")).toBe(true);
+  });
 });
