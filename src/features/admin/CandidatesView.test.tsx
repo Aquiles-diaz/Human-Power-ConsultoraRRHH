@@ -310,3 +310,27 @@ describe("CandidatesView · paginación", () => {
     expect(pedidos.every((p) => !p.includes("offset=3"))).toBe(true);
   });
 });
+
+describe("CandidatesView · modal de detalle", () => {
+  it("se puede cerrar mientras carga (no queda trabado con el spinner)", async () => {
+    // El modal se renderiza con (active || loadingDetail), pero onClose sólo
+    // limpiaba `active`. Con active=null y loadingDetail=true, Escape, el clic
+    // en el backdrop y la X eran no-ops: con Render frío el admin quedaba
+    // encerrado hasta que resolviera o expirara el timeout de 30s.
+    const user = userEvent.setup();
+    authFetchMock.mockImplementation((path: string) => {
+      if (path.startsWith("/admin/candidates?")) return Promise.resolve(ok({ items: TODOS }));
+      // El detalle nunca resuelve: simula el backend dormido.
+      return new Promise(() => {});
+    });
+    render(<CandidatesView />);
+
+    await user.click(await screen.findByText("Ana Pérez"));
+    const cerrar = await screen.findByRole("button", { name: /cerrar/i });
+    await user.click(cerrar);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /cerrar/i })).not.toBeInTheDocument(),
+    );
+  });
+});

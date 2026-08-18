@@ -489,7 +489,17 @@ export default function CandidatesView() {
         <Modal
           wide
           title={active ? `${active.name} ${active.last_name ?? ""}`.trim() : "Candidato"}
-          onClose={() => setActive(null)}
+          onClose={() => {
+            // El modal se renderiza con (active || loadingDetail): limpiar sólo
+            // `active` dejaba el spinner en pantalla y hacía que Escape, el
+            // backdrop y la X fueran no-ops. Con el backend frío eso encerraba
+            // al admin hasta que resolviera o expirara el timeout de 30s.
+            // Incrementar el reqId además descarta la respuesta que llegue
+            // tarde, para que no reabra el modal que se acaba de cerrar.
+            detailReqId.current++;
+            setLoadingDetail(false);
+            setActive(null);
+          }}
         >
           {loadingDetail || !active ? (
             <div className="grid place-items-center py-16 text-white/40">
