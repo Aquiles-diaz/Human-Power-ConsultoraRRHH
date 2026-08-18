@@ -549,6 +549,19 @@ def _sniff_ok(data: bytes, kind: str) -> bool:
 PHOTO_MAX_PX = 512
 PHOTO_WEBP_QUALITY = 80
 
+# Tope de megapíxeles DECLARADOS por la imagen. El límite de subida son 5 MB
+# comprimidos y eso no acota lo que se decodifica: un PNG de color plano de
+# 9000x9000 pesa unos kB y reserva ~324 MB en RGBA. Con 512 MB de RAM (Render
+# free) el OOM killer mata el proceso entero, no la request. El guard de Pillow
+# no alcanza: sólo aborta por encima de 179 MP. 30 MP deja pasar cualquier
+# celular (12 MP) y réflex (24 MP); por encima de eso las fotos reales ya no
+# entran en los 5 MB, así que lo que queda son justamente las sospechosas.
+PHOTO_MAX_MEGAPIXELS = 30
+
+
+class ImagenDemasiadoGrande(ValueError):
+    """La imagen declara más píxeles de los que se pueden decodificar sin riesgo."""
+
 
 def _shrink_image(data: bytes) -> tuple[bytes, Optional[str]]:
     """Normaliza una foto de perfil a un avatar web: <=512 px, WebP, sin EXIF.
@@ -556,11 +569,21 @@ def _shrink_image(data: bytes) -> tuple[bytes, Optional[str]]:
     Devuelve (bytes, extensión nueva). Si Pillow no puede procesarla devuelve el
     original y None: mejor subir una foto pesada que devolverle un 500 al
     candidato por un formato raro.
+
+    Levanta ImagenDemasiadoGrande si declara más de PHOTO_MAX_MEGAPIXELS. Ese es
+    el ÚNICO caso que no se degrada a "subir el original": una bomba de
+    descompresión no debe llegar al bucket ni al navegador del admin.
     """
     try:
         from PIL import Image, ImageOps
 
         with Image.open(io.BytesIO(data)) as img:
+            # Image.open sólo parsea el header: acá los píxeles TODAVÍA no se
+            # decodificaron. Es el único punto donde se puede frenar una bomba,
+            # porque exif_transpose y thumbnail ya materializan el bitmap entero.
+            ancho, alto = img.size
+            if ancho * alto > PHOTO_MAX_MEGAPIXELS * 1_000_000:
+                raise ImagenDemasiadoGrande(f"{ancho}x{alto}")
             # exif_transpose respeta el Orientation del celular; sin esto las
             # fotos verticales quedan acostadas al perder el EXIF más abajo.
             img = ImageOps.exif_transpose(img)
@@ -576,6 +599,8 @@ def _shrink_image(data: bytes) -> tuple[bytes, Optional[str]]:
             # qué viajar al bucket ni sumar bytes.
             img.save(out, format="WEBP", quality=PHOTO_WEBP_QUALITY, method=6)
         return out.getvalue(), ".webp"
+    except ImagenDemasiadoGrande:
+        raise  # NO degradar a "subir el original": es justamente lo que hay que frenar
     except Exception:
         log.warning("No se pudo achicar la foto (%d bytes); se sube el original", len(data))
         return data, None
@@ -1674,7 +1699,14 @@ async def upload_my_photo(
     if not _sniff_ok(data, "image"):
         raise HTTPException(status_code=400, detail="El archivo no es una imagen JPG/PNG/WEBP válida")
     # Se guarda el avatar, no el original de la cámara: ver _shrink_image.
-    data, shrunk_ext = _shrink_image(data)
+    try:
+        data, shrunk_ext = _shrink_image(data)
+    except ImagenDemasiadoGrande as e:
+        log.warning("Foto rechazada por dimensiones (%s) de user_id=%s", e, current_user["id"])
+        raise HTTPException(
+            status_code=400,
+            detail=f"La imagen es demasiado grande (máx {PHOTO_MAX_MEGAPIXELS} megapíxeles)",
+        ) from e
     ext = shrunk_ext or ext
     key = f"photo-{uuid.uuid4().hex}{ext}"
     _upload_or_502(storage.PHOTO_BUCKET, key, data, _detect_mimetype(key))
