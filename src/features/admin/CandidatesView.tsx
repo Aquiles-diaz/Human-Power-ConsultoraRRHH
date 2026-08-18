@@ -18,6 +18,7 @@ import {
   Video,
   ExternalLink,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -42,6 +43,14 @@ import { RubroChips } from "./RubroChips";
 import { CvPreview } from "./CvPreview";
 import { BTN_YELLOW } from "./ui";
 import ConfirmDeleteUser, { type DeletionSummary } from "./ConfirmDeleteUser";
+
+/**
+ * Candidatos por tanda. Menos que el tope del backend (500) a propósito: cada
+ * fila pintada dispara la descarga de su foto, así que una tanda más chica baja
+ * el egress de la primera carga, que es la que casi siempre alcanza. El resto
+ * llega con "Cargar más", y el contador muestra igual el total real.
+ */
+const PAGE_SIZE = 200;
 
 type Candidate = {
   user_id: number;
@@ -103,14 +112,17 @@ export default function CandidatesView() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [aBorrar, setABorrar] = useState<DeletionSummary | null>(null);
   const [borrando, setBorrando] = useState(false);
+  // Conteo REAL en la base (no el largo de lo cargado) y si quedaron filas afuera.
+  const [total, setTotal] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const detailReqId = useRef(0);
   const loadReqId = useRef(0);
   const borradoReqId = useRef(0);
 
-  const load = useCallback(async () => {
-    const reqId = ++loadReqId.current;
-    setLoading(true);
-    try {
+  /** Querystring de los filtros vigentes para una página que arranca en `offset`. */
+  const buildParams = useCallback(
+    (offset: number) => {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
       // la API filtra professional_area por label; los chips manejan el value canónico
@@ -118,15 +130,31 @@ export default function CandidatesView() {
       if (education) params.set("education", education);
       if (onlyCv) params.set("only_with_cv", "true");
       if (onlyVideo) params.set("only_with_video", "true");
-      const res = await authFetch(`/admin/candidates?${params}`, authHeaders);
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(offset));
+      return params;
+    },
+    [q, rubro, education, onlyCv, onlyVideo],
+  );
+
+  const sinFiltros = !q.trim() && !rubro && !education && !onlyCv && !onlyVideo;
+
+  const load = useCallback(async () => {
+    const reqId = ++loadReqId.current;
+    setLoading(true);
+    try {
+      const res = await authFetch(`/admin/candidates?${buildParams(0)}`, authHeaders);
       if (!res.ok) throw new Error(await parseApiError(res));
       const data = await res.json();
       if (reqId !== loadReqId.current) return; // llegó una búsqueda más nueva: descartar
       setItems(data.items || []);
-      // solo cacheamos la vista sin filtros: es la que se pinta al entrar
-      if (!q.trim() && !rubro && !education && !onlyCv && !onlyVideo) {
-        writeAdminCache(CANDIDATES_CACHE_KEY, data.items || []);
-      }
+      setTotal(data.total ?? null);
+      setHasMore(!!data.has_more);
+      // solo cacheamos la vista sin filtros: es la que se pinta al entrar. Y sólo
+      // la PRIMERA página: guardar las tandas acumuladas haría crecer el cache
+      // sin techo hasta reventar la cuota de sessionStorage, que falla en
+      // silencio (ver writeAdminCache).
+      if (sinFiltros) writeAdminCache(CANDIDATES_CACHE_KEY, data.items || []);
       setError(null);
     } catch (e) {
       if (reqId !== loadReqId.current) return;
@@ -135,7 +163,30 @@ export default function CandidatesView() {
     } finally {
       if (reqId === loadReqId.current) setLoading(false);
     }
-  }, [q, rubro, education, onlyCv, onlyVideo, authHeaders]);
+  }, [buildParams, sinFiltros, authHeaders]);
+
+  /** Trae la tanda siguiente y la SUMA a lo que ya está en pantalla. */
+  async function loadMore() {
+    // No incrementa loadReqId: es la continuación de la búsqueda vigente, no una
+    // nueva. Si mientras tanto entra una búsqueda distinta, el id cambia y esta
+    // respuesta se descarta en vez de contaminar el listado nuevo.
+    const reqId = loadReqId.current;
+    setLoadingMore(true);
+    try {
+      const res = await authFetch(`/admin/candidates?${buildParams(items.length)}`, authHeaders);
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const data = await res.json();
+      if (reqId !== loadReqId.current) return;
+      setItems((prev) => [...prev, ...(data.items || [])]);
+      setTotal(data.total ?? null);
+      setHasMore(!!data.has_more);
+    } catch (e) {
+      if (reqId !== loadReqId.current) return;
+      toast.error("No se pudieron cargar más candidatos", { description: getErrorMessage(e) });
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(load, 250); // debounce de filtros
@@ -290,6 +341,19 @@ export default function CandidatesView() {
         )}
       </div>
 
+      {/* Cuántos se ven sobre el total REAL de la base. Antes el panel cortaba
+          en 500 sin decir nada: con 562 candidatos, 62 personas no existían
+          para el admin y no había forma de enterarse. */}
+      {total !== null && items.length > 0 && (
+        // role="status": al cargar otra tanda el número cambia sin que se mueva
+        // el foco, así que un lector de pantalla no se enteraría.
+        <p role="status" className="text-sm text-white/50">
+          Mostrando <strong className="text-white/80">{items.length}</strong> de{" "}
+          <strong className="text-white/80">{total}</strong>{" "}
+          {total === 1 ? "candidato" : "candidatos"}
+        </p>
+      )}
+
       {/* Listado */}
       {loading && items.length === 0 ? (
         <div className="grid place-items-center py-20 text-white/40">
@@ -400,6 +464,23 @@ export default function CandidatesView() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Cargando…
+              </>
+            ) : (
+              <>
+                <ChevronDown className="size-4" /> Cargar más
+                {total !== null && ` (faltan ${total - items.length})`}
+              </>
+            )}
+          </Button>
         </div>
       )}
 

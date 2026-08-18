@@ -341,6 +341,13 @@ _PIPELINE_STATUSES = {"received", "viewed", "in_process", "finished"}
 # truncaba en silencio y sin forma de pedir el resto.
 MAX_CV_PAGE = 500
 
+# Ídem para /admin/candidates, que hasta ahora tenía el 500 hardcodeado en el SQL
+# y ni siquiera devolvía el total: pasado ese número la ficha existía en la base
+# pero era inalcanzable desde el panel, sin ningún aviso. El default sigue siendo
+# el tope para que el front ya desplegado reciba exactamente lo de antes (Render
+# y Vercel deployan en paralelo, sin orden garantizado).
+MAX_CANDIDATES_PAGE = 500
+
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
@@ -431,6 +438,11 @@ class CandidateListItem(BaseModel):
 
 class CandidatesOut(BaseModel):
     items: list[CandidateListItem]
+    # Campos aditivos (mismo criterio que ListCvOut): el front ya desplegado los
+    # ignora. `total` es el conteo REAL en la base, no el largo de la página —
+    # que es justamente lo que faltaba para poder decir "mostrando 200 de 562".
+    total: Optional[int] = None
+    has_more: bool = False
 
 class DeletionSummary(BaseModel):
     user_id: int
@@ -2038,36 +2050,61 @@ def list_candidates(
     education: Optional[str] = None,
     only_with_cv: bool = False,
     only_with_video: bool = False,
+    limit: int = MAX_CANDIDATES_PAGE,
+    offset: int = 0,
 ) -> CandidatesOut:
-    sql = """
+    """Listado de candidatos para el panel.
+
+    Todos los parámetros son opcionales: sin ninguno devuelve lo mismo que antes
+    de que existiera la paginación (las 500 más recientes), más `total` y
+    `has_more`. El `LIMIT 500` que estaba hardcodeado acá abajo era un techo del
+    que no se podía salir: con 562 candidatos, 62 personas quedaban fuera del
+    panel sin que nada lo indicara.
+    """
+    limit = max(1, min(limit, MAX_CANDIDATES_PAGE))
+    offset = max(0, offset)
+
+    # El WHERE se arma aparte del SELECT para poder reusarlo en el COUNT(*).
+    where_sql = " WHERE u.role != 'admin'"
+    params: list = []
+    if q:
+        where_sql += " AND (LOWER(u.name) LIKE %s OR LOWER(u.last_name) LIKE %s OR LOWER(u.email) LIKE %s)"
+        needle = f"%{_like_escape(q.lower())}%"
+        params += [needle, needle, needle]
+    if area:
+        where_sql += " AND LOWER(COALESCE(p.professional_area,'')) LIKE %s"
+        params.append(f"%{_like_escape(area.lower())}%")
+    if education:
+        where_sql += " AND LOWER(COALESCE(p.education_level,'')) LIKE %s"
+        params.append(f"%{_like_escape(education.lower())}%")
+    if only_with_cv:
+        where_sql += " AND p.cv_filename IS NOT NULL"
+    if only_with_video:
+        where_sql += " AND (p.video_filename IS NOT NULL OR p.video_url IS NOT NULL)"
+
+    # El JOIN a profiles queda también en el COUNT porque los filtros de rubro,
+    # educación, CV y video se apoyan en p.*.
+    desde = " FROM users u LEFT JOIN profiles p ON p.user_id = u.id" + where_sql
+    sql = (
+        """
         SELECT u.id, u.name, u.last_name, u.email,
                u.created_at, u.last_login_at,
                p.headline, p.professional_area, p.academic_title, p.education_level,
                p.experience_years, p.city, p.photo_filename, p.external_photo_url,
                p.cv_filename, p.video_filename, p.video_url
-        FROM users u
-        LEFT JOIN profiles p ON p.user_id = u.id
-        WHERE u.role != 'admin'
-    """
-    params: list = []
-    if q:
-        sql += " AND (LOWER(u.name) LIKE %s OR LOWER(u.last_name) LIKE %s OR LOWER(u.email) LIKE %s)"
-        needle = f"%{_like_escape(q.lower())}%"
-        params += [needle, needle, needle]
-    if area:
-        sql += " AND LOWER(COALESCE(p.professional_area,'')) LIKE %s"
-        params.append(f"%{_like_escape(area.lower())}%")
-    if education:
-        sql += " AND LOWER(COALESCE(p.education_level,'')) LIKE %s"
-        params.append(f"%{_like_escape(education.lower())}%")
-    if only_with_cv:
-        sql += " AND p.cv_filename IS NOT NULL"
-    if only_with_video:
-        sql += " AND (p.video_filename IS NOT NULL OR p.video_url IS NOT NULL)"
-    sql += " ORDER BY u.id DESC LIMIT 500"
+        """
+        + desde
+        + " ORDER BY u.id DESC LIMIT %s OFFSET %s"
+    )
 
     with get_db() as conn:
-        rows = conn.execute(sql, params).fetchall()
+        rows = conn.execute(sql, [*params, limit, offset]).fetchall()
+        # Mismo ahorro que en /admin/cv: si volvieron menos filas que el tope ya
+        # se vieron todas y el conteo es exacto sin emitir un segundo query.
+        if len(rows) < limit:
+            total = offset + len(rows)
+        else:
+            total = conn.execute("SELECT count(*)" + desde, params).fetchone()[0]
     items = [
         CandidateListItem(
             user_id=r["id"], name=r["name"], last_name=r["last_name"], email=r["email"],
@@ -2082,7 +2119,7 @@ def list_candidates(
         )
         for r in rows
     ]
-    return CandidatesOut(items=items)
+    return CandidatesOut(items=items, total=total, has_more=offset + len(rows) < total)
 
 @app.get("/admin/candidates/{user_id}", response_model=ProfileOut, dependencies=[Depends(require_admin)], tags=["admin"])
 def get_candidate(user_id: int) -> ProfileOut:

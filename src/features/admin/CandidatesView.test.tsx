@@ -227,3 +227,86 @@ describe("CandidatesView · eliminar candidato", () => {
     expect(screen.queryByLabelText(/escribí el email/i)).not.toBeInTheDocument();
   });
 });
+
+// ── Paginación (el techo de 500 que dejaba candidatos invisibles) ────────────
+
+/** Página de `n` candidatos empezando en `desde`, con el total real de la base. */
+const pagina = (desde: number, n: number, total: number) => ({
+  items: Array.from({ length: n }, (_, i) => ({
+    user_id: desde + i + 1,
+    name: `Cand${desde + i + 1}`,
+    last_name: "Test",
+    email: `c${desde + i + 1}@test.com`,
+    has_cv: false,
+  })),
+  total,
+  has_more: desde + n < total,
+});
+
+describe("CandidatesView · paginación", () => {
+  it("muestra cuántos candidatos se ven sobre el total real de la base", async () => {
+    // Es LO que faltaba: con 562 candidatos y un tope de 500, el panel mostraba
+    // 500 sin ninguna señal de que hubiera 62 personas más.
+    authFetchMock.mockImplementation((path: string) =>
+      Promise.resolve(path.startsWith("/admin/candidates?") ? ok(pagina(0, 3, 7)) : ok(PERFIL_ANA)),
+    );
+    render(<CandidatesView />);
+
+    // El texto va partido en <strong>, así que se mira el contador entero.
+    expect((await screen.findByRole("status")).textContent).toMatch(/3\s*de\s*7/);
+  });
+
+  it("«Cargar más» pide la página siguiente y ACUMULA en vez de reemplazar", async () => {
+    const user = userEvent.setup();
+    const pedidos: string[] = [];
+    authFetchMock.mockImplementation((path: string) => {
+      if (!path.startsWith("/admin/candidates?")) return Promise.resolve(ok(PERFIL_ANA));
+      pedidos.push(path);
+      const offset = Number(new URLSearchParams(path.split("?")[1]).get("offset") ?? 0);
+      return Promise.resolve(ok(pagina(offset, 3, 6)));
+    });
+    render(<CandidatesView />);
+
+    await screen.findByText("Cand1 Test");
+    await user.click(screen.getByRole("button", { name: /cargar más/i }));
+
+    // La primera tanda tiene que SEGUIR en pantalla junto a la segunda.
+    expect(await screen.findByText("Cand4 Test")).toBeInTheDocument();
+    expect(screen.getByText("Cand1 Test")).toBeInTheDocument();
+    expect(pedidos.some((p) => p.includes("offset=3"))).toBe(true);
+  });
+
+  it("al llegar al final ya no ofrece cargar más", async () => {
+    authFetchMock.mockImplementation((path: string) =>
+      Promise.resolve(path.startsWith("/admin/candidates?") ? ok(pagina(0, 3, 3)) : ok(PERFIL_ANA)),
+    );
+    render(<CandidatesView />);
+
+    await screen.findByText("Cand1 Test");
+    expect(screen.queryByRole("button", { name: /cargar más/i })).not.toBeInTheDocument();
+  });
+
+  it("cambiar un filtro vuelve a la primera página", async () => {
+    // Sin resetear el offset, buscar después de haber cargado varias tandas
+    // pediría la página 3 de un resultado que tiene una sola.
+    const user = userEvent.setup();
+    const pedidos: string[] = [];
+    authFetchMock.mockImplementation((path: string) => {
+      if (!path.startsWith("/admin/candidates?")) return Promise.resolve(ok(PERFIL_ANA));
+      pedidos.push(path);
+      const offset = Number(new URLSearchParams(path.split("?")[1]).get("offset") ?? 0);
+      return Promise.resolve(ok(pagina(offset, 3, 9)));
+    });
+    render(<CandidatesView />);
+
+    await screen.findByText("Cand1 Test");
+    await user.click(screen.getByRole("button", { name: /cargar más/i }));
+    await screen.findByText("Cand4 Test");
+
+    pedidos.length = 0;
+    await user.type(screen.getByPlaceholderText(/buscar por nombre/i), "Ana");
+
+    await waitFor(() => expect(pedidos.length).toBeGreaterThan(0));
+    expect(pedidos.every((p) => !p.includes("offset=3"))).toBe(true);
+  });
+});
