@@ -66,3 +66,7 @@ docs/QA-predeploy-*.md
 # Config local de Claude Code: incluye worktrees (copias completas del repo).
 # No versionar; un git add -A distraído los commitearía enteros.
 .claude/
+# Salida de scripts/verificar-borrado.py: claves de objetos de Storage de un
+# candidato real. El bucket `videos` es PÚBLICO, así que una clave concatenada
+# con VIDEO_SUPABASE_URL es una URL descargable del video de esa persona.
+.verificar-borrado-claves.json
