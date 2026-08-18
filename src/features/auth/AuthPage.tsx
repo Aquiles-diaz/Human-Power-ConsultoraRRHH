@@ -16,9 +16,17 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // A dónde ir tras autenticarse: el destino original (ej. /admin) o /admin por defecto.
-  const dest = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/admin";
-  const needsAdmin = dest.startsWith("/admin");
+  // A dónde ir tras autenticarse. `from` sólo existe cuando un guard redirigió
+  // acá recordando el destino (ver RequireAuth/RequireRole).
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  // Sin destino recordado, el default sale del ROL. Antes era "/admin" fijo, y
+  // como `needsAdmin` se deriva de él, TODA entrada directa a /login —bookmark,
+  // link de un mail, el navigate posterior al reset de contraseña— trataba al
+  // candidato como un admin rechazado: se logueaba bien y recibía igual la
+  // pantalla "Esta cuenta no es de administrador", cuyo botón lo deslogueaba.
+  const dest = from ?? (user?.role === "admin" ? "/admin" : "/perfil");
+  // El cartel de permisos es sólo para quien de verdad pidió una ruta de admin.
+  const needsAdmin = !!from && from.startsWith("/admin");
   const hasAccess = !needsAdmin || user?.role === "admin";
 
   // Si ya está logueado Y tiene permiso para el destino, lo mandamos derecho.
