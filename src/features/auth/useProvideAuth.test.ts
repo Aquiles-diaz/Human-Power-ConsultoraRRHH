@@ -85,3 +85,50 @@ describe("useProvideAuth · evento registro_completado", () => {
     expect(trackMock).not.toHaveBeenCalled();
   });
 });
+
+describe("useProvideAuth · verificación de sesión (/me)", () => {
+  const USER = { id: 1, email: "ana@test.com", name: "Ana", role: "user" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("hp_token", "un-token-valido");
+  });
+
+  it("un /me caído transitoriamente NO tira la sesión: reintenta", async () => {
+    // Render free duerme: el primer /me tras despertar puede tardar más que el
+    // timeout de 30s o devolver 502. Con `user` en null e `isAuthenticated =
+    // !!token && !!user`, el guard mandaba al login a alguien con token válido:
+    // abrir /perfil de madrugada te expulsaba sin motivo visible.
+    let intentos = 0;
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path !== "/me") return respond({});
+      intentos += 1;
+      if (intentos === 1) return Promise.reject(new Error("La solicitud tardó demasiado."));
+      return Promise.resolve({ ok: true, status: 200, json: async () => USER } as Response);
+    });
+
+    const { result } = renderHook(() => useProvideAuth());
+    await vi.waitFor(() => expect(result.current.user).toMatchObject({ email: "ana@test.com" }), {
+      timeout: 3000,
+    });
+    expect(intentos).toBeGreaterThan(1);
+  });
+
+  it("un 401 SÍ cierra la sesión y no reintenta", async () => {
+    // Distinguir "no pude verificar" de "la sesión no vale" es el punto: un
+    // token revocado tiene que caer, y encima reintentar no lo arreglaría.
+    let intentos = 0;
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path !== "/me") return respond({});
+      intentos += 1;
+      return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+    });
+
+    const { result } = renderHook(() => useProvideAuth());
+    await vi.waitFor(() => expect(result.current.isInitialLoading).toBe(false));
+    expect(result.current.user).toBeNull();
+    expect(result.current.token).toBeNull();
+    expect(intentos).toBe(1);
+  });
+});

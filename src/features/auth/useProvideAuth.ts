@@ -181,21 +181,41 @@ export function useProvideAuth() {
       return;
     }
 
+    // Un /me que no responde NO significa que la sesión sea inválida, y la
+    // diferencia importa: como `isAuthenticated = !!token && !!user`, dejar
+    // `user` en null con un token bueno hace que los guards manden al login.
+    // Render free duerme, así que el primer pedido tras despertar puede pasarse
+    // del timeout o devolver 502 — y el usuario terminaba expulsado sin motivo
+    // visible. Sólo el 401 cierra la sesión, y ése no se reintenta porque
+    // reintentar no arregla un token revocado.
+    const MAX_INTENTOS = 3;
     try {
-      const res = await apiFetch(`/me`, { headers: { ...getAuthHeader() } });
+      for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+        try {
+          const res = await apiFetch(`/me`, { headers: { ...getAuthHeader() } });
 
-      if (res.status === 401) {
-        // token inválido -> desloguear (sin redirect: puede estar en una página pública)
-        saveToken(null);
-        setUser(null);
-        return;
+          if (res.status === 401) {
+            // token inválido -> desloguear (sin redirect: puede estar en una página pública)
+            saveToken(null);
+            setUser(null);
+            return;
+          }
+
+          if (res.ok) {
+            const data: User = await res.json();
+            setUser(data);
+            return;
+          }
+          // 5xx u otro: transitorio, cae al reintento de abajo.
+        } catch (err) {
+          console.error("[Auth] Error verificando la sesión (/me):", err);
+        }
+        // Backoff creciente: si el servicio está despertando, insistir de
+        // inmediato sólo suma pedidos que van a fallar igual.
+        if (intento < MAX_INTENTOS) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * intento));
+        }
       }
-
-      if (!res.ok) return; // error transitorio; no rompemos la app
-      const data: User = await res.json();
-      setUser(data);
-    } catch (err) {
-      console.error("[Auth] Error verificando la sesión (/me):", err);
     } finally {
       setInitialLoading(false);
     }
