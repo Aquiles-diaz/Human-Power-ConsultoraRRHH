@@ -38,14 +38,16 @@ export default function LandingPage() {
       <JsonLd data={organizationLd()} />
       <LandingHeader />
       <Hero />
+      {/* Ubicación estratégica (pedido del dueño): apenas abajo del video, el
+          regalo engancha al candidato a crear cuenta y completar el perfil
+          ANTES de llegar a las ofertas. Servicios (para empresas) queda lejos
+          y no compite. */}
+      <EbookSection />
       <ValueProps />
       <OfertasPreview />
       <CtaBanner />
       <Servicios />
       <Contacto />
-      {/* Al fondo a pedido del dueño: la sección brillaba tanto que opacaba a
-          Servicios. La AnnouncementBar de arriba trae el tráfico hasta acá. */}
-      <EbookSection />
       <LandingFooter />
       <FaqWidget />
     </div>
