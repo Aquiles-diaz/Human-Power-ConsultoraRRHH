@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import EbookSection from "./EbookSection";
@@ -9,6 +9,14 @@ import type { ProfileCompletion } from "@/features/profile/completion";
 const state: { completion: ProfileCompletion | null } = { completion: null };
 vi.mock("@/features/profile/use-profile-completion", () => ({
   useProfileCompletion: () => state.completion,
+}));
+
+// El formulario real (Google, fetch, contexto de auth) no aporta acá: solo
+// importa que el modal se abra en modo registro.
+vi.mock("@/features/auth/AuthSection", () => ({
+  default: ({ initialMode }: { initialMode?: string }) => (
+    <div data-testid="auth-section">modo:{initialMode}</div>
+  ),
 }));
 
 function completion(percent: number): ProfileCompletion {
@@ -53,10 +61,12 @@ describe("EbookSection", () => {
     expect(screen.getByText(/grabá tu video/i)).toBeInTheDocument();
   });
 
-  it("sin sesión el CTA lleva a crear cuenta", () => {
+  it("sin sesión el CTA abre el modal de registro (no la página de login)", async () => {
     renderSection();
-    const cta = screen.getByRole("link", { name: /crear mi cuenta/i });
-    expect(cta).toHaveAttribute("href", "/login");
+    fireEvent.click(screen.getByRole("button", { name: /crear mi cuenta/i }));
+    // El modal abre directo en "crear cuenta": mandar a /login a alguien que
+    // quiere registrarse lo dejaba frente a un formulario de iniciar sesión.
+    expect(await screen.findByTestId("auth-section")).toHaveTextContent("modo:register");
   });
 
   it("logueado con perfil incompleto muestra el candado, cuánto falta y lleva a /perfil", () => {

@@ -1,3 +1,4 @@
+import React, { Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen,
@@ -12,7 +13,13 @@ import {
   Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useProfileCompletion } from "@/features/profile/use-profile-completion";
+
+// Mismo modal de acceso que usa el navbar (AuthButtons): registrarse sin salir
+// de la landing. Mandar a /login a alguien que quiere CREAR cuenta lo dejaba
+// frente a un formulario de iniciar sesión.
+const AuthSection = React.lazy(() => import("@/features/auth/AuthSection"));
 
 /**
  * Anuncio del ebook en la landing, apenas abajo del hero: el regalo por
@@ -27,6 +34,7 @@ import { useProfileCompletion } from "@/features/profile/use-profile-completion"
  */
 export default function EbookSection() {
   const completion = useProfileCompletion();
+  const [registroAbierto, setRegistroAbierto] = useState(false);
 
   const pasos = [
     { icono: FileUp, titulo: "Subí tu CV", detalle: "Completá tu información académica y laboral." },
@@ -111,11 +119,9 @@ export default function EbookSection() {
               {completion === null && (
                 <Button
                   className="w-full rounded-2xl bg-slate-900 font-bold text-amber-400 hover:bg-slate-800 sm:w-auto"
-                  asChild
+                  onClick={() => setRegistroAbierto(true)}
                 >
-                  <Link to="/login">
-                    <Gift size={16} /> Crear mi cuenta gratis
-                  </Link>
+                  <Gift size={16} /> Crear mi cuenta gratis
                 </Button>
               )}
               {completion !== null && !completion.complete && (
@@ -176,6 +182,22 @@ export default function EbookSection() {
             </div>
           </div>
         </div>
+
+        {/* Modal de registro (idéntico al del navbar), abre directo en "Crear cuenta" */}
+        <Dialog open={registroAbierto} onOpenChange={setRegistroAbierto}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="t-h3">Acceso a tu cuenta</DialogTitle>
+            </DialogHeader>
+            <Suspense
+              fallback={
+                <div className="p-4 text-center text-sm text-muted-foreground">Cargando…</div>
+              }
+            >
+              {registroAbierto && <AuthSection initialMode="register" />}
+            </Suspense>
+          </DialogContent>
+        </Dialog>
 
         {/* Franja navy de cierre: el recorrido completo, como en la pieza */}
         <div className="bg-slate-900 px-6 py-5 sm:px-12">
