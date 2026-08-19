@@ -77,11 +77,14 @@ export default function NovedadesBell() {
         )}
       </button>
 
+      {/* Fondo 100% opaco y SIN backdrop-blur a propósito: sobre el video del
+          hero (que tiene su propio drop-shadow y capas de compositing) el panel
+          semitransparente dejaba ver el emblema "encima" del contenido. */}
       {abierto && (
         <div
           role="region"
           aria-label="Últimas novedades"
-          className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/98 shadow-2xl shadow-black/50 backdrop-blur"
+          className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50"
         >
           <p className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/50">
             Novedades
