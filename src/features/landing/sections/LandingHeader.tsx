@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ChevronRight } from "lucide-react";
 import CargarCvButton from "@/components/shared/CargarCvButton";
 import UserMenu from "@/components/shared/UserMenu";
+import NovedadesBell from "@/features/novedades/NovedadesBell";
 import { useSectionHref } from "@/features/landing/section-link";
 
 type NavLinkData =
@@ -106,12 +107,14 @@ export default function LandingHeader() {
 
         {/* Acciones (desktop, derecha) */}
         <div className="hidden items-center gap-2 md:flex md:justify-self-end">
+          <NovedadesBell />
           <CargarCvButton className="rounded-full px-5" />
           <UserMenu />
         </div>
 
-        {/* Acciones (mobile, derecha): login visible + hamburguesa */}
+        {/* Acciones (mobile, derecha): novedades + login visible + hamburguesa */}
         <div className="flex items-center gap-1.5 md:hidden">
+          <NovedadesBell />
           <UserMenu />
           <button
             className={`grid size-10 place-items-center rounded-xl border transition-colors ${

@@ -34,7 +34,7 @@ export default function AnnouncementBar() {
   return (
     <div
       role="region"
-      aria-label="Novedades"
+      aria-label="Anuncio de novedad"
       className="relative z-50 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950"
     >
       <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 px-10 py-2 text-center text-xs font-medium sm:text-sm">
