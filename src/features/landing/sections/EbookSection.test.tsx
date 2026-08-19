@@ -39,8 +39,18 @@ describe("EbookSection", () => {
       "src",
       "/ebook-indice.webp",
     );
-    expect(screen.getByText(/e-book gratis/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/e-book gratis/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/perfil al 100%/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("muestra el gancho del 100% y los 3 pasos concretos para desbloquearlo", () => {
+    renderSection();
+    expect(screen.getByText(/regalo exclusivo/i)).toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByText(/del perfil completado/i)).toBeInTheDocument();
+    expect(screen.getByText(/subí tu cv/i)).toBeInTheDocument();
+    expect(screen.getByText(/completá tus datos/i)).toBeInTheDocument();
+    expect(screen.getByText(/grabá tu video/i)).toBeInTheDocument();
   });
 
   it("sin sesión el CTA lleva a crear cuenta", () => {
@@ -62,7 +72,7 @@ describe("EbookSection", () => {
     state.completion = completion(100);
     renderSection();
     expect(screen.queryByTestId("ebook-section-lock")).not.toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /leer el ebook/i });
+    const cta = screen.getByRole("link", { name: /leer el e-book/i });
     expect(cta).toHaveAttribute("href", "/ebook");
   });
 });
