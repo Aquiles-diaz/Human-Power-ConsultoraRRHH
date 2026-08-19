@@ -28,15 +28,19 @@ beforeEach(() => {
 });
 
 describe("EbookSection", () => {
-  it("presenta el ebook real (tapa + título) y la condición del perfil completo", () => {
+  it("presenta el ebook como libro abierto (tapa + índice + sello gratis)", () => {
     renderSection();
     expect(screen.getByRole("heading", { name: /empleo modo on/i })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /empleo modo on/i })).toHaveAttribute(
       "src",
       "/ebook-tapa.webp",
     );
+    expect(screen.getByRole("img", { name: /índice/i })).toHaveAttribute(
+      "src",
+      "/ebook-indice.webp",
+    );
+    expect(screen.getByText(/e-book gratis/i)).toBeInTheDocument();
     expect(screen.getAllByText(/perfil al 100%/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/gratis/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it("sin sesión el CTA lleva a crear cuenta", () => {

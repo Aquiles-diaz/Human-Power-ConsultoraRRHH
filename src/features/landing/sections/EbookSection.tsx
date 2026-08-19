@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BookOpen, CheckCircle2, Lock, LockOpen, Sparkles } from "lucide-react";
+import { BookOpen, CheckCircle2, Gift, Lock, LockOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProfileCompletion } from "@/features/profile/use-profile-completion";
 
@@ -28,20 +28,39 @@ export default function EbookSection() {
         />
 
         <div className="relative grid items-center gap-8 lg:grid-cols-2">
-          {/* Tapa real del ebook (página 1 del PDF → public/ebook-tapa.webp,
-              regenerable con pdftoppm + sharp; ver scripts/subir-ebook.py). */}
-          <div className="mx-auto w-full max-w-xs">
-            <div className="relative mx-auto w-56 rotate-[-3deg] rounded-2xl shadow-2xl shadow-black/50 ring-1 ring-white/10 transition-transform duration-300 hover:rotate-0 sm:w-64">
+          {/* Libro abierto: tapa + índice reales (páginas 1 y 2 del PDF →
+              public/ebook-*.webp, regenerables con pdftoppm + sharp) con el
+              sello "E-BOOK GRATIS" pisando ambas. Al hover el conjunto se
+              endereza, como apoyar el libro sobre la mesa. */}
+          <div className="group relative mx-auto flex w-full max-w-md items-center justify-center py-4">
+            <div className="relative z-10 w-44 rotate-[-6deg] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 transition-transform duration-300 group-hover:rotate-[-2deg] sm:w-56">
               <img
                 src="/ebook-tapa.webp"
                 alt="Tapa del ebook Empleo MODO ON, de candidato a elegido"
                 width={512}
                 height={800}
                 loading="lazy"
-                className="block w-full rounded-2xl"
+                className="block w-full rounded-xl"
               />
               {/* lomo del libro */}
-              <div className="absolute inset-y-0 left-0 w-1.5 rounded-l-2xl bg-white/10" />
+              <div className="absolute inset-y-0 left-0 w-1.5 rounded-l-xl bg-white/10" />
+            </div>
+            <div className="relative -ml-6 w-40 rotate-[5deg] rounded-xl shadow-xl shadow-black/50 ring-1 ring-white/10 transition-transform duration-300 group-hover:rotate-[2deg] sm:w-52">
+              <img
+                src="/ebook-indice.webp"
+                alt="Índice del ebook: 7 capítulos, del objetivo laboral a la negociación"
+                width={512}
+                height={800}
+                loading="lazy"
+                className="block w-full rounded-xl"
+              />
+            </div>
+            {/* Sello dorado, pisando las dos páginas */}
+            <div className="absolute z-20 flex size-24 -rotate-6 flex-col items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-center shadow-lg shadow-black/40 ring-4 ring-slate-900/60 transition-transform duration-300 group-hover:scale-105 sm:size-28">
+              <Gift size={20} className="text-slate-900" aria-hidden />
+              <span className="mt-0.5 max-w-16 text-[11px] font-extrabold uppercase leading-tight tracking-wide text-slate-900 sm:text-xs">
+                E-book gratis
+              </span>
             </div>
           </div>
 
