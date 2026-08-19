@@ -530,17 +530,21 @@ export default function ProfilePage() {
                         Cómo te presentás en una línea.
                       </p>
                     </div>
-                    <SelectField label="Área profesional" value={form.professional_area} options={PROFESSIONAL_AREAS} onChange={(v) => setField("professional_area", v)} />
+                    {/* Orden pedido por el dueño: primero hasta dónde llegaste
+                        (nivel), después qué título — preguntarlo al revés era
+                        contraproducente para quien no terminó. El label banca
+                        estudios en curso. */}
+                    <div className="sm:col-span-2">
+                      <SelectField label="Área profesional" value={form.professional_area} options={PROFESSIONAL_AREAS} onChange={(v) => setField("professional_area", v)} />
+                    </div>
+                    <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
                     <TextField
-                      label="Título obtenido"
+                      label="Título obtenido o en curso"
                       value={form.academic_title}
                       placeholder="Ej: Licenciado en Administración"
                       maxLength={120}
                       onChange={(v) => setField("academic_title", v)}
                     />
-                    <div className="sm:col-span-2">
-                      <SelectField label="Nivel de educación" value={form.education_level} options={EDUCATION_LEVELS} onChange={(v) => setField("education_level", v)} />
-                    </div>
                   </div>
 
                   <p className="mb-3 mt-8 text-[13px] font-semibold text-slate-900">

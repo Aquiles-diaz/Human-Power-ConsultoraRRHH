@@ -108,6 +108,24 @@ async function subirCv(container: HTMLElement) {
   });
 }
 
+describe("ProfilePage · formación", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("pregunta el nivel de educación ANTES del título, y el título cubre estudios en curso", async () => {
+    // Pedido del dueño: "Título obtenido" antes que el nivel era contraproducente
+    // (quien no terminó no tiene título). Primero hasta dónde llegaste, después
+    // qué título — y el label banca al que sigue estudiando.
+    mockApi(BASE);
+    await renderPerfil();
+    const labels = screen.getAllByText(/nivel de educación|título obtenido/i).map((n) => n.textContent);
+    expect(labels[0]).toMatch(/nivel de educación/i);
+    expect(labels[1]).toMatch(/título obtenido o en curso/i);
+  });
+});
+
 describe("ProfilePage · eventos de perfil", () => {
   beforeEach(() => {
     vi.clearAllMocks();
