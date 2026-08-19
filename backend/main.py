@@ -362,6 +362,19 @@ PROFILE_TEXT_FIELDS = [
     "availability", "salary_expectation", "headline", "video_url",
 ]
 
+# ── Ebook (regalo por perfil 100% completo) ──
+EBOOK_BUCKET = os.getenv("EBOOK_BUCKET", "ebooks")
+EBOOK_KEY = os.getenv("EBOOK_KEY", "ebook-humanpower.pdf")
+
+# Espejan PERSONAL_FIELDS / PROFESSIONAL_FIELDS de completion.ts: con los pesos
+# del front, 100% ⇔ video + CV + foto + estos 10 campos llenos. El test de
+# paridad (test_ebook.py) grita si el front cambia la regla y esto queda viejo.
+EBOOK_PERSONAL_FIELDS = ["headline", "phone", "city", "country", "age_range"]
+EBOOK_PROFESSIONAL_FIELDS = [
+    "professional_area", "education_level", "experience_years",
+    "availability", "salary_expectation",
+]
+
 # Hosts de video permitidos para el link pegado (video_url). Espeja
 # isAllowedVideoUrl del frontend (src/lib/video-embeds.ts). Exige el dominio real
 # al final para no aceptar suplantaciones tipo "tiktok.com.evil.com", y solo
@@ -1807,6 +1820,56 @@ def _download_profile_cv(user_id: int, request: Optional[Request] = None):
 @app.get("/me/profile/cv", tags=["profile"])
 def download_my_cv(request: Request, current_user: dict = Depends(get_current_user)):
     return _download_profile_cv(current_user["id"], request)
+
+def _ebook_missing(row) -> list[str]:
+    """Hitos del perfil que faltan para el 100% (ids que entiende el frontend)."""
+    data = dict(row) if row else {}
+
+    def filled(v) -> bool:
+        return bool(v.strip()) if isinstance(v, str) else v is not None
+
+    missing = []
+    if not (filled(data.get("video_filename")) or filled(data.get("video_url"))):
+        missing.append("video")
+    if not filled(data.get("cv_filename")):
+        missing.append("cv")
+    if not (filled(data.get("photo_filename")) or filled(data.get("external_photo_url"))):
+        missing.append("photo")
+    if not all(filled(data.get(f)) for f in EBOOK_PERSONAL_FIELDS):
+        missing.append("personal")
+    if not all(filled(data.get(f)) for f in EBOOK_PROFESSIONAL_FIELDS):
+        missing.append("professional")
+    return missing
+
+@app.get("/me/ebook", tags=["profile"])
+def get_my_ebook(current_user: dict = Depends(get_current_user)) -> Response:
+    """El ebook de HumanPower: regalo por completar el perfil al 100%.
+
+    Se sirve inline y sin cache para leerse en el visor de la app (la condición
+    del negocio es que entren a HumanPower para verlo, no que se lo lleven).
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM profiles WHERE user_id = %s", (current_user["id"],)
+        ).fetchone()
+    missing = _ebook_missing(row)
+    if missing:
+        raise HTTPException(status_code=403, detail={"missing": missing})
+    try:
+        data = storage.download_bytes(EBOOK_BUCKET, EBOOK_KEY)
+    except storage.StorageObjectNotFound:
+        raise HTTPException(status_code=404, detail="El ebook todavía no está disponible")
+    except Exception:
+        log.exception("No se pudo descargar el ebook %s/%s", EBOOK_BUCKET, EBOOK_KEY)
+        raise HTTPException(status_code=502, detail="No se pudo entregar el ebook")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'inline; filename="ebook-humanpower.pdf"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 @app.post("/me/profile/video", response_model=ProfileOut, tags=["profile"])
 @limiter.limit(PROFILE_UPLOAD_RATE_LIMIT_HOUR)
