@@ -90,3 +90,8 @@ export function trackVideoGrabado(origen: "grabado" | "archivo" | "link"): void 
 export function trackPerfilCompleto(): void {
   safeTrack("perfil_completo");
 }
+
+/** El candidato abrió el ebook en el visor (recompensa del perfil 100%). */
+export function trackEbookVisto(): void {
+  safeTrack("ebook_visto");
+}

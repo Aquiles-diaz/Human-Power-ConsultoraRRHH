@@ -3,6 +3,7 @@ import { track } from "@vercel/analytics";
 import {
   safeTrack,
   trackCvSubido,
+  trackEbookVisto,
   trackPerfilCompleto,
   trackPostulacionEnviada,
   trackRegistroCompletado,
@@ -59,6 +60,11 @@ describe("analytics · eventos de conversión", () => {
   it("perfil_completo no lleva propiedades", () => {
     trackPerfilCompleto();
     expect(trackMock).toHaveBeenCalledWith("perfil_completo", undefined);
+  });
+
+  it("ebook_visto no lleva propiedades", () => {
+    trackEbookVisto();
+    expect(trackMock).toHaveBeenCalledWith("ebook_visto", undefined);
   });
 
   // Regla dura: estos eventos van a un tercero. Ninguna propiedad puede ser un

@@ -5,6 +5,7 @@ import Hero from "./sections/Hero";
 import ValueProps from "./sections/ValueProps";
 import Servicios from "./sections/Servicios";
 import OfertasPreview from "./sections/OfertasPreview";
+import EbookSection from "./sections/EbookSection";
 import CtaBanner from "./sections/CtaBanner";
 import Contacto from "./sections/Contacto";
 import LandingFooter from "./sections/LandingFooter";
@@ -39,6 +40,7 @@ export default function LandingPage() {
       <Hero />
       <ValueProps />
       <OfertasPreview />
+      <EbookSection />
       <CtaBanner />
       <Servicios />
       <Contacto />

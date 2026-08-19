@@ -18,6 +18,8 @@ const AlertUnsubscribedPage = React.lazy(() => import("@/features/profile/AlertU
 const PrivacidadPage = React.lazy(() => import("@/features/legal/PrivacidadPage"));
 const TerminosPage = React.lazy(() => import("@/features/legal/TerminosPage"));
 const NotFound = React.lazy(() => import("@/features/landing/NotFound"));
+// El visor del ebook carga pdf.js: lazy obligatorio para no engordar el bundle.
+const EbookPage = React.lazy(() => import("@/features/ebook/EbookPage"));
 
 // Cada vez que cambia la ruta, vuelve el scroll al tope: sin esto las páginas
 // nuevas heredan la posición de scroll de la anterior.
@@ -117,6 +119,14 @@ export default function App() {
             element={
               <React.Suspense fallback={<LoadingScreen />}>
                 <ProfilePage />
+              </React.Suspense>
+            }
+          />
+          <Route
+            path="/ebook"
+            element={
+              <React.Suspense fallback={<LoadingScreen />}>
+                <EbookPage />
               </React.Suspense>
             }
           />
