@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { Check, ChevronRight, Sparkles } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Lock, LockOpen, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Bonus, Milestone, ProfileCompletion as Result } from "./completion";
 
@@ -100,6 +101,8 @@ export default function ProfileCompletion({
         </motion.p>
       )}
 
+      <EbookRewardCard percent={percent} complete={complete} />
+
       {/* Pendientes — bloque resaltado y accionable (el próximo paso, en ámbar) */}
       {pending.length > 0 && (
         <div className="mt-5 space-y-2">
@@ -162,6 +165,63 @@ export default function ProfileCompletion({
         </div>
       </div>
     </section>
+  );
+}
+
+// El regalo por llegar al 100%: el ebook de HumanPower. Vive pegado a la barra de
+// progreso con un candado que "se rompe" al completar (pedido del dueño). Bloqueado
+// no linkea a ningún lado: el gate real está en el backend, esto solo motiva.
+function EbookRewardCard({ percent, complete }: { percent: number; complete: boolean }) {
+  return (
+    <div
+      data-testid="ebook-card"
+      className={cn(
+        "mt-4 flex items-center gap-3.5 rounded-2xl border p-3.5",
+        complete
+          ? "border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50"
+          : "border-slate-200 bg-slate-50",
+      )}
+    >
+      <div
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-xl",
+          complete ? "bg-amber-500 text-white" : "bg-slate-200 text-slate-500",
+        )}
+      >
+        {complete ? (
+          <motion.span
+            initial={{ rotate: -12, scale: 0.6, opacity: 0 }}
+            animate={{ rotate: 0, scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            className="flex"
+          >
+            <LockOpen size={20} />
+          </motion.span>
+        ) : (
+          <span data-testid="ebook-lock" className="flex">
+            <Lock size={20} />
+          </span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-slate-800">
+          {complete ? "¡Desbloqueaste el ebook de HumanPower!" : "Ebook de HumanPower"}
+        </p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {complete
+            ? "Tu regalo por completar el perfil. Leelo cuando quieras."
+            : `Completá tu perfil al 100% para desbloquearlo. Te falta el ${100 - percent}%.`}
+        </p>
+      </div>
+      {complete && (
+        <Link
+          to="/ebook"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-amber-600"
+        >
+          <BookOpen size={14} /> Leer el ebook
+        </Link>
+      )}
+    </div>
   );
 }
 
