@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import AnnouncementBar from "./sections/AnnouncementBar";
 import LandingHeader from "./sections/LandingHeader";
 import Hero from "./sections/Hero";
 import ValueProps from "./sections/ValueProps";
@@ -36,14 +37,17 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground scroll-smooth">
       <JsonLd data={organizationLd()} />
+      <AnnouncementBar />
       <LandingHeader />
       <Hero />
       <ValueProps />
       <OfertasPreview />
-      <EbookSection />
       <CtaBanner />
       <Servicios />
       <Contacto />
+      {/* Al fondo a pedido del dueño: la sección brillaba tanto que opacaba a
+          Servicios. La AnnouncementBar de arriba trae el tráfico hasta acá. */}
+      <EbookSection />
       <LandingFooter />
       <FaqWidget />
     </div>
