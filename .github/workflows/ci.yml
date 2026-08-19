@@ -22,7 +22,13 @@ jobs:
       - run: npm ci
       # El gate real de tipos es el build (tsc -b), no `tsc --noEmit`.
       - run: npm run build
+      # TZ de Argentina: la suite valida semántica de "hoy" EN HORA LOCAL del
+      # admin (panel-kpis) con instantes ART fijos; el runner corre en UTC y
+      # ahí "22:00 ART del 15" ya es día 16 (falso rojo). Mismo huso que el
+      # entorno real de uso y que la máquina de desarrollo.
       - run: npx vitest run
+        env:
+          TZ: America/Argentina/Buenos_Aires
       - run: npx eslint .
 
   backend:
