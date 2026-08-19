@@ -17,12 +17,20 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
+  // El foco se toma SOLO al montar. Antes vivía en el efecto de abajo, que
+  // depende de [onClose]: como los consumidores pasan onClose inline (identidad
+  // nueva en cada render), cualquier re-render del padre —una revalidación en
+  // segundo plano, por ejemplo— re-ejecutaba focus() y se lo robaba a lo que el
+  // usuario estuviera tipeando dentro del modal.
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    ref.current?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
