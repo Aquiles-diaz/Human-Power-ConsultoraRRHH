@@ -28,9 +28,13 @@ beforeEach(() => {
 });
 
 describe("EbookSection", () => {
-  it("presenta el ebook y la condición del perfil completo", () => {
+  it("presenta el ebook real (tapa + título) y la condición del perfil completo", () => {
     renderSection();
-    expect(screen.getByRole("heading", { name: /ebook/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /empleo modo on/i })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /empleo modo on/i })).toHaveAttribute(
+      "src",
+      "/ebook-tapa.webp",
+    );
     expect(screen.getAllByText(/perfil al 100%/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/gratis/i).length).toBeGreaterThanOrEqual(1);
   });

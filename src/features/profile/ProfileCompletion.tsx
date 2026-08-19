@@ -205,7 +205,7 @@ function EbookRewardCard({ percent, complete }: { percent: number; complete: boo
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-slate-800">
-          {complete ? "¡Desbloqueaste el ebook de HumanPower!" : "Ebook de HumanPower"}
+          {complete ? "¡Desbloqueaste el ebook Empleo MODO ON!" : "Ebook: Empleo MODO ON"}
         </p>
         <p className="mt-0.5 text-xs text-slate-500">
           {complete

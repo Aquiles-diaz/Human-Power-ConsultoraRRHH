@@ -28,22 +28,18 @@ export default function EbookSection() {
         />
 
         <div className="relative grid items-center gap-8 lg:grid-cols-2">
-          {/* Portada estilizada del ebook (placeholder tipográfico hasta tener
-              una imagen de la tapa real; ver scripts/subir-ebook.py). */}
+          {/* Tapa real del ebook (página 1 del PDF → public/ebook-tapa.webp,
+              regenerable con pdftoppm + sharp; ver scripts/subir-ebook.py). */}
           <div className="mx-auto w-full max-w-xs">
-            <div className="relative mx-auto aspect-[3/4] w-56 rotate-[-3deg] rounded-2xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950 p-6 shadow-2xl shadow-black/50 ring-1 ring-white/10 transition-transform duration-300 hover:rotate-0 sm:w-64">
-              <div className="flex h-full flex-col justify-between">
-                <BookOpen className="text-amber-400" size={28} />
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-400/90">
-                    Ebook
-                  </p>
-                  <p className="mt-1 text-xl font-extrabold leading-tight text-white">
-                    Conseguí tu próximo empleo
-                  </p>
-                  <p className="mt-2 text-xs text-white/60">por HumanPower RRHH</p>
-                </div>
-              </div>
+            <div className="relative mx-auto w-56 rotate-[-3deg] rounded-2xl shadow-2xl shadow-black/50 ring-1 ring-white/10 transition-transform duration-300 hover:rotate-0 sm:w-64">
+              <img
+                src="/ebook-tapa.webp"
+                alt="Tapa del ebook Empleo MODO ON, de candidato a elegido"
+                width={512}
+                height={800}
+                loading="lazy"
+                className="block w-full rounded-2xl"
+              />
               {/* lomo del libro */}
               <div className="absolute inset-y-0 left-0 w-1.5 rounded-l-2xl bg-white/10" />
             </div>
@@ -53,16 +49,21 @@ export default function EbookSection() {
             <p className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
               <Sparkles size={13} /> Nuevo · Gratis para candidatos
             </p>
-            <h2 className="t-h2 mt-3 text-white">El ebook de HumanPower</h2>
+            <h2 className="t-h2 mt-3 text-white">
+              Empleo MODO ON
+              <span className="mt-1 block text-lg font-semibold text-white/70 sm:text-xl">
+                De candidato a elegido
+              </span>
+            </h2>
             <p className="mt-2 max-w-md text-sm text-white/70 sm:text-base">
-              La guía de nuestro equipo de RRHH para conseguir trabajo: CV, entrevistas y
-              cómo destacar en las búsquedas.
+              La guía de nuestro equipo de RRHH: CV que genera entrevistas, LinkedIn,
+              cómo responder en una entrevista y negociar tu propuesta.
             </p>
 
             <ul className="mt-4 space-y-2 text-sm text-white/80">
               {[
-                "Consejos reales de quienes seleccionan personal",
-                "Cómo armar un CV y un video que se destaquen",
+                "7 capítulos escritos por quienes seleccionan personal",
+                "Del CV y LinkedIn hasta la negociación de la oferta",
                 "Se lee online, desde tu cuenta, cuando quieras",
               ].map((b) => (
                 <li key={b} className="flex items-start gap-2">

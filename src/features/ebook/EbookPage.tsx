@@ -92,7 +92,7 @@ export default function EbookPage() {
             <ArrowLeft size={16} /> Mi perfil
           </Link>
           <h1 className="ml-auto flex items-center gap-2 text-sm font-bold text-slate-800 sm:text-base">
-            <BookOpen size={18} className="text-amber-500" /> Ebook de HumanPower
+            <BookOpen size={18} className="text-amber-500" /> Empleo MODO ON
           </h1>
         </div>
       </header>
