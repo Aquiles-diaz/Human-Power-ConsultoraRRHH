@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   RefreshCw,
@@ -93,6 +93,9 @@ export default function AdminPanel() {
     const qs = serverFilters ? buildCvQuery(serverFilters) : "";
     const isServerSearch = qs.length > 0;
 
+    // Cualquier pedido (automático o manual) cuenta: si falla, el reintento es
+    // el botón Actualizar, no volver a pasear por las tabs.
+    cvsRequestedRef.current = true;
     setLoading(true);
     try {
       // authFetch: ante 401 cierra sesión global y el guard redirige al login.
@@ -142,11 +145,19 @@ export default function AdminPanel() {
     }
   }
 
-  // Carga al montar
+  // /admin/cv es el fetch pesado del panel (hasta 500 filas × 29 campos) y la
+  // tab inicial (Resumen) no muestra esas filas: pedirlo al montar duplicaba el
+  // golpe al endpoint en cada entrada (el Resumen ya trae su propio /admin/cv
+  // acotado al rango para el drill-down). Se pide recién al abrir una tab que
+  // lo usa, una sola vez; mientras tanto el cache de sessionStorage ya pintó lo
+  // último conocido (badge incluido).
+  const cvsRequestedRef = useRef(false);
   useEffect(() => {
+    if (tab === "resumen" || tab === "candidates" || tab === "jobs") return;
+    if (cvsRequestedRef.current) return;
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tab]);
 
   // Filtro por fecha + búsqueda opcional
   const filtered = useMemo(() => {
