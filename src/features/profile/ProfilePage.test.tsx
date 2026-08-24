@@ -207,4 +207,67 @@ describe("ProfilePage · guardar", () => {
     await waitFor(() => expect(putBody).not.toBeNull());
     expect(putBody!.academic_title).toBe("Licenciada en Administración");
   });
+
+  it("«Añadir otra formación» despliega la segunda fila y el PUT la lleva", async () => {
+    // Terciario terminado + carrera en curso: dos formaciones reales. La
+    // segunda es opcional y arranca oculta para no ensuciar el form.
+    let putBody: Record<string, unknown> | null = null;
+    authFetchMock.mockImplementation(
+      (path: string, _a: unknown, opts?: { method?: string; body?: string }) => {
+        if (path === "/me/profile" && opts?.method === "PUT") {
+          putBody = JSON.parse(opts.body ?? "{}");
+          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
+        }
+        if (path === "/me/profile") {
+          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
+      },
+    );
+    render(
+      <MemoryRouter initialEntries={["/perfil"]}>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/subí tu currículum/i);
+
+    // Oculta hasta que el candidato la pide.
+    expect(screen.queryByLabelText(/segundo título/i)).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /añadir otra formación/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/segundo nivel de educación/i),
+      "Universitario en curso",
+    );
+    await user.type(screen.getByLabelText(/segundo título/i), "Abogacía");
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(putBody).not.toBeNull());
+    expect(putBody!.education_level_2).toBe("Universitario en curso");
+    expect(putBody!.academic_title_2).toBe("Abogacía");
+  });
+
+  it("con una segunda formación ya guardada, la fila aparece desplegada", async () => {
+    const conSegunda = {
+      ...BASE,
+      education_level_2: "Universitario en curso",
+      academic_title_2: "Abogacía",
+    };
+    authFetchMock.mockImplementation((path: string) => {
+      if (path === "/me/profile") {
+        return Promise.resolve({ ok: true, json: async () => conSegunda } as unknown as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
+    });
+    render(
+      <MemoryRouter initialEntries={["/perfil"]}>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/subí tu currículum/i);
+
+    expect(screen.getByLabelText(/segundo título/i)).toHaveValue("Abogacía");
+    expect(screen.queryByRole("button", { name: /añadir otra formación/i })).not.toBeInTheDocument();
+  });
 });

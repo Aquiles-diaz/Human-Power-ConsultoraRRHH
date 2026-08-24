@@ -82,6 +82,9 @@ export default function ProfilePage() {
   const [langName, setLangName] = useState("");
   const [langLevel, setLangLevel] = useState("");
   const [cvDeleteOpen, setCvDeleteOpen] = useState(false);
+  // La segunda formación arranca colapsada para no ensuciar el form de la
+  // mayoría (que tiene una sola). Si ya hay datos guardados se muestra sola.
+  const [segundaFormacionAbierta, setSegundaFormacionAbierta] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
@@ -545,6 +548,37 @@ export default function ProfilePage() {
                       maxLength={120}
                       onChange={(v) => setField("academic_title", v)}
                     />
+                    {/* Segunda formación (opcional): terciario terminado +
+                        carrera en curso, etc. Para quitarla: vaciar y guardar. */}
+                    {segundaFormacionAbierta ||
+                    form.education_level_2 ||
+                    form.academic_title_2 ? (
+                      <>
+                        <SelectField
+                          label="Segundo nivel de educación"
+                          value={form.education_level_2}
+                          options={EDUCATION_LEVELS}
+                          onChange={(v) => setField("education_level_2", v)}
+                        />
+                        <TextField
+                          label="Segundo título (obtenido o en curso)"
+                          value={form.academic_title_2}
+                          placeholder="Ej: Abogacía"
+                          maxLength={120}
+                          onChange={(v) => setField("academic_title_2", v)}
+                        />
+                      </>
+                    ) : (
+                      <div className="sm:col-span-2">
+                        <button
+                          type="button"
+                          onClick={() => setSegundaFormacionAbierta(true)}
+                          className="text-[13px] font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
+                        >
+                          ＋ Añadir otra formación
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p className="mb-3 mt-8 text-[13px] font-semibold text-slate-900">

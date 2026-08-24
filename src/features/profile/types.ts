@@ -15,6 +15,10 @@ export type Profile = {
   professional_area?: string | null;
   academic_title?: string | null;
   education_level?: string | null;
+  // Segunda formación (opcional): terciario terminado + carrera en curso, etc.
+  // No cuenta para el % de perfil completo.
+  academic_title_2?: string | null;
+  education_level_2?: string | null;
   languages: string[];
   experience_years?: string | null;
   availability?: string | null;
@@ -38,6 +42,8 @@ export const PROFILE_TEXT_FIELDS = [
   "professional_area",
   "academic_title",
   "education_level",
+  "academic_title_2",
+  "education_level_2",
   "experience_years",
   "availability",
   "salary_expectation",

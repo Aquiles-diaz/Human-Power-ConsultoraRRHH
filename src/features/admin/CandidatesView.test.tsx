@@ -312,6 +312,31 @@ describe("CandidatesView · paginación", () => {
 });
 
 describe("CandidatesView · modal de detalle", () => {
+  it("muestra la segunda formación solo si existe", async () => {
+    const user = userEvent.setup();
+    authFetchMock.mockImplementation((path: string) => {
+      if (path.startsWith("/admin/candidates?")) return Promise.resolve(ok({ items: TODOS }));
+      return Promise.resolve(
+        ok({ ...PERFIL_ANA, education_level_2: "Universitario en curso", academic_title_2: "Abogacía" }),
+      );
+    });
+    render(<CandidatesView />);
+
+    await user.click(await screen.findByText("Ana Pérez"));
+    expect(await screen.findByText("Abogacía")).toBeInTheDocument();
+    expect(screen.getByText(/segunda educación/i)).toBeInTheDocument();
+  });
+
+  it("sin segunda formación no mete filas vacías en la ficha", async () => {
+    const user = userEvent.setup();
+    render(<CandidatesView />);
+
+    await user.click(await screen.findByText("Ana Pérez"));
+    await screen.findByText("Eliminar candidato");
+    expect(screen.queryByText(/segunda educación/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/segundo título/i)).not.toBeInTheDocument();
+  });
+
   it("se puede cerrar mientras carga (no queda trabado con el spinner)", async () => {
     // El modal se renderiza con (active || loadingDetail), pero onClose sólo
     // limpiaba `active`. Con active=null y loadingDetail=true, Escape, el clic

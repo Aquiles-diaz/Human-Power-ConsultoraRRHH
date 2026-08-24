@@ -46,6 +46,21 @@ def test_perfil_sin_titulo_no_rompe():
     assert main._profile_row_to_out(USER, {}).academic_title is None
 
 
+def test_segunda_formacion_editable_y_visible():
+    """El candidato con dos formaciones (p.ej. terciario terminado + carrera en
+    curso) carga las dos. Opcional: NO cuenta para el % de perfil completo.
+    Estar en PROFILE_TEXT_FIELDS + el test de paridad de abajo garantizan que
+    también entra por el PUT."""
+    for f in ("education_level_2", "academic_title_2"):
+        assert f in main.PROFILE_TEXT_FIELDS
+    out = main._profile_row_to_out(
+        USER, {"education_level_2": "Universitario en curso", "academic_title_2": "Abogacía"}
+    )
+    assert out.education_level_2 == "Universitario en curso"
+    assert out.academic_title_2 == "Abogacía"
+    assert main._profile_row_to_out(USER, {}).academic_title_2 is None
+
+
 def test_el_admin_lo_ve_en_la_ficha_y_en_la_postulacion():
     """Si el candidato lo carga y el reclutador no lo ve, el campo no sirve."""
     assert "academic_title" in main.CandidateListItem.model_fields

@@ -541,6 +541,14 @@ export default function CandidatesView() {
                 <Info icon={<Briefcase className="size-4" />} label="Área profesional" value={active.professional_area} />
                 <Info icon={<GraduationCap className="size-4" />} label="Educación" value={active.education_level} />
                 <Info icon={<GraduationCap className="size-4" />} label="Título" value={active.academic_title} />
+                {/* Segunda formación: solo si el candidato la cargó, para no
+                    llenar la ficha de "—" al resto. */}
+                {(active.education_level_2 || active.academic_title_2) && (
+                  <>
+                    <Info icon={<GraduationCap className="size-4" />} label="Segunda educación" value={active.education_level_2} />
+                    <Info icon={<GraduationCap className="size-4" />} label="Segundo título" value={active.academic_title_2} />
+                  </>
+                )}
                 <Info icon={<Clock className="size-4" />} label="Experiencia" value={active.experience_years} />
                 <Info icon={<CalendarDays className="size-4" />} label="Disponibilidad" value={active.availability} />
                 <Info icon={<Wallet className="size-4" />} label="Pretensión salarial" value={active.salary_expectation} />

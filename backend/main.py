@@ -358,7 +358,8 @@ MAX_CANDIDATES_PAGE = 500
 # ── Perfil del candidato ──
 PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
-    "professional_area", "academic_title", "education_level", "experience_years",
+    "professional_area", "academic_title", "education_level",
+    "academic_title_2", "education_level_2", "experience_years",
     "availability", "salary_expectation", "headline", "video_url",
 ]
 
@@ -395,6 +396,9 @@ class ProfileUpdate(BaseModel):
     professional_area: Optional[str] = Field(None, max_length=200)
     academic_title: Optional[str] = Field(None, max_length=200)
     education_level: Optional[str] = Field(None, max_length=120)
+    # Segunda formación (opcional): terciario terminado + carrera en curso, etc.
+    academic_title_2: Optional[str] = Field(None, max_length=200)
+    education_level_2: Optional[str] = Field(None, max_length=120)
     languages: Optional[list[str]] = None
     experience_years: Optional[str] = Field(None, max_length=40)
     availability: Optional[str] = Field(None, max_length=200)
@@ -429,6 +433,8 @@ class ProfileOut(BaseModel):
     professional_area: Optional[str] = None
     academic_title: Optional[str] = None
     education_level: Optional[str] = None
+    academic_title_2: Optional[str] = None
+    education_level_2: Optional[str] = None
     languages: list[str] = Field(default_factory=list)
     experience_years: Optional[str] = None
     availability: Optional[str] = None
