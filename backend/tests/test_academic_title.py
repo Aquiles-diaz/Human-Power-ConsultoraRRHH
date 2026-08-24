@@ -21,6 +21,22 @@ def test_es_un_campo_editable_del_perfil():
     assert "academic_title" in main.PROFILE_TEXT_FIELDS
 
 
+def test_el_put_lo_acepta():
+    """PROFILE_TEXT_FIELDS solo no alcanza: PUT /me/profile valida primero con
+    ProfileUpdate, y pydantic DESCARTA EN SILENCIO los campos que el modelo no
+    declara. Sin academic_title acá, el candidato tipeaba su título, guardaba,
+    veía "Perfil actualizado"… y el campo volvía vacío (la respuesta del
+    backend pisa el form con el valor viejo)."""
+    assert "academic_title" in main.ProfileUpdate.model_fields
+
+
+def test_todo_campo_editable_entra_por_el_put():
+    """La clase entera del bug: un campo agregado a PROFILE_TEXT_FIELDS pero
+    olvidado en ProfileUpdate se pierde en silencio al guardar."""
+    faltan = [f for f in main.PROFILE_TEXT_FIELDS if f not in main.ProfileUpdate.model_fields]
+    assert faltan == []
+
+
 def test_sale_en_el_perfil():
     out = main._profile_row_to_out(USER, {"academic_title": "Licenciado en Administración"})
     assert out.academic_title == "Licenciado en Administración"

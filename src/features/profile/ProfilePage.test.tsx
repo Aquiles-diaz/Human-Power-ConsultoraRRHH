@@ -1,4 +1,5 @@
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { track } from "@vercel/analytics";
@@ -162,5 +163,48 @@ describe("ProfilePage · eventos de perfil", () => {
     await subirCv(container); // reemplaza el CV: sigue al 100%, no hay transición
     await waitFor(() => expect(trackMock).toHaveBeenCalledWith("cv_subido", { reemplazo: true }));
     expect(trackMock).not.toHaveBeenCalledWith("perfil_completo", undefined);
+  });
+});
+
+describe("ProfilePage · guardar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("el título académico tipeado llega en el PUT", async () => {
+    // La otra mitad vive en el backend (test_academic_title.py): ProfileUpdate
+    // no declaraba academic_title y pydantic lo descartaba en silencio — el
+    // candidato guardaba, veía "Perfil actualizado" y el campo volvía vacío.
+    // Este test fija la mitad del front: el campo sale en el payload.
+    let putBody: Record<string, unknown> | null = null;
+    authFetchMock.mockImplementation(
+      (path: string, _a: unknown, opts?: { method?: string; body?: string }) => {
+        if (path === "/me/profile" && opts?.method === "PUT") {
+          putBody = JSON.parse(opts.body ?? "{}");
+          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
+        }
+        if (path === "/me/profile") {
+          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
+      },
+    );
+    render(
+      <MemoryRouter initialEntries={["/perfil"]}>
+        <ProfilePage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/subí tu currículum/i);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByLabelText(/título obtenido/i),
+      "Licenciada en Administración",
+    );
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(putBody).not.toBeNull());
+    expect(putBody!.academic_title).toBe("Licenciada en Administración");
   });
 });

@@ -393,6 +393,7 @@ class ProfileUpdate(BaseModel):
     province: Optional[str] = Field(None, max_length=120)
     country: Optional[str] = Field(None, max_length=120)
     professional_area: Optional[str] = Field(None, max_length=200)
+    academic_title: Optional[str] = Field(None, max_length=200)
     education_level: Optional[str] = Field(None, max_length=120)
     languages: Optional[list[str]] = None
     experience_years: Optional[str] = Field(None, max_length=40)
