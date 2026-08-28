@@ -10,6 +10,7 @@ import os
 import re
 
 import psycopg
+import secrets
 import unicodedata
 import uuid
 from urllib.parse import quote
@@ -376,6 +377,19 @@ EBOOK_PROFESSIONAL_FIELDS = [
     "availability", "salary_expectation",
 ]
 
+# ── Recordatorios de perfil incompleto (POST /tasks/profile-reminders) ──
+# Escalones en horas desde el registro: a cada usuario sin CV ni video se le
+# manda a lo sumo UN mail por corrida — el escalón más alto ya vencido que no
+# haya recibido (registrado en profile_nudges). CRON_SECRET vacío = tarea
+# apagada (403): el endpoint no queda abierto donde nadie configuró el cron.
+REMINDER_HOURS = sorted(
+    int(h) for h in os.getenv("REMINDER_HOURS", "24,72,168").split(",") if h.strip()
+)
+# Techo de mails por corrida: el plan free de Brevo corta en 300/día; con el
+# cron horario, 100 por corrida deja margen para los transaccionales.
+REMINDER_BATCH_MAX = int(os.getenv("REMINDER_BATCH_MAX", "100"))
+CRON_SECRET = os.getenv("CRON_SECRET", "")
+
 # Hosts de video permitidos para el link pegado (video_url). Espeja
 # isAllowedVideoUrl del frontend (src/lib/video-embeds.ts). Exige el dominio real
 # al final para no aceptar suplantaciones tipo "tiktok.com.evil.com", y solo
@@ -462,6 +476,9 @@ class CandidateListItem(BaseModel):
     has_video: bool = False
     created_at: Optional[str] = None
     last_login_at: Optional[str] = None
+    # Aditivo (el front ya desplegado lo ignora): % de perfil completo, con los
+    # mismos pesos que la barra del candidato (completion.ts).
+    completion_percent: Optional[int] = None
 
 class CandidatesOut(BaseModel):
     items: list[CandidateListItem]
@@ -470,6 +487,18 @@ class CandidatesOut(BaseModel):
     # que es justamente lo que faltaba para poder decir "mostrando 200 de 562".
     total: Optional[int] = None
     has_more: bool = False
+
+class NudgeRunItem(BaseModel):
+    email: str
+    nudge: str
+
+class NudgeRunOut(BaseModel):
+    eligible: int   # usuarios con un escalón vencido y sin ese mail enviado
+    sent: int
+    failed: int
+    dry_run: bool = False
+    # Muestra (tope 50) de a quiénes se les mandó (o mandaría, en dry_run).
+    items: list[NudgeRunItem] = []
 
 class DeletionSummary(BaseModel):
     user_id: int
@@ -1848,6 +1877,27 @@ def _ebook_missing(row) -> list[str]:
         missing.append("professional")
     return missing
 
+def _completion_percent(row) -> int:
+    """% de perfil completo, con los pesos de computeProfileCompletion
+    (completion.ts): cuenta 10, video 25, CV 25, foto 5, personales 20 (5 campos
+    de a 4) y profesionales 15 (5 campos de a 3). Todos los sumandos son enteros,
+    así que no hay redondeo que pueda divergir del Math.round del front."""
+    data = dict(row) if row else {}
+
+    def filled(v) -> bool:
+        return bool(v.strip()) if isinstance(v, str) else v is not None
+
+    pct = 10  # hito "creaste tu cuenta"
+    if filled(data.get("video_filename")) or filled(data.get("video_url")):
+        pct += 25
+    if filled(data.get("cv_filename")):
+        pct += 25
+    if filled(data.get("photo_filename")) or filled(data.get("external_photo_url")):
+        pct += 5
+    pct += 4 * sum(1 for f in EBOOK_PERSONAL_FIELDS if filled(data.get(f)))
+    pct += 3 * sum(1 for f in EBOOK_PROFESSIONAL_FIELDS if filled(data.get(f)))
+    return pct
+
 @app.get("/me/ebook", tags=["profile"])
 def get_my_ebook(current_user: dict = Depends(get_current_user)) -> Response:
     """El ebook de HumanPower: regalo por completar el perfil al 100%.
@@ -2103,6 +2153,120 @@ def alerts_unsubscribe(token: str = ""):
         conn.commit()
     return RedirectResponse(dest_ok, status_code=302)
 
+@app.get("/nudges/unsubscribe", tags=["default"])
+def nudges_unsubscribe(token: str = ""):
+    """Baja de un click desde el mail de recordatorio de perfil (sin login).
+    Guarda el email en email_optouts: la tarea de recordatorios lo excluye."""
+    dest_ok = f"{emailer.FRONTEND_URL}/alertas/baja?ok=1&tipo=recordatorios"
+    dest_err = f"{emailer.FRONTEND_URL}/alertas/baja?ok=0&tipo=recordatorios"
+    try:
+        payload = decode_purpose_token(token, "nudge_unsub")
+    except HTTPException:
+        return RedirectResponse(dest_err, status_code=302)
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO email_optouts (email) VALUES (LOWER(%s)) ON CONFLICT DO NOTHING",
+            (payload["sub"],),
+        )
+        conn.commit()
+    return RedirectResponse(dest_ok, status_code=302)
+
+def _reminder_due(created_at, already_sent: set[str], now) -> Optional[int]:
+    """El escalón (horas) que corresponde mandar ahora, o None.
+
+    Es el MÁS ALTO ya vencido que no se haya mandado: si alguien se registró hace
+    10 días cuando la tarea recién se estrena, recibe solo el de 168h — no los
+    tres juntos (al registrar el envío se marcan también los escalones menores)."""
+    hours = (now - created_at).total_seconds() / 3600
+    due = [h for h in REMINDER_HOURS if hours >= h and f"perfil_{h}h" not in already_sent]
+    return max(due) if due else None
+
+@app.post("/tasks/profile-reminders", response_model=NudgeRunOut, tags=["tasks"])
+def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOut:
+    """Tarea del cron (GitHub Actions, cada hora): recordatorio por email a los
+    usuarios que se registraron y siguen sin CV ni video.
+
+    Autenticación por header X-Cron-Secret (no JWT: la llama una máquina). Es
+    idempotente: cada envío queda en profile_nudges y no se repite, así correrla
+    de más no spamea a nadie. Con ?dry_run=1 solo informa a quiénes les tocaría."""
+    if not CRON_SECRET or not secrets.compare_digest(
+        request.headers.get("x-cron-secret", ""), CRON_SECRET
+    ):
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT u.id, u.name, u.email, u.created_at,
+                   COALESCE(array_agg(pn.nudge) FILTER (WHERE pn.nudge IS NOT NULL),
+                            '{}') AS nudges
+            FROM users u
+            LEFT JOIN profiles p ON p.user_id = u.id
+            LEFT JOIN profile_nudges pn ON pn.user_id = u.id
+            WHERE u.role != 'admin'
+              AND p.cv_filename IS NULL
+              AND p.video_filename IS NULL
+              AND p.video_url IS NULL
+              AND u.created_at <= now() - make_interval(hours => %s)
+              AND NOT EXISTS (
+                  SELECT 1 FROM email_optouts eo WHERE LOWER(eo.email) = LOWER(u.email)
+              )
+            GROUP BY u.id
+            ORDER BY u.created_at
+            """,
+            (REMINDER_HOURS[0],),
+        ).fetchall()
+
+    now = datetime.now(timezone.utc)
+    pending: list[tuple[int, str, str, int]] = []  # (user_id, name, email, escalón)
+    for r in rows:
+        tier = _reminder_due(r["created_at"], set(r["nudges"]), now)
+        if tier is not None:
+            pending.append((r["id"], r["name"], r["email"], tier))
+
+    eligible = len(pending)
+    if eligible > REMINDER_BATCH_MAX:
+        log.warning(
+            "profile-reminders: %d elegibles, se procesan %d por el techo "
+            "REMINDER_BATCH_MAX; el resto sale en las próximas corridas.",
+            eligible, REMINDER_BATCH_MAX,
+        )
+        pending = pending[:REMINDER_BATCH_MAX]
+
+    items = [NudgeRunItem(email=e, nudge=f"perfil_{t}h") for (_, _, e, t) in pending[:50]]
+    if dry_run:
+        return NudgeRunOut(eligible=eligible, sent=0, failed=0, dry_run=True, items=items)
+
+    sent = failed = 0
+    for user_id, name, email, tier in pending:
+        # Best-effort por usuario (mismo criterio que _send_job_alerts): un mail
+        # que falla no debe frenar a los demás; sin registro en profile_nudges,
+        # ese usuario se reintenta solo en la próxima corrida.
+        try:
+            token = create_purpose_token(email, "nudge_unsub", 60 * 24 * 180)
+            unsub_url = emailer.profile_nudge_unsub_link(token)
+            emailer.send_profile_reminder(email, name, unsub_url)
+        except Exception:
+            log.exception("Fallo el recordatorio de perfil a %s", email)
+            failed += 1
+            continue
+        # Marca el escalón enviado Y los menores: si el estreno lo agarra con el
+        # de 168h, los de 24h/72h no deben dispararse en la corrida siguiente.
+        with get_db() as conn:
+            cur = conn.cursor()
+            for h in (h for h in REMINDER_HOURS if h <= tier):
+                cur.execute(
+                    "INSERT INTO profile_nudges (user_id, nudge) VALUES (%s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (user_id, f"perfil_{h}h"),
+                )
+            conn.commit()
+        sent += 1
+
+    log.info("profile-reminders: %d elegibles, %d enviados, %d fallidos", eligible, sent, failed)
+    return NudgeRunOut(eligible=eligible, sent=sent, failed=failed, items=items)
+
 @app.get("/uploads/{key}", tags=["default"])
 @limiter.limit(PHOTO_SERVE_RATE_LIMIT_HOUR)
 @limiter.limit(PHOTO_SERVE_RATE_LIMIT_MIN)
@@ -2198,7 +2362,8 @@ def list_candidates(
                u.created_at, u.last_login_at,
                p.headline, p.professional_area, p.academic_title, p.education_level,
                p.experience_years, p.city, p.photo_filename, p.external_photo_url,
-               p.cv_filename, p.video_filename, p.video_url
+               p.cv_filename, p.video_filename, p.video_url,
+               p.phone, p.country, p.age_range, p.availability, p.salary_expectation
         """
         + desde
         + " ORDER BY u.id DESC LIMIT %s OFFSET %s"
@@ -2223,6 +2388,7 @@ def list_candidates(
             has_video=bool(r["video_filename"]) or bool(r["video_url"]),
             created_at=_legacy_ts(r["created_at"]),
             last_login_at=_legacy_ts(r["last_login_at"]),
+            completion_percent=_completion_percent(r),
         )
         for r in rows
     ]

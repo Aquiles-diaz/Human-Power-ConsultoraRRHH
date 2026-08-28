@@ -7,9 +7,13 @@ export default function AlertUnsubscribedPage() {
   const ok = params.get("ok");
 
   const isSuccess = ok === "1";
+  // La misma página atiende las dos bajas por email: alertas de empleo (default)
+  // y recordatorios de perfil incompleto (?tipo=recordatorios, ver
+  // GET /nudges/unsubscribe en el backend).
+  const esRecordatorio = params.get("tipo") === "recordatorios";
 
   return (
-    <AuthShell title="Baja de alertas">
+    <AuthShell title={esRecordatorio ? "Baja de recordatorios" : "Baja de alertas"}>
       <div className="space-y-4 text-center">
         {isSuccess && (
           <>
@@ -18,7 +22,9 @@ export default function AlertUnsubscribedPage() {
             </span>
             <p className="text-lg font-semibold text-white">Listo</p>
             <p className="text-sm text-white/70">
-              No vas a recibir más alertas de empleo.
+              {esRecordatorio
+                ? "No vas a recibir más recordatorios para completar tu perfil."
+                : "No vas a recibir más alertas de empleo."}
             </p>
             <Link
               to="/"
@@ -40,7 +46,7 @@ export default function AlertUnsubscribedPage() {
               to="/perfil"
               className="inline-block text-sm font-semibold text-amber-400 transition hover:text-amber-300"
             >
-              Ir a mi perfil para manejar alertas
+              {esRecordatorio ? "Ir a mi perfil" : "Ir a mi perfil para manejar alertas"}
             </Link>
           </>
         )}

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import CandidatesView, { CandidateDates } from "./CandidatesView";
+import CandidatesView, { CandidateDates, CompletionBadge } from "./CandidatesView";
 import { CANDIDATES_CACHE_KEY, readAdminCache, writeAdminCache } from "./admin-cache";
 
 const { authFetchMock, toastMock } = vi.hoisted(() => ({
@@ -46,6 +46,18 @@ describe("CandidateDates (trazabilidad en la card)", () => {
   });
 });
 
+describe("CompletionBadge (% de perfil en la card)", () => {
+  it("muestra el porcentaje con su aria-label", () => {
+    render(<CompletionBadge percent={72} />);
+    expect(screen.getByLabelText("Perfil 72% completo").textContent).toBe("72%");
+  });
+
+  it("sin dato (cache viejo del panel) no renderiza nada", () => {
+    const { container } = render(<CompletionBadge />);
+    expect(container.innerHTML).toBe("");
+  });
+});
+
 // ── Borrado de un candidato (integración) ───────────────────────────────────
 
 type Fila = {
@@ -54,9 +66,10 @@ type Fila = {
   last_name: string;
   email: string;
   has_cv: boolean;
+  completion_percent?: number;
 };
 
-const ANA: Fila = { user_id: 1, name: "Ana", last_name: "Pérez", email: "ana@test.com", has_cv: false };
+const ANA: Fila = { user_id: 1, name: "Ana", last_name: "Pérez", email: "ana@test.com", has_cv: false, completion_percent: 100 };
 const BETO: Fila = { user_id: 2, name: "Beto", last_name: "Gómez", email: "beto@test.com", has_cv: false };
 const CARO: Fila = { user_id: 3, name: "Caro", last_name: "Díaz", email: "caro@test.com", has_cv: false };
 const TODOS = [ANA, BETO, CARO];
@@ -128,6 +141,16 @@ async function llegarAlaConfirmacion(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByText("Eliminar candidato"));
   await user.type(await screen.findByLabelText(/escribí el email/i), "ana@test.com");
 }
+
+describe("CandidatesView · % de perfil", () => {
+  it("pinta el badge con el completion_percent que devuelve /admin/candidates", async () => {
+    render(<CandidatesView />);
+    // ANA llega con completion_percent: 100; Beto y Caro sin el campo (cache o
+    // backend viejo) no rompen: simplemente no tienen badge.
+    expect(await screen.findByLabelText("Perfil 100% completo")).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/Perfil \d+% completo/)).toHaveLength(1);
+  });
+});
 
 describe("CandidatesView · eliminar candidato", () => {
   it("saca al borrado del cache sin pisarlo con la vista filtrada", async () => {

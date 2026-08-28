@@ -68,7 +68,29 @@ type Candidate = {
   has_video?: boolean;
   created_at?: string | null;
   last_login_at?: string | null;
+  // % de perfil completo (mismos pesos que la barra del candidato). Puede venir
+  // undefined desde el cache viejo del panel: el badge simplemente no se pinta.
+  completion_percent?: number | null;
 };
+
+export function CompletionBadge({ percent }: { percent?: number | null }) {
+  if (percent == null) return null;
+  const tone =
+    percent === 100
+      ? "bg-emerald-500/15 text-emerald-300"
+      : percent >= 60
+        ? "bg-yellow-400/10 text-yellow-300"
+        : "bg-neutral-800 text-white/60";
+  return (
+    <span
+      className={`ml-auto shrink-0 self-start rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}
+      aria-label={`Perfil ${percent}% completo`}
+      title={percent === 100 ? "Perfil completo: desbloqueó el ebook" : "Porcentaje de perfil completo"}
+    >
+      {percent}%
+    </span>
+  );
+}
 
 function initials(name?: string | null, last?: string | null) {
   const n = (name ?? "").trim();
@@ -425,6 +447,7 @@ export default function CandidatesView() {
                   )}
                   <p className="truncate text-xs text-white/60">{c.email}</p>
                 </div>
+                <CompletionBadge percent={c.completion_percent} />
               </div>
 
               <div className="flex flex-wrap gap-1.5 text-xs">

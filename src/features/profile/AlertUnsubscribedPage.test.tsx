@@ -42,6 +42,21 @@ describe("AlertUnsubscribedPage", () => {
     expect(link).toHaveAttribute("href", "/perfil");
   });
 
+  it("con tipo=recordatorios habla de recordatorios, no de alertas", () => {
+    render(
+      <MemoryRouter initialEntries={["/alertas/baja?ok=1&tipo=recordatorios"]}>
+        <AlertUnsubscribedPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByText("No vas a recibir más recordatorios para completar tu perfil.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No vas a recibir más alertas de empleo.")
+    ).not.toBeInTheDocument();
+  });
+
   it("muestra texto de error cuando falta ok", () => {
     render(
       <MemoryRouter initialEntries={["/alertas/baja"]}>

@@ -128,6 +128,12 @@ def job_alert_unsub_link(token: str) -> str:
     return f"{API_PUBLIC_URL}/alerts/unsubscribe?token={token}"
 
 
+def profile_nudge_unsub_link(token: str) -> str:
+    """Baja de los recordatorios de perfil incompleto. Mismo criterio que la de
+    alertas: apunta al backend, un click da de baja sin login y redirige al front."""
+    return f"{API_PUBLIC_URL}/nudges/unsubscribe?token={token}"
+
+
 def _branded_html(heading: str, intro: str, button_label: str, button_url: str,
                   note: str = "") -> str:
     """Plantilla HTML con la marca (header oscuro + acento ámbar + CTA). Estilos
@@ -209,6 +215,35 @@ def send_job_alert(to: str, job_title: str, company: str, job_url: str, unsub_ur
         text_body=(
             f"Nuevo puesto: {job_title} en {company}. Ver: {job_url}\n"
             f"Dar de baja las alertas: {unsub_url}"
+        ),
+    )
+
+
+def send_profile_reminder(to: str, name: str, unsub_url: str) -> None:
+    """Recordatorio para quien se registró y nunca subió CV ni video: link
+    directo al perfil, con el ebook de regalo al 100% como incentivo. Lo dispara
+    la tarea POST /tasks/profile-reminders (cron), no una acción del usuario."""
+    perfil_url = f"{FRONTEND_URL}/perfil"
+    send_email(
+        to,
+        "Completá tu perfil y llevate el Ebook de regalo — Human Power",
+        _branded_html(
+            "Tu perfil te está esperando",
+            f"Hola {name}: creaste tu cuenta en Human Power, pero tu perfil "
+            "todavía no tiene CV ni video de presentación, y son lo primero que "
+            "mira RRHH al elegir candidatos. Completarlo te lleva unos minutos: "
+            "entrá directo desde el botón. Y si llegás al 100%, te llevás de "
+            "regalo nuestro Ebook con consejos para tu búsqueda laboral.",
+            "Completar mi perfil",
+            perfil_url,
+            "Recibís este mail porque tu perfil está incompleto. "
+            f'<a href="{unsub_url}">No quiero recibir más recordatorios</a>.',
+        ),
+        text_body=(
+            f"Hola {name}: tu perfil de Human Power todavía no tiene CV ni video de "
+            f"presentación. Completalo acá: {perfil_url} — si llegás al 100% te "
+            "llevás nuestro Ebook de regalo.\n"
+            f"No recibir más recordatorios: {unsub_url}"
         ),
     )
 

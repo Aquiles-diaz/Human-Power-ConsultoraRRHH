@@ -1,0 +1,32 @@
+name: Recordatorios de perfil
+
+# Cron de los recordatorios por email (POST /tasks/profile-reminders): GitHub
+# Actions hace de reloj porque el backend en Render free DUERME cuando nadie lo
+# visita — un scheduler en el propio proceso (APScheduler y afines) nunca
+# dispararía. El POST además lo despierta, por eso el curl reintenta con pausa:
+# el cold start de Render tarda ~1 minuto.
+#
+# Requiere el secret CRON_SECRET en el repo (Settings → Secrets → Actions), con
+# el MISMO valor que la env var CRON_SECRET del servicio en Render. Sin ese
+# secret configurado el endpoint responde 403 y este job falla: es la señal de
+# que falta terminar la configuración, no un error del código.
+#
+# El horario del cron es UTC; la tarea es idempotente (registra cada envío en
+# profile_nudges), así que correrla de más nunca duplica mails. workflow_dispatch
+# permite dispararla a mano desde la pestaña Actions (útil con ?dry_run=1 local).
+on:
+  schedule:
+    - cron: "0 * * * *" # cada hora en punto
+  workflow_dispatch:
+
+jobs:
+  enviar:
+    name: Disparar la tarea en el backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /tasks/profile-reminders
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 5 --retry-delay 20 --retry-all-errors --max-time 300 \
+            -X POST "https://human-power-api.onrender.com/tasks/profile-reminders" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}"
