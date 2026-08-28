@@ -43,6 +43,32 @@
       content="No somos un portal de empleo más. Cada candidato se presenta con un video junto a su CV. Mirá las ofertas y postulate online."
     />
     <meta name="twitter:image" content="https://www.humanpower.com.ar/og-image.png" />
+
+    <!-- JSON-LD de la organización (SEO local / panel de marca). Estático a
+         propósito: los crawlers sin JS también lo ven. EmploymentAgency es el
+         subtipo de LocalBusiness que corresponde a una consultora de RRHH.
+         En /ofertas/:jobId convive con el JobPosting que inyecta
+         api/job-page.ts (#hp-job-ld); dos bloques ld+json son válidos. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "EmploymentAgency",
+        "name": "Human Power",
+        "alternateName": "Human Power RRHH",
+        "url": "https://www.humanpower.com.ar/",
+        "logo": "https://www.humanpower.com.ar/logo.png",
+        "image": "https://www.humanpower.com.ar/og-image.png",
+        "description": "Consultora integral de RRHH: búsqueda y selección de talento. Cada candidato se presenta con un video junto a su CV.",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Rosario",
+          "addressRegion": "Santa Fe",
+          "addressCountry": "AR"
+        },
+        "areaServed": "Argentina",
+        "sameAs": ["https://www.instagram.com/human.power.rrhh/"]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

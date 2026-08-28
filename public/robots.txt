@@ -5,6 +5,7 @@ Allow: /
 # Zonas privadas / sin valor para indexar
 Disallow: /admin
 Disallow: /perfil
+Disallow: /ebook
 Disallow: /login
 Disallow: /recuperar
 Disallow: /reset-password
