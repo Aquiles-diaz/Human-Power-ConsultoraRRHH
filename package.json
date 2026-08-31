@@ -64,6 +64,7 @@
   },
   "overrides": {
     "ajv@8": "^8.20.0",
+    "undici@5": "^6.28.0",
     "js-yaml@4": "^4.3.1",
     "minimatch@10": "^10.2.6",
     "path-to-regexp@6": "6.3.0",
