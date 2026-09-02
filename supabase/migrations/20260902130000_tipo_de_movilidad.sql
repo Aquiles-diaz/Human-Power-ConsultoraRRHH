@@ -1,0 +1,16 @@
+-- Tipo de movilidad propia: "Moto" o "Auto". Es una repregunta de own_transport
+-- y sólo tiene sentido cuando ésa vale 'Sí'.
+--
+-- TEXT y no un enum de Postgres por la misma razón que own_transport: el dominio
+-- lo garantiza el validator de ProfileUpdate (por donde pasa toda escritura), y
+-- así sumar mañana una opción — "Camioneta", "Bicicleta" — es una línea de
+-- Python y no una migración con ALTER TYPE.
+--
+-- La coherencia con own_transport la sostiene el backend, no un CHECK: cuando la
+-- movilidad deja de ser 'Sí', PUT /me/profile limpia esta columna en el mismo
+-- UPDATE. Va ahí y no en la tabla porque el dominio de las dos columnas ya vive
+-- en el validator de ProfileUpdate, y partir la regla en dos lugares es la
+-- forma segura de que algún día queden diciendo cosas distintas.
+--
+-- No cuenta para el % de perfil completo (ver 20260902120000).
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS own_transport_type TEXT;

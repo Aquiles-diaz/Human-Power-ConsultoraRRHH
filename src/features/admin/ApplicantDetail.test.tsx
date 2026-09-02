@@ -59,6 +59,9 @@ describe("ApplicantDetail (modal de postulación por puesto)", () => {
       education_level: "Secundario completo",
       experience_years: "1-3 años",
       availability: "Full-time",
+      own_transport: "Sí",
+      own_transport_type: "Auto",
+      people_in_charge: "No",
       salary_expectation: "$900.000",
       languages: ["Español", "Inglés"],
       headline: "Estudiante de administración",
@@ -72,6 +75,26 @@ describe("ApplicantDetail (modal de postulación por puesto)", () => {
     expect(screen.getByText("$900.000")).toBeInTheDocument();
     expect(screen.getByText("Español, Inglés")).toBeInTheDocument();
     expect(screen.getByText("Estudiante de administración")).toBeInTheDocument();
+    // "Sí"/"No" son valores demasiado genéricos para un getByText suelto: se
+    // busca el valor que cuelga de SU etiqueta.
+    // El tipo se muestra pegado a la respuesta y no en su propia fila: una
+    // "Tipo de movilidad: —" en cada candidato sin vehículo es puro ruido.
+    expect(screen.getByText("Movilidad propia").nextElementSibling).toHaveTextContent("Sí (Auto)");
+    expect(screen.getByText("Gente a cargo").nextElementSibling).toHaveTextContent("No");
+  });
+
+  it("con movilidad pero sin tipo cargado muestra sólo el «Sí»", () => {
+    renderDetail({ user_id: 42, own_transport: "Sí", own_transport_type: null });
+    // Regex anclada y no la cadena "Sí": toHaveTextContent con string matchea
+    // por substring, así que "Sí (Auto)" también pasaría y el test no probaría
+    // nada — que es justo el caso que separa este test del de arriba.
+    expect(screen.getByText("Movilidad propia").nextElementSibling).toHaveTextContent(/^Sí$/);
+  });
+
+  it("movilidad y gente a cargo caen al guion cuando el candidato no contestó", () => {
+    renderDetail({ user_id: 42, name: "Taiel" });
+    expect(screen.getByText("Movilidad propia").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Gente a cargo").nextElementSibling).toHaveTextContent("—");
   });
 
   it("el tel: sanitiza espacios y paréntesis, mostrando el texto crudo", () => {

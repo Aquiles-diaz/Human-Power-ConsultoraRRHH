@@ -14,6 +14,8 @@ import {
   Phone,
   Languages,
   Wallet,
+  Car,
+  UserCog,
   CalendarDays,
   Video,
   ExternalLink,
@@ -35,6 +37,7 @@ import { formatDate, timeAgo } from "./format";
 import { composeEmailProps } from "./gmail";
 import {
   EDUCATION_LEVELS,
+  formatOwnTransport,
   type Profile,
 } from "@/features/profile/types";
 import { categoryLabel } from "@/features/jobs/categories";
@@ -574,6 +577,16 @@ export default function CandidatesView() {
                 )}
                 <Info icon={<Clock className="size-4" />} label="Experiencia" value={active.experience_years} />
                 <Info icon={<CalendarDays className="size-4" />} label="Disponibilidad" value={active.availability} />
+                {/* Van siempre, con "—" si no contestaron: son datos de la
+                    situación laboral que el reclutador busca sí o sí, igual que
+                    Disponibilidad. Distinto de la segunda formación, que es un
+                    extra y por eso se oculta cuando está vacía. */}
+                <Info
+                  icon={<Car className="size-4" />}
+                  label="Movilidad propia"
+                  value={formatOwnTransport(active.own_transport, active.own_transport_type)}
+                />
+                <Info icon={<UserCog className="size-4" />} label="Gente a cargo" value={active.people_in_charge} />
                 <Info icon={<Wallet className="size-4" />} label="Pretensión salarial" value={active.salary_expectation} />
                 <Info icon={<Languages className="size-4" />} label="Idiomas" value={(active.languages ?? []).join(", ")} />
                 <Info icon={<CalendarDays className="size-4" />} label="Nacimiento" value={active.birthdate} />

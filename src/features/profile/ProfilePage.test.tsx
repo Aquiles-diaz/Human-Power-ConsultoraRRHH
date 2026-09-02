@@ -49,6 +49,9 @@ const BASE: Profile = {
   education_level: null,
   experience_years: null,
   availability: null,
+  own_transport: null,
+  own_transport_type: null,
+  people_in_charge: null,
   salary_expectation: null,
 };
 
@@ -86,6 +89,31 @@ function mockApi(inicial: Profile, trasSubirCv: Profile = { ...inicial, has_cv: 
     }
     return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
   });
+}
+
+/**
+ * Igual que mockApi, pero además captura el body del PUT /me/profile en la caja
+ * que devuelve (`caja.body` es null hasta el primer PUT). Evita re-inlinear el
+ * mockImplementation en cada test que verifica qué se termina guardando.
+ */
+function mockApiConPut(inicial: Profile, respuesta: Profile = inicial) {
+  const caja: { body: Record<string, unknown> | null } = { body: null };
+  authFetchMock.mockImplementation(
+    (path: string, _a: unknown, opts?: { method?: string; body?: string }) => {
+      if (path === "/me/profile" && opts?.method === "PUT") {
+        caja.body = JSON.parse(opts.body ?? "{}");
+        return Promise.resolve({ ok: true, json: async () => respuesta } as unknown as Response);
+      }
+      if (path === "/me/profile") {
+        return Promise.resolve({ ok: true, json: async () => inicial } as unknown as Response);
+      }
+      if (path === "/me/alerts") {
+        return Promise.resolve({ ok: true, json: async () => ({ categories: [] }) } as unknown as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
+    },
+  );
+  return caja;
 }
 
 async function renderPerfil() {
@@ -177,25 +205,8 @@ describe("ProfilePage · guardar", () => {
     // no declaraba academic_title y pydantic lo descartaba en silencio — el
     // candidato guardaba, veía "Perfil actualizado" y el campo volvía vacío.
     // Este test fija la mitad del front: el campo sale en el payload.
-    let putBody: Record<string, unknown> | null = null;
-    authFetchMock.mockImplementation(
-      (path: string, _a: unknown, opts?: { method?: string; body?: string }) => {
-        if (path === "/me/profile" && opts?.method === "PUT") {
-          putBody = JSON.parse(opts.body ?? "{}");
-          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
-        }
-        if (path === "/me/profile") {
-          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
-      },
-    );
-    render(
-      <MemoryRouter initialEntries={["/perfil"]}>
-        <ProfilePage />
-      </MemoryRouter>,
-    );
-    await screen.findByText(/subí tu currículum/i);
+    const put = mockApiConPut(BASE);
+    await renderPerfil();
 
     const user = userEvent.setup();
     await user.type(
@@ -204,32 +215,15 @@ describe("ProfilePage · guardar", () => {
     );
     await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
 
-    await waitFor(() => expect(putBody).not.toBeNull());
-    expect(putBody!.academic_title).toBe("Licenciada en Administración");
+    await waitFor(() => expect(put.body).not.toBeNull());
+    expect(put.body!.academic_title).toBe("Licenciada en Administración");
   });
 
   it("«Añadir otra formación» despliega la segunda fila y el PUT la lleva", async () => {
     // Terciario terminado + carrera en curso: dos formaciones reales. La
     // segunda es opcional y arranca oculta para no ensuciar el form.
-    let putBody: Record<string, unknown> | null = null;
-    authFetchMock.mockImplementation(
-      (path: string, _a: unknown, opts?: { method?: string; body?: string }) => {
-        if (path === "/me/profile" && opts?.method === "PUT") {
-          putBody = JSON.parse(opts.body ?? "{}");
-          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
-        }
-        if (path === "/me/profile") {
-          return Promise.resolve({ ok: true, json: async () => BASE } as unknown as Response);
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
-      },
-    );
-    render(
-      <MemoryRouter initialEntries={["/perfil"]}>
-        <ProfilePage />
-      </MemoryRouter>,
-    );
-    await screen.findByText(/subí tu currículum/i);
+    const put = mockApiConPut(BASE);
+    await renderPerfil();
 
     // Oculta hasta que el candidato la pide.
     expect(screen.queryByLabelText(/segundo título/i)).not.toBeInTheDocument();
@@ -243,9 +237,9 @@ describe("ProfilePage · guardar", () => {
     await user.type(screen.getByLabelText(/segundo título/i), "Abogacía");
     await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
 
-    await waitFor(() => expect(putBody).not.toBeNull());
-    expect(putBody!.education_level_2).toBe("Universitario en curso");
-    expect(putBody!.academic_title_2).toBe("Abogacía");
+    await waitFor(() => expect(put.body).not.toBeNull());
+    expect(put.body!.education_level_2).toBe("Universitario en curso");
+    expect(put.body!.academic_title_2).toBe("Abogacía");
   });
 
   it("con una segunda formación ya guardada, la fila aparece desplegada", async () => {
@@ -269,5 +263,147 @@ describe("ProfilePage · guardar", () => {
 
     expect(screen.getByLabelText(/segundo título/i)).toHaveValue("Abogacía");
     expect(screen.queryByRole("button", { name: /añadir otra formación/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("ProfilePage · movilidad y gente a cargo", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("los dos Sí/No viven en Situación laboral, entre Disponibilidad y Pretensión salarial", async () => {
+    mockApi(BASE);
+    await renderPerfil();
+    // Acotado a la grilla del bloque: "experiencia" también aparece en los
+    // textos de la tarjeta de completitud, así que buscar por texto suelto
+    // traería nodos de más.
+    const grilla = screen.getByText("Situación laboral").nextElementSibling!;
+    const labels = Array.from(grilla.querySelectorAll("label")).map((l) => l.textContent);
+    expect(labels).toEqual([
+      "Experiencia",
+      "Disponibilidad",
+      "Movilidad propia",
+      "Gente a cargo",
+      "Pretensión salarial",
+    ]);
+  });
+
+  it("lo elegido viaja en el body del PUT, con la tilde de «Sí»", async () => {
+    // Mismo riesgo que academic_title: si el campo no está en
+    // PROFILE_TEXT_FIELDS el form lo muestra pero el PUT lo deja afuera y el
+    // candidato ve "Perfil actualizado" con el dato perdido.
+    const put = mockApiConPut(BASE);
+    await renderPerfil();
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText(/movilidad propia/i), "Sí");
+    await user.selectOptions(await screen.findByLabelText(/moto o auto/i), "Auto");
+    await user.selectOptions(screen.getByLabelText(/gente a cargo/i), "No");
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(put.body).not.toBeNull());
+    expect(put.body!.own_transport).toBe("Sí");
+    expect(put.body!.people_in_charge).toBe("No");
+  });
+
+  it("sin contestar, los dos quedan vacíos en el PUT", async () => {
+    // "No contestó" tiene que seguir distinguiéndose de "dijo que no": el
+    // «Seleccionar…» del SelectField alcanza, no hay tercera opción.
+    const put = mockApiConPut(BASE);
+    await renderPerfil();
+
+    expect(screen.getByLabelText(/movilidad propia/i)).toHaveValue("");
+    expect(screen.getByLabelText(/gente a cargo/i)).toHaveValue("");
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(put.body).not.toBeNull());
+    expect(put.body!.own_transport).toBeNull();
+    expect(put.body!.people_in_charge).toBeNull();
+  });
+
+  it("un perfil que ya los trae los muestra seleccionados", async () => {
+    const conMovilidad = { ...BASE, own_transport: "Sí", people_in_charge: "No" };
+    mockApi(conMovilidad);
+    await renderPerfil();
+
+    expect(screen.getByLabelText(/movilidad propia/i)).toHaveValue("Sí");
+    expect(screen.getByLabelText(/gente a cargo/i)).toHaveValue("No");
+  });
+
+  it("la repregunta del tipo no existe mientras no haya movilidad propia", async () => {
+    mockApi(BASE);
+    await renderPerfil();
+    expect(screen.queryByLabelText(/moto o auto/i)).not.toBeInTheDocument();
+  });
+
+  it("al decir que sí aparece «¿Moto o auto?» y el tipo viaja en el PUT", async () => {
+    const put = mockApiConPut(BASE);
+    await renderPerfil();
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText(/movilidad propia/i), "Sí");
+    await user.selectOptions(await screen.findByLabelText(/moto o auto/i), "Moto");
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(put.body).not.toBeNull());
+    expect(put.body!.own_transport).toBe("Sí");
+    expect(put.body!.own_transport_type).toBe("Moto");
+  });
+
+  it("volver a «No» esconde la repregunta, y volver a «Sí» recupera lo elegido", async () => {
+    // Un toque accidental del select de arriba no puede tirar la respuesta: el
+    // front esconde la repregunta pero NO la borra. Quien limpia es el backend,
+    // al guardar (test_movilidad_gente_a_cargo.py cubre ese lado).
+    mockApi({ ...BASE, own_transport: "Sí", own_transport_type: "Moto" });
+    await renderPerfil();
+    expect(screen.getByLabelText(/moto o auto/i)).toHaveValue("Moto");
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText(/movilidad propia/i), "No");
+    expect(screen.queryByLabelText(/moto o auto/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/movilidad propia/i), "Sí");
+    expect(await screen.findByLabelText(/moto o auto/i)).toHaveValue("Moto");
+  });
+
+  it("con movilidad propia el tipo es obligatorio: sin él no se guarda", async () => {
+    // La repregunta aparece recién al elegir "Sí" y es fácil seguir de largo:
+    // el aviso está siempre a la vista y el guardado no sale hasta contestarla.
+    const put = mockApiConPut(BASE);
+    await renderPerfil();
+    const user = userEvent.setup();
+
+    await user.selectOptions(screen.getByLabelText(/movilidad propia/i), "Sí");
+    expect(await screen.findByText(/obligatorio/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+    expect(put.body).toBeNull(); // ni se intentó el viaje al backend
+
+    await user.selectOptions(screen.getByLabelText(/moto o auto/i), "Auto");
+    expect(screen.queryByText(/obligatorio/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+    await waitFor(() => expect(put.body).not.toBeNull());
+    expect(put.body!.own_transport_type).toBe("Auto");
+  });
+
+  it("con movilidad propia la grilla suma la repregunta en su lugar", async () => {
+    // El otro test de orden cubre el caso sin movilidad (cinco campos); éste
+    // fija dónde se mete la repregunta cuando aparece.
+    mockApi({ ...BASE, own_transport: "Sí", own_transport_type: "Auto" });
+    await renderPerfil();
+    const grilla = screen.getByText("Situación laboral").nextElementSibling!;
+    const labels = Array.from(grilla.querySelectorAll("label")).map((l) => l.textContent);
+    expect(labels).toEqual([
+      "Experiencia",
+      "Disponibilidad",
+      "Movilidad propia",
+      "¿Moto o auto?",
+      "Gente a cargo",
+      "Pretensión salarial",
+    ]);
   });
 });

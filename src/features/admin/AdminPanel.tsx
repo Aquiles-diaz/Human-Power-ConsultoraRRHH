@@ -35,6 +35,7 @@ import { PipelineSelect } from "./PipelineSelect";
 import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
 import { type ResumeRow, initials } from "./resume-row";
+import { formatOwnTransport } from "@/features/profile/types";
 import { CvPreview } from "./CvPreview";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import { buildCvQuery } from "./cv-query";
@@ -815,6 +816,10 @@ export function ApplicantDetail({
               <Field label="Título" wrap="words">{cv.academic_title || "—"}</Field>
               <Field label="Experiencia" wrap="words">{cv.experience_years || "—"}</Field>
               <Field label="Disponibilidad" wrap="words">{cv.availability || "—"}</Field>
+              <Field label="Movilidad propia" wrap="words">
+                {formatOwnTransport(cv.own_transport, cv.own_transport_type)}
+              </Field>
+              <Field label="Gente a cargo" wrap="words">{cv.people_in_charge || "—"}</Field>
               <Field label="Pretensión salarial" wrap="words">{cv.salary_expectation || "—"}</Field>
               <Field label="Idiomas" wrap="words">
                 {cv.languages?.length ? cv.languages.join(", ") : "—"}
