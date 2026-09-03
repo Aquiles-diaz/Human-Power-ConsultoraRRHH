@@ -31,6 +31,7 @@ def _patch_post(rec, *, status=201):
 def _config_brevo():
     emailer.BREVO_API_KEY = "test-key-123"
     emailer.SMTP_FROM = "Human Power RRHH <humanpower.rrhh@gmail.com>"
+    emailer.SMTP_REPLY_TO = ""  # el default se prueba aparte; acá no debe filtrarse
     # Aunque haya SMTP configurado, Brevo debe tener precedencia:
     emailer.SMTP_HOST = "smtp.gmail.com"
 
@@ -51,6 +52,36 @@ def test_send_email_uses_brevo_when_key_set():
     assert body["htmlContent"] == "<b>hola</b>"
     assert body["textContent"] == "hola"
     assert body["replyTo"] == {"email": "r@x.com"}, body.get("replyTo")
+
+
+def test_reply_to_cae_en_el_default_cuando_no_lo_pasan():
+    # El From va a ser no-reply@humanpower.com.ar (casilla que no recibe): sin este
+    # default, responder un mail de reset o de recordatorio no le llega a nadie.
+    rec = {}
+    _config_brevo()
+    emailer.SMTP_REPLY_TO = "humanpower.rrhh@gmail.com"
+    _patch_post(rec)
+    emailer.send_email("dest@x.com", "S", "<b>h</b>", "h")
+    assert rec["json"]["replyTo"] == {"email": "humanpower.rrhh@gmail.com"}, rec["json"]
+
+
+def test_reply_to_explicito_le_gana_al_default():
+    # El formulario de contacto apunta el Reply-To al que consultó; el default no
+    # puede pisarlo o las consultas se contestarían a la casilla de la consultora.
+    rec = {}
+    _config_brevo()
+    emailer.SMTP_REPLY_TO = "humanpower.rrhh@gmail.com"
+    _patch_post(rec)
+    emailer.send_email("dest@x.com", "S", "<b>h</b>", "h", reply_to="candidato@x.com")
+    assert rec["json"]["replyTo"] == {"email": "candidato@x.com"}, rec["json"]
+
+
+def test_sin_default_ni_explicito_no_va_reply_to():
+    rec = {}
+    _config_brevo()  # deja SMTP_REPLY_TO en ""
+    _patch_post(rec)
+    emailer.send_email("dest@x.com", "S", "<b>h</b>", "h")
+    assert "replyTo" not in rec["json"], rec["json"]
 
 
 def test_brevo_error_status_raises():

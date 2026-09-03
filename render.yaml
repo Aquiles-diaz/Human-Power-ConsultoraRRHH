@@ -31,6 +31,19 @@ services:
         value: https://www.humanpower.com.ar,https://human-power-rrhh.vercel.app
       - key: FRONTEND_URL
         value: https://www.humanpower.com.ar
+      # Email transaccional. Van a mano (sync: false) y NO con un value fijo a
+      # propósito: el remitente y la key de Brevo tienen que poder cambiarse sin
+      # un deploy. Importa el ORDEN al migrar el dominio (docs/SETUP-dominio-brevo.md):
+      # Brevo rechaza con 403 cualquier envío desde un remitente que todavía no
+      # verificó, así que SMTP_FROM recién pasa a no-reply@humanpower.com.ar
+      # DESPUÉS de que el panel de Brevo marque el dominio como autenticado. Al
+      # revés se cae TODO el mail (reset de contraseña incluido).
+      - key: BREVO_API_KEY
+        sync: false
+      - key: SMTP_FROM
+        sync: false # hoy el gmail; tras autenticar el dominio, no-reply@humanpower.com.ar
+      - key: SMTP_REPLY_TO
+        sync: false # humanpower.rrhh@gmail.com — no-reply@ no recibe
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
