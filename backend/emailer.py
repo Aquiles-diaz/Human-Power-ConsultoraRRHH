@@ -8,7 +8,8 @@ Estrategia:
 
 Variables de entorno (ver .env.example):
   SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASSWORD, SMTP_FROM,
-  SMTP_STARTTLS (true/false), FRONTEND_URL (para armar los links del mail).
+  SMTP_REPLY_TO, SMTP_STARTTLS (true/false), FRONTEND_URL (para armar los
+  links del mail).
 """
 from __future__ import annotations
 
@@ -28,6 +29,13 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "no-reply@humanpower.com")
+# Reply-To por defecto. El From tiene que ser una casilla del dominio propio para
+# que SPF y DKIM alineen (un From @gmail.com enviado por Brevo no puede), pero esa
+# casilla no recibe: sin esto, el candidato que le da "Responder" al mail de reset
+# escribe a un buzón que nadie lee. Es sólo el fallback — quien llama a send_email
+# con un reply_to explícito (el formulario de contacto, que apunta al que consultó)
+# sigue ganando.
+SMTP_REPLY_TO = os.getenv("SMTP_REPLY_TO", "")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() in ("1", "true", "yes")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
@@ -85,6 +93,7 @@ def _send_via_brevo(to: str, subject: str, html_body: str,
 def send_email(to: str, subject: str, html_body: str, text_body: str | None = None,
                reply_to: str | None = None) -> None:
     """Envía un email. Precedencia: Brevo (HTTP) > SMTP > dev (loguea, no manda)."""
+    reply_to = reply_to or SMTP_REPLY_TO or None
     if BREVO_API_KEY:
         _send_via_brevo(to, subject, html_body, text_body, reply_to)
         return
