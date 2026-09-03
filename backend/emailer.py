@@ -41,13 +41,50 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 # URL pública del backend, para links que tienen que resolver contra la API (no
 # el front). En prod es la URL de Render (ej: https://human-power-api.onrender.com).
-API_PUBLIC_URL = os.getenv("API_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+
+
+def _resolve_api_public_url() -> str:
+    """Resuelve la URL pública de la API, con RENDER_EXTERNAL_URL como red.
+
+    De acá salen los DOS links de baja que viajan por mail (/alerts/unsubscribe y
+    /nudges/unsubscribe). Si cae al default de desarrollo, el mail sale igual pero
+    con un link a localhost: el destinatario no se puede dar de baja y nosotros no
+    nos enteramos, porque nada falla del lado del servidor. Eso ya pasó: la
+    variable no estaba declarada en .env.example ni en render.yaml, así que
+    dependía de que alguien se acordara de cargarla a mano en el dashboard.
+
+    Render inyecta RENDER_EXTERNAL_URL solo en todo web service, así que usarla de
+    fallback hace que el caso de producción se arregle sin configurar nada. El
+    valor explícito sigue teniendo prioridad, que es lo que va a hacer falta el
+    día que la API pase a api.humanpower.com.ar (ver docs/SPEC-auth-cookie-httponly.md).
+    """
+    return (
+        os.getenv("API_PUBLIC_URL")
+        or os.getenv("RENDER_EXTERNAL_URL")
+        or "http://localhost:8000"
+    ).rstrip("/")
+
+
+API_PUBLIC_URL = _resolve_api_public_url()
 
 # Brevo (API HTTP, puerto 443). Render free bloquea el SMTP saliente, así que en
 # producción mandamos por HTTP. Si BREVO_API_KEY está seteada, tiene precedencia
 # sobre el SMTP. El remitente sale de SMTP_FROM (debe ser un sender verificado).
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+# Última red: si vamos a mandar mail DE VERDAD (hay proveedor configurado) y la
+# URL de la API sigue siendo la de desarrollo, los links de baja que salen en esos
+# mails no le sirven a nadie. No abortamos —tumbar el arranque dejaría sin login ni
+# postulaciones a todo el mundo por un problema que sólo afecta a la baja— pero que
+# quede en los logs de Render, que es donde se mira cuando algo no cierra.
+if "localhost" in API_PUBLIC_URL and (BREVO_API_KEY or SMTP_HOST):
+    log.warning(
+        "API_PUBLIC_URL sin configurar (%s) con proveedor de mail activo: los links "
+        "de baja de alertas y recordatorios van a salir apuntando a localhost y no "
+        "van a funcionar. Cargar API_PUBLIC_URL en el entorno del backend.",
+        API_PUBLIC_URL,
+    )
 
 
 class _SMTPForceIPv4(smtplib.SMTP):

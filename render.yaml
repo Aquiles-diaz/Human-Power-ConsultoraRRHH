@@ -31,6 +31,12 @@ services:
         value: https://www.humanpower.com.ar,https://human-power-rrhh.vercel.app
       - key: FRONTEND_URL
         value: https://www.humanpower.com.ar
+      # URL pública de ESTA API: de acá salen los links de baja que viajan por
+      # mail. No lleva value fijo porque si falta, emailer.py cae en
+      # RENDER_EXTERNAL_URL, que Render inyecta solo y siempre es la correcta.
+      # Se carga a mano el día que la API pase a api.humanpower.com.ar.
+      - key: API_PUBLIC_URL
+        sync: false
       # Email transaccional. Van a mano (sync: false) y NO con un value fijo a
       # propósito: el remitente y la key de Brevo tienen que poder cambiarse sin
       # un deploy. Importa el ORDEN al migrar el dominio (docs/SETUP-dominio-brevo.md):
