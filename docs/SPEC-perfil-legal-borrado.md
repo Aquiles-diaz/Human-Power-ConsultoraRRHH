@@ -1,12 +1,17 @@
 # Perfil reordenado + páginas legales + borrado de usuarios
 
-> **Estado: implementado el 2026-08-04**, en la rama `feat/perfil-legal-borrado`
-> (28 commits). La migración ya está aplicada a la base de producción. Sin
-> pushear: falta la prueba en vivo con sesión real, en particular ejecutar un
-> borrado de punta a punta contra la base.
+> **Estado: en producción.** Implementado el 2026-08-04 en la rama
+> `feat/perfil-legal-borrado`, mergeado a `main` y deployado. Desde entonces el
+> código siguió evolucionando por encima de este spec: segunda formación
+> (`20260824120000_segunda_formacion.sql`), el script
+> `scripts/verificar-borrado.py` que comprueba que un borrado no dejó rastro, y
+> la política de privacidad publicada nombra más encargados de los que este
+> documento listaba (ver Parte 2). Lo que sigue **pendiente**: ejecutar un
+> borrado de candidato de punta a punta contra la base real y verificarlo con
+> ese script, y la revisión de un abogado sobre `/privacidad` y `/terminos`.
 >
-> Diseño acordado el 2026-07-31. Tres entregas independientes que van juntas en
-> el mismo push, antes de deployar los fixes de egress ya commiteados.
+> Diseño acordado el 2026-07-31. Tres entregas independientes que fueron juntas
+> en el mismo push.
 
 ## Por qué
 
@@ -122,14 +127,20 @@ Tiene que declarar, porque es lo que el sistema realmente hace:
   email y foto de perfil** de esa cuenta, y se usan para pre-cargar el perfil.
 - **Para qué**: procesos de selección. Los datos se comparten con las empresas
   clientes que participan de la búsqueda a la que el candidato se postula.
-- **Dónde se guardan**: Supabase (Estados Unidos) y Cloudflare/Vercel. Implica
-  transferencia internacional de datos.
+- **Dónde se guardan**: Supabase (Estados Unidos y Canadá) para la base y los
+  archivos, Vercel sirve el sitio, Render corre el servidor (por ahí pasan CV,
+  foto y video, y ahí quedan los logs) y Brevo manda los correos (recibe nombre
+  y dirección). Implica transferencia internacional de datos. La lista tiene
+  que seguir al sistema: si entra un proveedor nuevo, entra en el texto.
 - **Derechos**: acceso, rectificación y **supresión**. La baja se pide al mail de
   contacto y se ejecuta con el borrado de la Parte 3 — la promesa es real porque
   el botón existe.
 - **Almacenamiento local**: el sitio usa `localStorage` para la sesión y para
   cachear ofertas. No hay cookies de publicidad ni de terceros. Vercel Analytics
-  mide visitas **sin cookies**.
+  mide visitas **sin cookies**. *Cuando la sesión pase a cookie HttpOnly
+  (`docs/SPEC-auth-cookie-httponly.md`, etapa 4) este párrafo y el aviso de
+  `StorageNotice` cambian en el mismo deploy: una cookie propia, funcional,
+  sin tracking.*
 
 ### Contenido de los Términos
 
