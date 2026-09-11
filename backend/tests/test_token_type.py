@@ -42,10 +42,21 @@ def _me(client, token):
 
 
 def test_access_token_authenticates():
-    token = auth.create_access_token({"sub": USER["email"]})
+    token = auth.create_access_token({"sub": USER["email"]}, USER["password_hash"])
     r = _me(make_client(), token)
     assert r.status_code == 200, (r.status_code, r.text)
     assert r.json()["email"] == USER["email"]
+
+
+def test_access_token_is_revoked_when_password_hash_changes():
+    token = auth.create_access_token({"sub": USER["email"]}, USER["password_hash"])
+    old_hash = USER["password_hash"]
+    try:
+        USER["password_hash"] = "new-password-hash"
+        r = _me(make_client(), token)
+        assert r.status_code == 401, (r.status_code, r.text)
+    finally:
+        USER["password_hash"] = old_hash
 
 
 def test_reset_token_is_rejected_as_access():

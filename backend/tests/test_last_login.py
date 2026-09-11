@@ -86,7 +86,7 @@ def _google_client(idinfo, existing_user, touched):
     auth.get_user_by_email = lambda email: existing_user
     auth.create_user = lambda *a, **k: {
         "id": 33, "email": idinfo["email"], "name": "N", "last_name": "",
-        "role": "user", "email_verified": False,
+        "password_hash": "created-password-hash", "role": "user", "email_verified": False,
     }
     auth.set_email_verified = lambda email: None
     auth.set_profile_photo_url = lambda uid, url: None

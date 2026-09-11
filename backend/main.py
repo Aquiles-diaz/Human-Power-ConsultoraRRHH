@@ -886,12 +886,12 @@ def contacto(request: Request, dto: ContactDTO) -> ContactOut:
             reply_to=str(dto.email),
         )
     except Exception:
-        # No perdemos la consulta ni le tiramos un 500 al visitante si Brevo falla:
-        # la logueamos completa para recuperarla y respondemos OK igual.
-        log.exception(
-            "Fallo al enviar la consulta de contacto (queda en el log): name=%r email=%r message=%r",
-            name, str(dto.email), message,
-        )
+        # No exponemos el contenido del contacto en logs: nombre, email y mensaje
+        # son PII y los proveedores de observabilidad suelen retenerlos más que
+        # la propia aplicación. El cliente ya recibió un OK para no revelar
+        # detalles de la infraestructura ni convertir un fallo transitorio del
+        # proveedor de email en una mala experiencia.
+        log.exception("Fallo al enviar una consulta de contacto")
     return ContactOut(message="¡Gracias! Recibimos tu consulta y te vamos a contactar a la brevedad.")
 
 # ──────────────────────────────────────────────────────────────────────────────

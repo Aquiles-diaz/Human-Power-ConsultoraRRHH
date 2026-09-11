@@ -58,7 +58,8 @@ def make_client(idinfo, existing_user=None, record=None):
     auth.get_user_by_email = lambda email: existing_user
     auth.create_user = lambda *a, **k: record.setdefault(
         "created", {"id": 2, "email": idinfo.get("email"), "name": "N",
-                    "last_name": "", "role": "user", "email_verified": False}
+                    "last_name": "", "password_hash": "created-password-hash",
+                    "role": "user", "email_verified": False}
     ) or record["created"]
     auth.set_email_verified = lambda email: record.__setitem__("verified", email)
     # touch_last_login toca la DB y no es lo que se testea acá; sin stub, el
@@ -94,7 +95,7 @@ def test_unverified_email_is_rejected():
 def test_verified_email_existing_user_ok():
     with _auth_intacto():
         existing = {"id": 1, "email": "known@gmail.com", "name": "K", "last_name": "",
-                    "role": "user", "email_verified": True}
+                    "password_hash": "existing-password-hash", "role": "user", "email_verified": True}
         idinfo = {"email": "known@gmail.com", "email_verified": True}
         client, rec = make_client(idinfo, existing_user=existing)
         r = _post(client)

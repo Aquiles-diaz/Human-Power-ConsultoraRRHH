@@ -148,7 +148,7 @@ def create_user(name: str, last_name: str, email: str, password: str) -> dict:
             """
             INSERT INTO users (name, last_name, email, password_hash, terms_accepted_at)
             VALUES (%s, %s, %s, %s, now())
-            RETURNING id, name, last_name, email, role
+            RETURNING id, name, last_name, email, password_hash, role
             """,
             (name.strip(), (last_name or "").strip(), email.strip().lower(), hashed_password),
         )
@@ -171,7 +171,14 @@ def set_profile_photo_url(user_id: int, url: str) -> None:
         )
 
 # --- Funciones de Autenticación y Tokens ---
-def create_access_token(data: dict) -> str:
+def create_access_token(data: dict, password_hash: str) -> str:
+    """Crea un JWT de acceso ligado a la contraseña vigente.
+
+    El claim ``pwd`` no contiene la contraseña ni su hash: es una huella corta
+    del hash ya almacenado. Al validar el token se vuelve a calcular contra la
+    base. Por lo tanto, un token emitido antes de un cambio o reset de
+    contraseña deja de autenticar de inmediato, sin una tabla de sesiones.
+    """
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -179,7 +186,12 @@ def create_access_token(data: dict) -> str:
     # se firman con el mismo SECRET_KEY. get_current_user exige type==access para
     # que un link de reset/verificación (que viaja por email/logs) NO pueda
     # replayearse como credencial de acceso a los endpoints protegidos.
-    to_encode.update({"exp": expire, "iat": now, "type": "access"})
+    to_encode.update({
+        "exp": expire,
+        "iat": now,
+        "type": "access",
+        "pwd": _password_fingerprint(password_hash),
+    })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -244,7 +256,14 @@ def get_current_user(authorization: str | None = Header(default=None)):
         raise credentials_exception
 
     user = get_user_by_email(email)
-    if user is None:
+    token_fingerprint = payload.get("pwd")
+    if (
+        user is None
+        or not isinstance(token_fingerprint, str)
+        or not secrets.compare_digest(
+            token_fingerprint, _password_fingerprint(user["password_hash"])
+        )
+    ):
         raise credentials_exception
     return user
 
@@ -268,7 +287,7 @@ def register(request: Request, dto: RegisterDTO):
             emailer.send_email_verification(user["email"], token)
         except Exception as e:
             log.warning("No se pudo enviar el email de verificación a %s: %s", user["email"], e)
-        access_token = create_access_token(data={"sub": user["email"]})
+        access_token = create_access_token(data={"sub": user["email"]}, password_hash=user["password_hash"])
         return {"access_token": access_token, "user": user}
     except psycopg.errors.UniqueViolation:
         raise HTTPException(status_code=409, detail="El email ya está en uso")
@@ -289,7 +308,7 @@ def login(request: Request, dto: LoginDTO):
     if not pwd_context.verify(dto.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
     touch_last_login(user["id"])
-    access_token = create_access_token(data={"sub": user["email"]})
+    access_token = create_access_token(data={"sub": user["email"]}, password_hash=user["password_hash"])
     return {"access_token": access_token, "user": user}
 
 @router.post("/auth/google", response_model=TokenData)
@@ -333,7 +352,7 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
             set_profile_photo_url(user["id"], picture)
 
     touch_last_login(user["id"])
-    access_token = create_access_token(data={"sub": email})
+    access_token = create_access_token(data={"sub": email}, password_hash=user["password_hash"])
     return {"access_token": access_token, "user": user, "created": created}
 
 # 👇 3. El endpoint ahora usa la dependencia de forma estándar

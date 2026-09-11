@@ -63,7 +63,8 @@ def make_client(rec, *, idinfo, existing_user=None):
     _google_id_token.verify_oauth2_token = lambda *a, **k: idinfo
     auth.get_user_by_email = lambda email: existing_user
     auth.create_user = lambda name, last, email, pw: {
-        "id": 42, "name": name, "last_name": last, "email": email, "role": "user",
+        "id": 42, "name": name, "last_name": last, "email": email,
+        "password_hash": "created-password-hash", "role": "user",
     }
     auth.set_email_verified = lambda email: rec.__setitem__("verified", email)
     # touch_last_login toca la DB y no es lo que se testea acá; sin stub, el
