@@ -16,6 +16,14 @@ export type Novedad = {
 
 export const NOVEDADES: Novedad[] = [
   {
+    id: "movilidad-y-gente-a-cargo",
+    fecha: "2026-09-11",
+    titulo: "Nuevos datos en tu perfil",
+    detalle:
+      "Ahora podés indicar si tenés movilidad propia y gente a cargo. Estos datos no modifican tu porcentaje de perfil ni el acceso al ebook.",
+    href: "/perfil",
+  },
+  {
     id: "ebook-empleo-modo-on",
     fecha: "2026-08-19",
     titulo: "Ebook gratis: Empleo MODO ON",

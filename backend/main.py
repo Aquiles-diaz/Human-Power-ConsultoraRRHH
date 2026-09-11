@@ -261,6 +261,9 @@ class ResumeItem(BaseModel):
     education_level: Optional[str] = None
     experience_years: Optional[str] = None
     availability: Optional[str] = None
+    own_transport: Optional[str] = None
+    own_transport_type: Optional[str] = None
+    people_in_charge: Optional[str] = None
     salary_expectation: Optional[str] = None
     languages: list[str] = Field(default_factory=list)
     headline: Optional[str] = None
@@ -361,7 +364,8 @@ PROFILE_TEXT_FIELDS = [
     "phone", "birthdate", "age_range", "city", "province", "country",
     "professional_area", "academic_title", "education_level",
     "academic_title_2", "education_level_2", "experience_years",
-    "availability", "salary_expectation", "headline", "video_url",
+    "availability", "own_transport", "own_transport_type", "people_in_charge",
+    "salary_expectation", "headline", "video_url",
 ]
 
 # ── Ebook (regalo por perfil 100% completo) ──
@@ -400,6 +404,18 @@ _ALLOWED_VIDEO_HOST = re.compile(
     re.IGNORECASE,
 )
 
+# Movilidad propia / gente a cargo: la columna es TEXT libre a nivel DB, así que
+# éste es el único lugar donde se puede garantizar el dominio de valores. Sin
+# esto el panel del admin podría terminar mostrando cualquier cosa. Se aceptan
+# las variantes sin tilde y en minúscula que manda un cliente distraído y se
+# normalizan a la forma canónica, que es la que espera el front.
+_YES_NO_CANON = {"sí": "Sí", "si": "Sí", "no": "No"}
+
+# Repregunta de own_transport: sólo se completa cuando la movilidad es "Sí".
+# La coherencia entre las dos columnas la fuerza update_my_profile, no un
+# CHECK en la tabla (ver la migración 20260902130000).
+_TRANSPORT_TYPE_CANON = {"moto": "Moto", "auto": "Auto"}
+
 class ProfileUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=40)
     birthdate: Optional[str] = Field(None, max_length=40)
@@ -416,9 +432,41 @@ class ProfileUpdate(BaseModel):
     languages: Optional[list[str]] = None
     experience_years: Optional[str] = Field(None, max_length=40)
     availability: Optional[str] = Field(None, max_length=200)
+    # Sí/No: guardan la etiqueta tal cual la elige el candidato (ver el
+    # validator de abajo y YES_NO_OPTIONS en el front).
+    own_transport: Optional[str] = Field(None, max_length=40)
+    # Repregunta de la anterior: "Moto" o "Auto", vacío si no tiene movilidad.
+    own_transport_type: Optional[str] = Field(None, max_length=40)
+    people_in_charge: Optional[str] = Field(None, max_length=40)
     salary_expectation: Optional[str] = Field(None, max_length=120)
     headline: Optional[str] = Field(None, max_length=200)
     video_url: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("own_transport", "people_in_charge")
+    @classmethod
+    def _validate_si_no(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if v == "":
+            return ""  # cadena vacía = el candidato borra la respuesta
+        canon = _YES_NO_CANON.get(v.lower())
+        if canon is None:
+            raise ValueError('Este campo sólo acepta "Sí" o "No".')
+        return canon
+
+    @field_validator("own_transport_type")
+    @classmethod
+    def _validate_transport_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if v == "":
+            return ""  # sin movilidad propia, o el candidato borra la respuesta
+        canon = _TRANSPORT_TYPE_CANON.get(v.lower())
+        if canon is None:
+            raise ValueError('El tipo de movilidad sólo acepta "Moto" o "Auto".')
+        return canon
 
     @field_validator("video_url")
     @classmethod
@@ -452,6 +500,9 @@ class ProfileOut(BaseModel):
     languages: list[str] = Field(default_factory=list)
     experience_years: Optional[str] = None
     availability: Optional[str] = None
+    own_transport: Optional[str] = None
+    own_transport_type: Optional[str] = None
+    people_in_charge: Optional[str] = None
     salary_expectation: Optional[str] = None
     headline: Optional[str] = None
     video_url: Optional[str] = None
@@ -1353,7 +1404,9 @@ def list_cvs_admin(
                    u.id AS user_id, u.name, u.last_name,
                    p.phone, p.age_range, p.city, p.province, p.country,
                    p.professional_area, p.academic_title, p.education_level, p.experience_years,
-                   p.availability, p.salary_expectation, p.languages, p.headline,
+                   p.availability, p.own_transport, p.own_transport_type,
+                   p.people_in_charge,
+                   p.salary_expectation, p.languages, p.headline,
                    p.photo_filename, p.external_photo_url
             FROM resumes r
             LEFT JOIN jobs j ON j.id = r.job_id
@@ -1393,6 +1446,9 @@ def list_cvs_admin(
                 education_level=r["education_level"],
                 experience_years=r["experience_years"],
                 availability=r["availability"],
+                own_transport=r["own_transport"],
+                own_transport_type=r["own_transport_type"],
+                people_in_charge=r["people_in_charge"],
                 salary_expectation=r["salary_expectation"],
                 languages=_parse_languages(r["languages"]),
                 headline=r["headline"],
@@ -1711,16 +1767,52 @@ def update_my_profile(
     current_user: dict = Depends(get_current_user),
 ) -> ProfileOut:
     data = payload.model_dump(exclude_unset=True)
-    sets, values = [], []
-    for key, val in data.items():
-        if key == "languages":
-            sets.append("languages = %s")
-            values.append(json.dumps(val or []))
-        elif key in PROFILE_TEXT_FIELDS:
-            sets.append(f"{key} = %s")  # key viene de un allowlist fijo, no del input
-            values.append(val.strip() if isinstance(val, str) else val)
     with get_db() as conn:
         _ensure_profile(conn, current_user["id"])
+        # own_transport_type ("Moto"/"Auto") es una repregunta de own_transport:
+        # las dos columnas tienen que contar la misma historia. Dos reglas, y las
+        # dos viven acá porque el PUT es el único paso por el que pasa toda
+        # escritura (el front, a propósito, no limpia nada: ver ProfilePage.tsx).
+        #   1. Sin movilidad no puede quedar un tipo colgado: se vacía. Si no, el
+        #      panel muestra un perfil que dice no tener vehículo y sí un "Auto".
+        #   2. Con movilidad el tipo es OBLIGATORIO: un "Sí" a secas no le dice al
+        #      reclutador si el candidato se mueve en moto o en auto, que es para
+        #      lo único que se agregó la repregunta.
+        # Se evalúan los valores EFECTIVOS (los del payload si vinieron; si no,
+        # los guardados), y sólo si el PUT toca alguno de los dos campos: quien
+        # entra a cambiar el teléfono no tiene por qué quedar trabado.
+        if "own_transport" in data or "own_transport_type" in data:
+            fila = conn.execute(
+                "SELECT own_transport, own_transport_type FROM profiles WHERE user_id = %s",
+                (current_user["id"],),
+            ).fetchone()
+            # Lo que viene en el payload ya pasó por el validator; lo que sale de
+            # la DB puede venir de un backfill por SQL, así que se canoniza antes
+            # de comparar (un "si" en minúscula no puede borrar un tipo válido).
+            if "own_transport" in data:
+                movilidad = data["own_transport"]
+            else:
+                crudo = (fila["own_transport"] if fila else None) or ""
+                movilidad = _YES_NO_CANON.get(crudo.strip().lower())
+            tipo = data.get(
+                "own_transport_type", (fila["own_transport_type"] if fila else None)
+            )
+            if (movilidad or "").strip() != "Sí":
+                data["own_transport_type"] = ""
+            elif not (tipo or "").strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Elegí si tu movilidad propia es moto o auto.",
+                )
+
+        sets, values = [], []
+        for key, val in data.items():
+            if key == "languages":
+                sets.append("languages = %s")
+                values.append(json.dumps(val or []))
+            elif key in PROFILE_TEXT_FIELDS:
+                sets.append(f"{key} = %s")  # key viene de un allowlist fijo, no del input
+                values.append(val.strip() if isinstance(val, str) else val)
         if sets:
             sets.append("updated_at = CURRENT_TIMESTAMP")
             conn.execute(

@@ -88,6 +88,9 @@ const PERFIL_ANA = {
   email: "ana@test.com",
   role: "user",
   languages: [],
+  own_transport: "Sí",
+  own_transport_type: "Moto",
+  people_in_charge: "No",
   has_cv: false,
 };
 
@@ -358,6 +361,32 @@ describe("CandidatesView · modal de detalle", () => {
     await screen.findByText("Eliminar candidato");
     expect(screen.queryByText(/segunda educación/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/segundo título/i)).not.toBeInTheDocument();
+  });
+
+  it("muestra movilidad propia y gente a cargo", async () => {
+    const user = userEvent.setup();
+    render(<CandidatesView />);
+
+    await user.click(await screen.findByText("Ana Pérez"));
+    // "Sí"/"No" sueltos son demasiado genéricos: se mira el valor que cuelga
+    // de SU etiqueta.
+    expect((await screen.findByText("Movilidad propia")).nextElementSibling).toHaveTextContent(
+      "Sí (Moto)",
+    );
+    expect(screen.getByText("Gente a cargo").nextElementSibling).toHaveTextContent("No");
+  });
+
+  it("sin respuesta, movilidad y gente a cargo muestran el guion (no desaparecen)", async () => {
+    const user = userEvent.setup();
+    authFetchMock.mockImplementation((path: string) => {
+      if (path.startsWith("/admin/candidates?")) return Promise.resolve(ok({ items: TODOS }));
+      return Promise.resolve(ok({ ...PERFIL_ANA, own_transport: null, people_in_charge: "" }));
+    });
+    render(<CandidatesView />);
+
+    await user.click(await screen.findByText("Ana Pérez"));
+    expect((await screen.findByText("Movilidad propia")).nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Gente a cargo").nextElementSibling).toHaveTextContent("—");
   });
 
   it("se puede cerrar mientras carga (no queda trabado con el spinner)", async () => {

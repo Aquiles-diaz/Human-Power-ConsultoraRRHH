@@ -61,6 +61,7 @@ export default function NovedadesBell() {
         onClick={abrir}
         aria-label="Novedades"
         aria-expanded={abierto}
+        aria-controls="novedades-panel"
         className={`relative grid size-10 place-items-center rounded-xl border transition-colors ${
           abierto
             ? "border-amber-400/40 bg-amber-400/10 text-amber-300"
@@ -82,14 +83,15 @@ export default function NovedadesBell() {
           semitransparente dejaba ver el emblema "encima" del contenido. */}
       {abierto && (
         <div
+          id="novedades-panel"
           role="region"
           aria-label="Últimas novedades"
-          className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50"
+          className="fixed inset-x-3 top-[calc(4rem+env(safe-area-inset-top))] z-[60] max-h-[calc(100dvh-5.5rem-env(safe-area-inset-top))] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50 md:absolute md:inset-x-auto md:right-0 md:top-12 md:z-50 md:max-h-none md:w-80"
         >
           <p className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/50">
             Novedades
           </p>
-          <ul className="max-h-96 overflow-y-auto">
+          <ul className="max-h-[calc(100dvh-8.5rem-env(safe-area-inset-top))] overflow-y-auto md:max-h-96">
             {NOVEDADES.map((n) => (
               <li key={n.id} className="border-b border-white/5 last:border-0">
                 <a

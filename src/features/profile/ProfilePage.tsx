@@ -46,6 +46,8 @@ import {
   LANGUAGE_LEVELS,
   PROFESSIONAL_AREAS,
   PROFILE_TEXT_FIELDS,
+  TRANSPORT_TYPE_OPTIONS,
+  YES_NO_OPTIONS,
   type Profile,
 } from "./types";
 import { mergeUploadedProfile } from "./profile-merge";
@@ -167,6 +169,14 @@ export default function ProfilePage() {
   }
 
   async function saveProfile() {
+    // Con movilidad propia el tipo es obligatorio. El backend lo exige igual
+    // (400), pero cortar acá ahorra el viaje y el mensaje sale al toque.
+    if (form.own_transport === "Sí" && !(form.own_transport_type ?? "").trim()) {
+      toast.error("Falta un dato", {
+        description: "Elegí si tu movilidad propia es moto o auto.",
+      });
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { languages: form.languages ?? [] };
@@ -587,7 +597,43 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <SelectField label="Experiencia" value={form.experience_years} options={EXPERIENCE_OPTIONS} onChange={(v) => setField("experience_years", v)} />
                     <SelectField label="Disponibilidad" value={form.availability} options={AVAILABILITY_OPTIONS} onChange={(v) => setField("availability", v)} />
-                    <TextField label="Pretensión salarial" value={form.salary_expectation} placeholder="Ej: $800.000 ARS" onChange={(v) => setField("salary_expectation", v)} />
+                    {/* Sí/No: dejarlos vacíos es una respuesta válida ("no
+                        contestó"), por eso alcanza con el "Seleccionar…" del
+                        SelectField y no hay una tercera opción. */}
+                    <SelectField label="Movilidad propia" value={form.own_transport} options={YES_NO_OPTIONS} onChange={(v) => setField("own_transport", v)} />
+                    {/* Repregunta: sólo para quien dijo que sí. El tipo NO se
+                        limpia al pasar a "No" — así un toque accidental del
+                        select de arriba no tira la respuesta ya elegida y
+                        volver a "Sí" la recupera. De la coherencia se encarga
+                        el backend, que lo vacía al guardar y devuelve el perfil
+                        ya normalizado (setForm(data) más abajo). */}
+                    {form.own_transport === "Sí" && (
+                      <div>
+                        <SelectField
+                          label="¿Moto o auto?"
+                          value={form.own_transport_type}
+                          options={TRANSPORT_TYPE_OPTIONS}
+                          onChange={(v) => setField("own_transport_type", v)}
+                        />
+                        {!form.own_transport_type && (
+                          /* La repregunta recién aparece al contestar "Sí" y es
+                             fácil seguir de largo sin verla. Es el único campo
+                             obligatorio del formulario, así que el aviso está
+                             siempre a la vista y no sólo al intentar guardar. */
+                          <p className="mt-1 text-xs text-amber-600">
+                            Obligatorio: el reclutador necesita saber con qué te movés.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <SelectField label="Gente a cargo" value={form.people_in_charge} options={YES_NO_OPTIONS} onChange={(v) => setField("people_in_charge", v)} />
+                    {/* Con la repregunta visible son seis campos y la grilla de
+                        dos columnas cierra justa; sin ella son cinco y la
+                        pretensión va a ancho completo para no dejar el hueco de
+                        media columna (igual que Ciudad y Área). */}
+                    <div className={form.own_transport === "Sí" ? undefined : "sm:col-span-2"}>
+                      <TextField label="Pretensión salarial" value={form.salary_expectation} placeholder="Ej: $800.000 ARS" onChange={(v) => setField("salary_expectation", v)} />
+                    </div>
                   </div>
 
                   {/* Idiomas (tags) */}

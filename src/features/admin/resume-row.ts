@@ -26,6 +26,11 @@ export type ResumeRow = {
   academic_title?: string | null;
   experience_years?: string | null;
   availability?: string | null;
+  // "Sí" / "No", o vacío si el candidato no contestó (no son booleanos).
+  own_transport?: string | null;
+  // "Moto" o "Auto"; vacío si own_transport no es "Sí".
+  own_transport_type?: string | null;
+  people_in_charge?: string | null;
   salary_expectation?: string | null;
   languages?: string[];
   headline?: string | null;

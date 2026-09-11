@@ -22,13 +22,19 @@ describe("NovedadesBell", () => {
 
   it("abrir el panel lista las novedades y apaga el puntito", () => {
     renderBell();
-    fireEvent.click(screen.getByRole("button", { name: /novedades/i }));
+    const boton = screen.getByRole("button", { name: /novedades/i });
+    fireEvent.click(boton);
     // Todas las novedades listadas, la más nueva primero.
     for (const n of NOVEDADES) {
       expect(screen.getByText(n.titulo)).toBeInTheDocument();
     }
     expect(screen.queryByTestId("novedades-dot")).not.toBeInTheDocument();
     expect(localStorage.getItem(VISTA_KEY)).toBe(NOVEDADES[0].id);
+    expect(boton).toHaveAttribute("aria-controls", "novedades-panel");
+    expect(screen.getByRole("region", { name: /últimas novedades/i })).toHaveAttribute(
+      "id",
+      "novedades-panel",
+    );
   });
 
   it("si ya vio la última novedad no hay puntito", () => {
