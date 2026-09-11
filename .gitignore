@@ -70,3 +70,7 @@ docs/QA-predeploy-*.md
 # candidato real. El bucket `videos` es PÚBLICO, así que una clave concatenada
 # con VIDEO_SUPABASE_URL es una URL descargable del video de esa persona.
 .verificar-borrado-claves.json
+
+# Informes internos y archivos temporales locales: no publicar en GitHub.
+/output/
+/tmp/
