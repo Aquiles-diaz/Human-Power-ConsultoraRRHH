@@ -21,6 +21,10 @@ const ymdLocal = (d: Date) =>
 
 export type PanelKpis = { total: number; pending: number; linked: number; today: number };
 
+/** Medianoche LOCAL de hoy, en ISO: el `date_from` que cuenta las postulaciones de hoy. */
+export const startOfTodayIso = (now: Date) =>
+  new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
 export function panelKpis({
   rows,
   total,

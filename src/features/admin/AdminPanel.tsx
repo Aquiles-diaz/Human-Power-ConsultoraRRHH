@@ -38,7 +38,7 @@ import { type ResumeRow, initials } from "./resume-row";
 import { formatOwnTransport } from "@/features/profile/types";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import { buildCvQuery } from "./cv-query";
-import { panelKpis } from "./panel-kpis";
+import { panelKpis, startOfTodayIso, type PanelKpis } from "./panel-kpis";
 import ApplicationsView from "./ApplicationsView";
 import BaseGeneralView from "./BaseGeneralView";
 
@@ -194,7 +194,40 @@ export default function AdminPanel() {
     () => panelKpis({ rows: cvs, total, pending, linked, now: new Date() }),
     [cvs, total, pending, linked],
   );
-  const newCount = kpis.pending;
+
+  // Candidatos y Puestos no piden las filas de /admin/cv (ver arriba), así que
+  // sus StatCard quedaban en cero. Para los totales alcanzan dos pedidos de UNA
+  // fila: con limit=1 el backend agrega total/pending/linked con un COUNT sobre
+  // toda la base, y el segundo (desde la medianoche) da las de hoy.
+  const [globalKpis, setGlobalKpis] = useState<PanelKpis | null>(null);
+  const globalKpisRequestedRef = useRef(false);
+  async function loadGlobalKpis() {
+    globalKpisRequestedRef.current = true;
+    try {
+      const desdeHoy = encodeURIComponent(startOfTodayIso(new Date()));
+      const [todo, hoy] = await Promise.all([
+        authFetch("/admin/cv?limit=1", getAuthHeader()),
+        authFetch(`/admin/cv?limit=1&date_from=${desdeHoy}`, getAuthHeader()),
+      ]);
+      if (!todo.ok || !hoy.ok) throw new Error(await parseApiError(todo.ok ? hoy : todo));
+      const [t, h] = await Promise.all([todo.json(), hoy.json()]);
+      setGlobalKpis({ total: t.total ?? 0, pending: t.pending ?? 0, linked: t.linked ?? 0, today: h.total ?? 0 });
+    } catch {
+      globalKpisRequestedRef.current = false; // se reintenta al volver a la tab
+    }
+  }
+  useEffect(() => {
+    if (tab !== "candidates" && tab !== "jobs") return;
+    if (globalKpisRequestedRef.current) return;
+    loadGlobalKpis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const usesGlobalKpis = (tab === "candidates" || tab === "jobs") && globalKpis !== null;
+  const shownKpis = usesGlobalKpis ? globalKpis : kpis;
+  // El badge de "Base de datos general" se ve desde cualquier tab: mientras no
+  // se pidieron las filas, el conteo global es el dato bueno.
+  const newCount = pending === null && globalKpis ? globalKpis.pending : kpis.pending;
 
   const hasFilters = !!(dateFrom || dateTo || q.trim());
 
@@ -299,24 +332,24 @@ export default function AdminPanel() {
             // Con una búsqueda server-side activa los conteos son DE ESA
             // búsqueda. Mantener el rótulo "Total recibidos" hacía que el
             // número pareciera el de la base entera.
-            label={scope === "all" ? "Resultados" : "Total recibidos"}
-            value={kpis.total}
+            label={scope === "all" && !usesGlobalKpis ? "Resultados" : "Total recibidos"}
+            value={shownKpis.total}
           />
           <StatCard
             icon={<Briefcase className="size-5" />}
             label="Postulaciones"
-            value={kpis.linked}
+            value={shownKpis.linked}
           />
           <StatCard
             icon={<CalendarClock className="size-5" />}
             label="Hoy"
-            value={kpis.today}
+            value={shownKpis.today}
             accent
           />
           <StatCard
             icon={<Inbox className="size-5" />}
             label="Sin revisar"
-            value={kpis.pending}
+            value={shownKpis.pending}
             hero
           />
         </div>

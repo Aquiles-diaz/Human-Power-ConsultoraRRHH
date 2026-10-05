@@ -88,7 +88,7 @@ describe("AdminPanel · carga diferida de /admin/cv", () => {
     expect(pedidosCvList()).toHaveLength(1);
   });
 
-  it("candidatos y puestos tampoco lo piden (tienen sus propios datos)", async () => {
+  it("candidatos y puestos no piden la lista pesada: sólo los conteos (limit=1)", async () => {
     const user = userEvent.setup();
     renderPanel();
     await user.click(screen.getByRole("button", { name: /candidatos/i }));
@@ -96,6 +96,46 @@ describe("AdminPanel · carga diferida de /admin/cv", () => {
     await user.click(screen.getByRole("button", { name: /puestos/i }));
     await screen.findByText("puestos-mock");
     await new Promise((r) => setTimeout(r, 20));
-    expect(pedidosCvList()).toEqual([]);
+    const pedidos = pedidosCvList();
+    expect(pedidos.length).toBeGreaterThan(0);
+    expect(pedidos.every((p) => new URLSearchParams(p.split("?")[1]).get("limit") === "1")).toBe(true);
+  });
+});
+
+describe("AdminPanel · totales en Candidatos y Puestos", () => {
+  const resp = (data: unknown) => Promise.resolve({ ok: true, json: async () => data } as unknown as Response);
+
+  beforeEach(() => {
+    authFetchMock.mockImplementation((path: string) => {
+      const qs = new URLSearchParams(path.split("?")[1] ?? "");
+      if (qs.get("date_from")) return resp({ items: [FILA], total: 2, has_more: true, pending: 2, linked: 1 });
+      return resp({ items: [FILA], total: 601, has_more: true, pending: 40, linked: 512 });
+    });
+  });
+
+  it("las tarjetas muestran los totales reales de la base, no ceros", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: /candidatos/i }));
+    await screen.findByText("candidatos-mock");
+    // Rótulo y número son hermanos dentro de la tarjeta: se sube hasta ella.
+    const valor = (label: string) => screen.getByText(label).parentElement?.parentElement?.textContent ?? "";
+    await waitFor(() => expect(valor("Total recibidos")).toContain("601"));
+    expect(valor("Postulaciones")).toContain("512");
+    expect(valor("Sin revisar")).toContain("40");
+    expect(valor("Hoy")).toContain("2");
+  });
+
+  it("los conteos se piden una sola vez aunque se vaya y vuelva entre tabs", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: /candidatos/i }));
+    await screen.findByText("candidatos-mock");
+    await waitFor(() => expect(pedidosCvList()).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: /puestos/i }));
+    await screen.findByText("puestos-mock");
+    await user.click(screen.getByRole("button", { name: /candidatos/i }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pedidosCvList()).toHaveLength(2);
   });
 });
