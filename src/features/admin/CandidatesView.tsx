@@ -117,7 +117,9 @@ export function CandidateDates({
   );
 }
 
-export default function CandidatesView() {
+// initialRubro: el Resumen manda acá con el área ya elegida (tocar un área en
+// «Candidatos por área»). Sólo fija el arranque; después los chips mandan.
+export default function CandidatesView({ initialRubro = null }: { initialRubro?: string | null } = {}) {
   const { getAuthHeader } = useAuth();
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
 
@@ -128,7 +130,7 @@ export default function CandidatesView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [rubro, setRubro] = useState<string | null>(null);
+  const [rubro, setRubro] = useState<string | null>(initialRubro);
   const [education, setEducation] = useState("");
   const [onlyCv, setOnlyCv] = useState(false);
   const [onlyVideo, setOnlyVideo] = useState(false);

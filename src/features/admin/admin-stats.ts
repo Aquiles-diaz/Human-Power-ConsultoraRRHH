@@ -72,6 +72,37 @@ export function resolveRange(key: RangeKey, now: Date, custom?: { from: Date | n
   }
 }
 
+const MESES_LARGOS = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+/**
+ * El período en palabras ("Del 1 al 5 de octubre de 2026"), al lado del filtro:
+ * los chips solos no decían qué fechas exactas abarcaba lo que se estaba viendo.
+ * Armado a mano y no con Intl para que el texto sea el mismo en cualquier
+ * navegador (y en los tests).
+ */
+export function rangeLabel({ from, to }: Range): string {
+  const dia = (d: Date) => `${d.getDate()} de ${MESES_LARGOS[d.getMonth()]} de ${d.getFullYear()}`;
+  if (!from && !to) return "Todo el historial";
+  if (!to) return `Desde el ${dia(from!)}`;
+  if (!from) return `Hasta el ${dia(to)}`;
+  if (sameDay(from, to)) return `El ${dia(to)}`;
+  if (from.getFullYear() !== to.getFullYear()) return `Del ${dia(from)} al ${dia(to)}`;
+  if (from.getMonth() !== to.getMonth()) return `Del ${from.getDate()} de ${MESES_LARGOS[from.getMonth()]} al ${dia(to)}`;
+  return `Del ${from.getDate()} al ${dia(to)}`;
+}
+
+/** El delta % contra la ventana anterior, en palabras; null si no hay con qué comparar. */
+export function deltaPhrase(pct: number | null): string | null {
+  if (pct === null) return null;
+  if (pct === 0) return "Igual que el período anterior";
+  return `${Math.abs(pct)}% ${pct > 0 ? "más" : "menos"} que el período anterior`;
+}
+
 const inRange = (iso: string, from: Date | null, to: Date | null) => {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return false;

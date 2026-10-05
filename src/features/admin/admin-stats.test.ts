@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveRange, computeStats, cvsInRange, monthKey, rowsOfMonth } from "./admin-stats";
+import { rangeLabel, deltaPhrase } from "./admin-stats";
 
 const NOW = new Date("2026-06-15T12:00:00");
 
@@ -105,5 +106,41 @@ describe("rowsOfMonth (drill-down por mes)", () => {
 
   it("descarta fechas inválidas en vez de romper", () => {
     expect(rowsOfMonth([{ created_at: "no-es-fecha" }], "2026-07")).toHaveLength(0);
+  });
+});
+
+describe("rangeLabel (texto del período que se está mirando)", () => {
+  const d = (y: number, m: number, day: number) => new Date(y, m - 1, day);
+  it("mismo mes: «Del 1 al 5 de octubre de 2026»", () => {
+    expect(rangeLabel({ key: "month", from: d(2026, 10, 1), to: d(2026, 10, 5) })).toBe("Del 1 al 5 de octubre de 2026");
+  });
+  it("meses distintos del mismo año", () => {
+    expect(rangeLabel({ key: "year", from: d(2026, 1, 1), to: d(2026, 10, 5) })).toBe("Del 1 de enero al 5 de octubre de 2026");
+  });
+  it("años distintos", () => {
+    expect(rangeLabel({ key: "custom", from: d(2025, 12, 20), to: d(2026, 1, 3) })).toBe(
+      "Del 20 de diciembre de 2025 al 3 de enero de 2026",
+    );
+  });
+  it("un solo día", () => {
+    expect(rangeLabel({ key: "today", from: d(2026, 10, 5), to: d(2026, 10, 5) })).toBe("El 5 de octubre de 2026");
+  });
+  it("todo el tiempo", () => {
+    expect(rangeLabel({ key: "all", from: null, to: null })).toBe("Todo el historial");
+  });
+  it("rangos abiertos", () => {
+    expect(rangeLabel({ key: "custom", from: d(2026, 3, 2), to: null })).toBe("Desde el 2 de marzo de 2026");
+    expect(rangeLabel({ key: "custom", from: null, to: d(2026, 3, 2) })).toBe("Hasta el 2 de marzo de 2026");
+  });
+});
+
+describe("deltaPhrase (comparación contra el período anterior, en palabras)", () => {
+  it("sube, baja o queda igual", () => {
+    expect(deltaPhrase(40)).toBe("40% más que el período anterior");
+    expect(deltaPhrase(-15)).toBe("15% menos que el período anterior");
+    expect(deltaPhrase(0)).toBe("Igual que el período anterior");
+  });
+  it("sin comparación posible (rango «Todo») no dice nada", () => {
+    expect(deltaPhrase(null)).toBeNull();
   });
 });

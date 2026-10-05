@@ -8,8 +8,30 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // El panel solo orquesta tabs y el fetch de /admin/cv; las vistas hijas tienen
 // sus propios tests y sus propios fetches (que acá serían ruido).
-vi.mock("./ResumenDashboard", () => ({ default: () => <div>resumen-mock</div> }));
-vi.mock("./CandidatesView", () => ({ default: () => <div>candidatos-mock</div> }));
+vi.mock("./ResumenDashboard", () => ({
+  default: ({
+    onNavigate,
+    onOpenCv,
+  }: {
+    onNavigate: (tab: string, opts?: { area?: string }) => void;
+    onOpenCv: (row: unknown) => void;
+  }) => (
+    <div>
+      resumen-mock
+      <button onClick={() => onNavigate("candidates", { area: "it" })}>ir-al-area</button>
+      <button
+        onClick={() =>
+          onOpenCv({ id: 77, full_name: "Zoe Ficha", email: "zoe@test.com", original_name: "cv.pdf", created_at: "2026-10-05T12:00:00Z" })
+        }
+      >
+        abrir-ficha
+      </button>
+    </div>
+  ),
+}));
+vi.mock("./CandidatesView", () => ({
+  default: ({ initialRubro }: { initialRubro?: string | null }) => <div>candidatos-mock:{initialRubro ?? "todos"}</div>,
+}));
 vi.mock("./JobsManager", () => ({ default: () => <div>puestos-mock</div> }));
 
 const AUTH = {
@@ -92,7 +114,7 @@ describe("AdminPanel · carga diferida de /admin/cv", () => {
     const user = userEvent.setup();
     renderPanel();
     await user.click(screen.getByRole("button", { name: /candidatos/i }));
-    await screen.findByText("candidatos-mock");
+    await screen.findByText(/candidatos-mock/);
     await user.click(screen.getByRole("button", { name: /puestos/i }));
     await screen.findByText("puestos-mock");
     await new Promise((r) => setTimeout(r, 20));
@@ -117,7 +139,7 @@ describe("AdminPanel · totales en Candidatos y Puestos", () => {
     const user = userEvent.setup();
     renderPanel();
     await user.click(screen.getByRole("button", { name: /candidatos/i }));
-    await screen.findByText("candidatos-mock");
+    await screen.findByText(/candidatos-mock/);
     // Rótulo y número son hermanos dentro de la tarjeta: se sube hasta ella.
     const valor = (label: string) => screen.getByText(label).parentElement?.parentElement?.textContent ?? "";
     await waitFor(() => expect(valor("Total recibidos")).toContain("601"));
@@ -130,12 +152,31 @@ describe("AdminPanel · totales en Candidatos y Puestos", () => {
     const user = userEvent.setup();
     renderPanel();
     await user.click(screen.getByRole("button", { name: /candidatos/i }));
-    await screen.findByText("candidatos-mock");
+    await screen.findByText(/candidatos-mock/);
     await waitFor(() => expect(pedidosCvList()).toHaveLength(2));
     await user.click(screen.getByRole("button", { name: /puestos/i }));
     await screen.findByText("puestos-mock");
     await user.click(screen.getByRole("button", { name: /candidatos/i }));
     await new Promise((r) => setTimeout(r, 20));
     expect(pedidosCvList()).toHaveLength(2);
+  });
+});
+
+describe("AdminPanel · acciones que salen del Resumen", () => {
+  it("tocar un área abre Candidatos ya filtrado, y la tab a mano vuelve a «todos»", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByText("ir-al-area"));
+    expect(await screen.findByText("candidatos-mock:it")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /resumen/i }));
+    await user.click(screen.getByRole("button", { name: /candidatos/i }));
+    expect(await screen.findByText("candidatos-mock:todos")).toBeInTheDocument();
+  });
+
+  it("abrir una persona desde el Resumen muestra su ficha", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByText("abrir-ficha"));
+    expect(await screen.findByRole("dialog", { name: /detalle del candidato #77/i })).toBeInTheDocument();
   });
 });

@@ -69,6 +69,9 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [tab, setTab] = useState<AdminTab>("resumen");
+  // Rubro con el que se entra a Candidatos desde el Resumen («Candidatos por
+  // área»). Entrar por la tab a mano lo limpia: esa es la vista de todos.
+  const [candidatesArea, setCandidatesArea] = useState<string | null>(null);
   // Conteo REAL en la base (no el largo de la página) y si quedaron filas afuera.
   const [total, setTotal] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -365,7 +368,10 @@ export default function AdminPanel() {
           />
           <TabButton
             active={tab === "candidates"}
-            onClick={() => setTab("candidates")}
+            onClick={() => {
+              setCandidatesArea(null);
+              setTab("candidates");
+            }}
             icon={<Users className="size-4" />}
             label="Candidatos"
           />
@@ -390,9 +396,20 @@ export default function AdminPanel() {
           />
         </div>
 
-        {tab === "resumen" && <ResumenDashboard onNavigate={(t) => setTab(t)} />}
+        {tab === "resumen" && (
+          <ResumenDashboard
+            onNavigate={(t, opts) => {
+              setCandidatesArea(opts?.area ?? null);
+              setTab(t);
+            }}
+            onOpenCv={setActive}
+          />
+        )}
 
-        {tab === "candidates" && <CandidatesView />}
+        {tab === "candidates" && (
+          // key: cambiar de rubro desde el Resumen remonta la vista con su filtro.
+          <CandidatesView key={candidatesArea ?? "todos"} initialRubro={candidatesArea} />
+        )}
 
         {tab === "jobs" && <JobsManager />}
 

@@ -437,3 +437,15 @@ describe("CandidatesView · CV en la ficha", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("CandidatesView · entrar ya filtrado por rubro (desde el Resumen)", () => {
+  it("con initialRubro pide la lista filtrada y marca el chip", async () => {
+    render(<CandidatesView initialRubro="it" />);
+    await waitFor(() => {
+      const listados = authFetchMock.mock.calls.map(([p]) => p as string).filter((p) => p.startsWith("/admin/candidates?"));
+      expect(listados.length).toBeGreaterThan(0);
+      expect(listados.every((p) => new URLSearchParams(p.split("?")[1]).get("area") === "IT / Tecnología")).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: /it \/ tecnología/i })).toHaveAttribute("aria-pressed", "true");
+  });
+});
