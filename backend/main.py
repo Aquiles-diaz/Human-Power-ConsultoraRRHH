@@ -325,6 +325,34 @@ class SpontaneousVsLinked(BaseModel):
     spontaneous: int
     linked: int
 
+class CandidateStatPerson(BaseModel):
+    user_id: int
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: str
+    phone: Optional[str] = None
+    created_at: Optional[str] = None
+    percent: int
+    missing: list[str]  # ids de _ebook_missing: video, cv, photo, personal, professional
+
+class CandidateAreaBucket(BaseModel):
+    area: str
+    total: int
+    with_cv: int
+    with_video: int
+    complete: int
+
+class CandidateStatsOut(BaseModel):
+    total: int
+    complete: int
+    with_cv: int
+    with_video: int
+    empty: int
+    complete_people: list[CandidateStatPerson]
+    empty_people: list[CandidateStatPerson]
+    almost_complete: list[CandidateStatPerson]
+    by_area: list[CandidateAreaBucket]
+
 class AdminStatsOut(BaseModel):
     kpis: StatsKpis
     byMonth: list[MonthBucket]
@@ -1509,6 +1537,96 @@ _MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", 
 # (no instantes), así que necesitan una zona explícita: agrupar en UTC corre las
 # postulaciones de las últimas 3 h de cada mes al mes siguiente.
 _DEFAULT_TZ = "America/Argentina/Buenos_Aires"
+
+def _loaded_nothing(row) -> bool:
+    """Sólo creó la cuenta: ni CV, ni video, ni foto subida, ni un dato del perfil.
+
+    La foto externa NO cuenta: el login con Google la trae sola, así que alguien
+    que entró con Google y no tocó nada tiene 15% y no 10%, pero tampoco cargó
+    nada. Por eso esto no es `_completion_percent(row) == 10`.
+    """
+    def filled(v) -> bool:
+        return bool(v.strip()) if isinstance(v, str) else v is not None
+
+    campos = ["cv_filename", "video_filename", "video_url", "photo_filename",
+              *EBOOK_PERSONAL_FIELDS, *EBOOK_PROFESSIONAL_FIELDS]
+    return not any(filled(row[f]) for f in campos)
+
+@app.get("/admin/candidate-stats", response_model=CandidateStatsOut,
+         dependencies=[Depends(require_admin)], tags=["admin"])
+def get_candidate_stats() -> CandidateStatsOut:
+    """Números del Resumen centrados en candidatos (no en postulaciones).
+
+    Una sola query sobre users+profiles y el conteo en Python, con el MISMO
+    _completion_percent que ve el candidato en su perfil: replicar los pesos en
+    SQL sería una segunda fuente de verdad que tarde o temprano diverge. A la
+    escala de HumanPower (cientos de candidatos) son filas livianas.
+    """
+    campos_perfil = ", ".join(
+        f"p.{f}" for f in [*EBOOK_PERSONAL_FIELDS, *EBOOK_PROFESSIONAL_FIELDS,
+                           "cv_filename", "video_filename", "video_url",
+                           "photo_filename", "external_photo_url"]
+    )
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT u.id, u.name, u.last_name, u.email, u.created_at, {campos_perfil}
+              FROM users u
+              LEFT JOIN profiles p ON p.user_id = u.id
+             WHERE u.role != 'admin'
+            """
+        ).fetchall()
+    # Más recientes primero (las listas de personas se leen así). Se ordena acá y
+    # no en SQL para que el orden no dependa de la query.
+    _min = datetime.min.replace(tzinfo=timezone.utc)
+    rows = sorted(rows, key=lambda r: (r["created_at"] or _min, r["id"]), reverse=True)
+
+    def filled(v) -> bool:
+        return bool(v.strip()) if isinstance(v, str) else v is not None
+
+    def persona(r, pct: int) -> CandidateStatPerson:
+        return CandidateStatPerson(
+            user_id=r["id"], name=r["name"], last_name=r["last_name"], email=r["email"],
+            phone=r["phone"], created_at=_legacy_ts(r["created_at"]),
+            percent=pct, missing=_ebook_missing(r),
+        )
+
+    complete_people, empty_people, almost = [], [], []
+    with_cv = with_video = 0
+    areas: dict[str, dict] = {}
+    for r in rows:
+        pct = _completion_percent(r)
+        tiene_cv = filled(r["cv_filename"])
+        tiene_video = filled(r["video_filename"]) or filled(r["video_url"])
+        with_cv += tiene_cv
+        with_video += tiene_video
+        if pct >= 100:
+            complete_people.append(persona(r, pct))
+        elif pct >= 80:
+            almost.append(persona(r, pct))
+        if _loaded_nothing(r):
+            empty_people.append(persona(r, pct))
+        # Mismo criterio que byArea de /admin/stats: vacío o en blanco = "Sin área".
+        area = (r["professional_area"] or "").strip() or "Sin área"
+        a = areas.setdefault(area, {"total": 0, "with_cv": 0, "with_video": 0, "complete": 0})
+        a["total"] += 1
+        a["with_cv"] += tiene_cv
+        a["with_video"] += tiene_video
+        a["complete"] += pct >= 100
+
+    # De más a menos completo; el sort es estable, así que a igual % quedan
+    # primero los registrados más recientemente (el orden de la query).
+    almost.sort(key=lambda p: -p.percent)
+    by_area = sorted(
+        (CandidateAreaBucket(area=k, **v) for k, v in areas.items()),
+        key=lambda b: (-b.total, b.area),
+    )
+    return CandidateStatsOut(
+        total=len(rows), complete=len(complete_people), with_cv=with_cv,
+        with_video=with_video, empty=len(empty_people),
+        complete_people=complete_people, empty_people=empty_people,
+        almost_complete=almost, by_area=by_area,
+    )
 
 @app.get("/admin/stats", response_model=AdminStatsOut,
          dependencies=[Depends(require_admin)], tags=["admin"])
