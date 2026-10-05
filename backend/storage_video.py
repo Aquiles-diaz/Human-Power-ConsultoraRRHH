@@ -1,9 +1,16 @@
 # backend/storage_video.py
-"""Acceso al Storage de VIDEOS: un 2º proyecto Supabase, aislado del de CVs.
+"""Acceso al Storage de VIDEOS: bucket público `videos` del proyecto principal.
 
-Bucket público `videos`. En la base (proyecto principal) se guarda solo la KEY
-del objeto; la URL pública se construye con public_url(). Aislar el video del
-proyecto de CVs evita que los videos consuman el 1GB de los CVs.
+En la base se guarda solo la KEY del objeto; la URL pública se construye con
+public_url(). Hasta el 05/10/2026 los videos vivían en un 2º proyecto Supabase
+para no gastar el 1 GB de los CV, pero el límite del plan Free es por
+ORGANIZACIÓN, así que no aislaba nada: juntos lo pasaron y Supabase bloqueó los
+dos. Ahora el principal está en Pro y los videos se mudaron ahí
+(scripts/unificar-videos.py).
+
+VIDEO_SUPABASE_URL/VIDEO_SUPABASE_SERVICE_KEY son opcionales: si faltan (o están
+vacías) se usan SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY, y rotar la clave es
+cambiar una sola variable.
 """
 from __future__ import annotations
 
@@ -20,8 +27,8 @@ try:
 except Exception:  # pragma: no cover
     pass
 
-VIDEO_SUPABASE_URL = os.getenv("VIDEO_SUPABASE_URL", "").rstrip("/")
-VIDEO_SUPABASE_SERVICE_KEY = os.getenv("VIDEO_SUPABASE_SERVICE_KEY", "")
+VIDEO_SUPABASE_URL = (os.getenv("VIDEO_SUPABASE_URL") or os.getenv("SUPABASE_URL", "")).rstrip("/")
+VIDEO_SUPABASE_SERVICE_KEY = os.getenv("VIDEO_SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 VIDEO_BUCKET = os.getenv("VIDEO_BUCKET", "videos")
 
 # content-type -> extensión del objeto
@@ -44,8 +51,8 @@ def public_url(key: Optional[str]) -> Optional[str]:
 def get_client():
     if not VIDEO_SUPABASE_URL or not VIDEO_SUPABASE_SERVICE_KEY:
         raise RuntimeError(
-            "Faltan VIDEO_SUPABASE_URL y/o VIDEO_SUPABASE_SERVICE_KEY. "
-            "Cargalas en backend/.env (2º proyecto Supabase para videos)."
+            "Faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY (o sus VIDEO_*). "
+            "Cargalas en backend/.env (ver .env.example)."
         )
     from supabase import create_client
     return create_client(VIDEO_SUPABASE_URL, VIDEO_SUPABASE_SERVICE_KEY)

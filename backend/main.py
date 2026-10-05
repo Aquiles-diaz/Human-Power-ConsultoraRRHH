@@ -29,7 +29,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
-from . import storage_video  # Supabase Storage para videos (2º proyecto)
+from . import storage_video  # Supabase Storage para videos (bucket `videos` del principal)
 from . import emailer  # envío de emails (consultas de contacto)
 from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
@@ -2090,7 +2090,7 @@ def delete_my_video(current_user: dict = Depends(get_current_user)) -> ProfileOu
 @app.get("/health/video", tags=["default"])
 @limiter.limit("6/minute")
 def health_video(request: Request) -> dict:
-    """Diagnóstico SIN secretos del storage de videos (2º proyecto Supabase).
+    """Diagnóstico SIN secretos del storage de videos (bucket `videos`).
     `configured`: están las env vars en este entorno. `reachable`: la service_role
     autentica de verdad contra Supabase (list_buckets). `bucket_found`: existe el
     bucket configurado. No expone URL ni key. Sirve para verificar la config de Render."""

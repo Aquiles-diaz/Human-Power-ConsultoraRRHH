@@ -1,5 +1,12 @@
 # Setup — 2º proyecto Supabase para los videos de presentación
 
+> **OBSOLETO (05/10/2026).** El 2º proyecto se borró: el límite de 1 GB del plan
+> Free es por ORGANIZACIÓN, así que no aislaba la cuota de los CV y los dos
+> proyectos quedaron bloqueados juntos. Los videos ahora viven en el bucket
+> público `videos` del proyecto principal (plan Pro) y `VIDEO_SUPABASE_*` son
+> opcionales. Ver `backend/storage_video.py` y `scripts/unificar-videos.py`.
+> Se deja como histórico.
+
 La Fase 3 guarda los videos de presentación en un **2º proyecto Supabase, aparte
 del de los CV**. Así el 1 GB gratis de los videos es independiente del de los CV:
 pase lo que pase con los videos, **el espacio de los CV no se toca**.
