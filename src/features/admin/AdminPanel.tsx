@@ -36,7 +36,6 @@ import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
 import { type ResumeRow, initials } from "./resume-row";
 import { formatOwnTransport } from "@/features/profile/types";
-import { CvPreview } from "./CvPreview";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import { buildCvQuery } from "./cv-query";
 import { panelKpis } from "./panel-kpis";
@@ -509,11 +508,6 @@ export default function AdminPanel() {
           onClose={() => setActive(null)}
           onDownload={() => downloadCv(active.id, active.original_name)}
           onDelete={() => deleteCv(active.id)}
-          fetchCvBlob={async () => {
-            const res = await authFetch(`/cv/${active.id}`, getAuthHeader());
-            if (!res.ok) throw new Error(await parseApiError(res));
-            return res.blob();
-          }}
         />
       )}
     </main>
@@ -678,14 +672,12 @@ export function ApplicantDetail({
   onClose,
   onDownload,
   onDelete,
-  fetchCvBlob,
 }: {
   cv: ResumeRow;
   deleting: boolean;
   onClose: () => void;
   onDownload: () => void;
   onDelete: () => void;
-  fetchCvBlob: () => Promise<Blob>;
 }) {
   // Nombre y apellido del perfil registrado; si postuló sin cuenta, lo que
   // escribió en el formulario.
@@ -793,15 +785,6 @@ export function ApplicantDetail({
               )}
             </div>
           </div>
-        </div>
-
-        {/* Vista previa del CV: el jefe lo ve sin descargar */}
-        <div className="mt-5">
-          <p className="mb-2 inline-flex items-center gap-2 t-label text-white/50">
-            <FileText className="size-4" /> CV
-          </p>
-          {/* key: si el modal pasa a otro candidato sin desmontarse, el visor se remonta */}
-          <CvPreview key={cv.id} filename={cv.original_name} fetchBlob={fetchCvBlob} onDownload={onDownload} />
         </div>
 
         {/* Datos del perfil registrado, para tener todo a mano sin ir a Candidatos */}

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ApplicantDetail } from "./AdminPanel";
 
 const baseCv = {
@@ -10,10 +11,6 @@ const baseCv = {
   created_at: "2026-07-21T14:16:00Z",
 };
 
-// Promise que nunca resuelve: los tests que no miran el visor no necesitan
-// stubear URL.createObjectURL (jsdom no lo trae).
-const pendingBlob = () => new Promise<Blob>(() => {});
-
 function renderDetail(cv: Partial<typeof baseCv> & Record<string, unknown> = {}) {
   return render(
     <ApplicantDetail
@@ -22,7 +19,6 @@ function renderDetail(cv: Partial<typeof baseCv> & Record<string, unknown> = {})
       onClose={() => {}}
       onDownload={() => {}}
       onDelete={() => {}}
-      fetchCvBlob={pendingBlob}
     />,
   );
 }
@@ -128,25 +124,19 @@ describe("ApplicantDetail (modal de postulación por puesto)", () => {
     expect(btn.getAttribute("href")).toContain("humanpower.rrhh%40gmail.com");
   });
 
-  it("muestra la vista previa del CV cuando es PDF", async () => {
-    vi.stubGlobal(
-      "URL",
-      Object.assign(URL, {
-        createObjectURL: vi.fn(() => "blob:fake"),
-        revokeObjectURL: vi.fn(),
-      }),
-    );
+  it("no embebe el CV: «Descargar CV» llama a onDownload", async () => {
+    const onDownload = vi.fn();
     render(
       <ApplicantDetail
         cv={baseCv}
         deleting={false}
         onClose={() => {}}
-        onDownload={() => {}}
+        onDownload={onDownload}
         onDelete={() => {}}
-        fetchCvBlob={() => Promise.resolve(new Blob(["x"], { type: "application/pdf" }))}
       />,
     );
-    await waitFor(() => expect(screen.getByTitle("Vista previa del CV")).toBeInTheDocument());
-    vi.unstubAllGlobals();
+    expect(screen.queryByTitle("Vista previa del CV")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /descargar cv/i }));
+    expect(onDownload).toHaveBeenCalledOnce();
   });
 });

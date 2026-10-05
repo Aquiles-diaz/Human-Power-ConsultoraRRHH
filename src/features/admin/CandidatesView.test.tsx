@@ -411,3 +411,29 @@ describe("CandidatesView · modal de detalle", () => {
     );
   });
 });
+
+describe("CandidatesView · CV en la ficha", () => {
+  it("no embebe el CV: muestra el archivo y lo baja recién al tocar «Descargar CV»", async () => {
+    const user = userEvent.setup();
+    const blobPath = "/admin/candidates/42/cv";
+    authFetchMock.mockImplementation((path: string) => {
+      if (path.startsWith("/admin/candidates?")) return Promise.resolve(ok({ items: TODOS }));
+      if (path === blobPath) {
+        return Promise.resolve({ ok: true, status: 200, blob: async () => new Blob(["%PDF"]) } as unknown as Response);
+      }
+      return Promise.resolve(ok({ ...PERFIL_ANA, has_cv: true, cv_original_name: "cv-ana.pdf" }));
+    });
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn(() => "blob:fake"), revokeObjectURL: vi.fn() }));
+    render(<CandidatesView />);
+    await user.click(await screen.findByText("Ana Pérez"));
+
+    expect(await screen.findByText("cv-ana.pdf")).toBeInTheDocument();
+    expect(screen.queryByTitle("Vista previa del CV")).not.toBeInTheDocument();
+    // Abrir la ficha ya no baja el archivo (antes el visor lo pedía al montar).
+    expect(authFetchMock.mock.calls.some(([p]) => p === blobPath)).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: /descargar cv/i }));
+    await waitFor(() => expect(authFetchMock.mock.calls.some(([p]) => p === blobPath)).toBe(true));
+    vi.unstubAllGlobals();
+  });
+});

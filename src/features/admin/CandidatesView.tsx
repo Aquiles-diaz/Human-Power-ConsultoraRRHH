@@ -43,7 +43,6 @@ import {
 import { categoryLabel } from "@/features/jobs/categories";
 import { CANDIDATES_CACHE_KEY, readAdminCache, writeAdminCache } from "./admin-cache";
 import { RubroChips } from "./RubroChips";
-import { CvPreview } from "./CvPreview";
 import { BTN_YELLOW } from "./ui";
 import ConfirmDeleteUser, { type DeletionSummary } from "./ConfirmDeleteUser";
 
@@ -592,25 +591,21 @@ export default function CandidatesView() {
                 <Info icon={<CalendarDays className="size-4" />} label="Nacimiento" value={active.birthdate} />
               </div>
 
-              {/* CV embebido: el jefe lo ve sin descargar */}
+              {/* Sin visor embebido: el archivo se baja recién al pedirlo. */}
               {active.has_cv ? (
-                <div className="mt-5">
-                  <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-white/80">
-                    <FileText className="size-4" /> CV
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+                  <p className="flex min-w-0 items-center gap-1.5 text-sm text-white/80">
+                    <FileText className="size-4 shrink-0" />
+                    <span className="truncate">{active.cv_original_name || "CV"}</span>
                   </p>
-                  <CvPreview
-                    key={active.user_id}
-                    filename={active.cv_original_name ?? ""}
-                    fetchBlob={async () => {
-                      const res = await authFetch(
-                        `/admin/candidates/${active.user_id}/cv`,
-                        authHeaders,
-                      );
-                      if (!res.ok) throw new Error(await parseApiError(res));
-                      return res.blob();
-                    }}
-                    onDownload={() => downloadCv(active.user_id, active.cv_original_name)}
-                  />
+                  <Button
+                    variant="brand"
+                    size="sm"
+                    className={BTN_YELLOW}
+                    onClick={() => downloadCv(active.user_id, active.cv_original_name)}
+                  >
+                    <Download className="size-4" /> Descargar CV
+                  </Button>
                 </div>
               ) : (
                 <p className="mt-5 text-sm text-white/60">
