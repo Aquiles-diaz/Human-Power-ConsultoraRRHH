@@ -44,7 +44,7 @@ function Chip({
       aria-pressed={active}
       className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition ${
         active
-          ? "border-yellow-400 bg-yellow-400 font-bold text-black"
+          ? "border-white bg-white font-bold text-black"
           : "border-neutral-800 bg-neutral-900 text-neutral-400 hover:border-neutral-700 hover:text-white"
       }`}
     >

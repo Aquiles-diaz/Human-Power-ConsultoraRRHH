@@ -43,7 +43,7 @@ import {
 import { categoryLabel } from "@/features/jobs/categories";
 import { CANDIDATES_CACHE_KEY, readAdminCache, writeAdminCache } from "./admin-cache";
 import { RubroChips } from "./RubroChips";
-import { BTN_YELLOW } from "./ui";
+import { BTN_PRIMARY } from "./ui";
 import ConfirmDeleteUser, { type DeletionSummary } from "./ConfirmDeleteUser";
 
 /**
@@ -81,7 +81,7 @@ export function CompletionBadge({ percent }: { percent?: number | null }) {
     percent === 100
       ? "bg-emerald-500/15 text-emerald-300"
       : percent >= 60
-        ? "bg-yellow-400/10 text-yellow-300"
+        ? "bg-white/10 text-white"
         : "bg-neutral-800 text-white/60";
   return (
     <span
@@ -117,9 +117,20 @@ export function CandidateDates({
   );
 }
 
-// initialRubro: el Resumen manda acá con el área ya elegida (tocar un área en
-// «Candidatos por área»). Sólo fija el arranque; después los chips mandan.
-export default function CandidatesView({ initialRubro = null }: { initialRubro?: string | null } = {}) {
+// Entradas desde el Resumen: con un rubro (tocar un área), sólo con CV o con
+// video (las tarjetas), o con la ficha de alguien abierta (una persona de una
+// lista o del buscador). Sólo fijan el arranque; después los filtros mandan.
+export default function CandidatesView({
+  initialRubro = null,
+  initialOnlyCv = false,
+  initialOnlyVideo = false,
+  openUserId,
+}: {
+  initialRubro?: string | null;
+  initialOnlyCv?: boolean;
+  initialOnlyVideo?: boolean;
+  openUserId?: number;
+} = {}) {
   const { getAuthHeader } = useAuth();
   const authHeaders = useMemo(() => getAuthHeader(), [getAuthHeader]);
 
@@ -132,8 +143,8 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
   const [q, setQ] = useState("");
   const [rubro, setRubro] = useState<string | null>(initialRubro);
   const [education, setEducation] = useState("");
-  const [onlyCv, setOnlyCv] = useState(false);
-  const [onlyVideo, setOnlyVideo] = useState(false);
+  const [onlyCv, setOnlyCv] = useState(initialOnlyCv);
+  const [onlyVideo, setOnlyVideo] = useState(initialOnlyVideo);
   const [active, setActive] = useState<Profile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [aBorrar, setABorrar] = useState<DeletionSummary | null>(null);
@@ -236,6 +247,12 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
     }
   }
 
+  // Una sola vez al montar: el AdminPanel remonta la vista (key) si cambia.
+  useEffect(() => {
+    if (openUserId !== undefined) openDetail(openUserId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function pedirBorrado(userId: number) {
     const reqId = ++borradoReqId.current;
     try {
@@ -333,7 +350,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
           onClick={() => setOnlyCv((v) => !v)}
           className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm transition ${
             onlyCv
-              ? "border-yellow-400/50 bg-yellow-400/15 text-yellow-300"
+              ? "border-white/50 bg-white/15 text-white"
               : "border-neutral-800 bg-neutral-900 text-white/70 hover:bg-neutral-800"
           }`}
         >
@@ -344,7 +361,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
           onClick={() => setOnlyVideo((v) => !v)}
           className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm transition ${
             onlyVideo
-              ? "border-yellow-400/50 bg-yellow-400/15 text-yellow-300"
+              ? "border-white/50 bg-white/15 text-white"
               : "border-neutral-800 bg-neutral-900 text-white/70 hover:bg-neutral-800"
           }`}
         >
@@ -389,7 +406,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 py-16 text-center">
           <p className="font-medium text-red-200">No se pudieron cargar los candidatos</p>
           <p className="text-sm text-red-200/70">{error}</p>
-          <Button variant="brand" onClick={load}>
+          <Button variant="brand" className={BTN_PRIMARY} onClick={load}>
             <RefreshCw className="size-4" /> Reintentar
           </Button>
         </div>
@@ -419,7 +436,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") openDetail(c.user_id);
               }}
-              className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-left transition hover:border-yellow-400/40 hover:bg-neutral-800/60"
+              className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-left transition hover:border-white/40 hover:bg-neutral-800/60"
             >
               <div className="flex items-center gap-3">
                 {c.photo_url ? (
@@ -436,7 +453,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
                     className="size-14 rounded-full object-cover"
                   />
                 ) : (
-                  <span className="grid size-14 place-items-center rounded-full bg-yellow-400 text-sm font-bold text-black">
+                  <span className="grid size-14 place-items-center rounded-full bg-white text-sm font-bold text-black">
                     {initials(c.name, c.last_name ?? "")}
                   </span>
                 )}
@@ -445,7 +462,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
                     {c.name} {c.last_name}
                   </p>
                   {c.headline && (
-                    <p className="truncate text-xs font-medium uppercase tracking-wide text-yellow-300">
+                    <p className="truncate text-xs font-medium uppercase tracking-wide text-white">
                       {c.headline}
                     </p>
                   )}
@@ -468,7 +485,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
                   </span>
                 )}
                 {c.has_video && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-yellow-400/10 px-2 py-0.5 text-yellow-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white">
                     <Video className="size-3" /> Video
                   </span>
                 )}
@@ -478,9 +495,8 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
 
               {c.has_cv && (
                 <Button
-                  variant="brand"
+                  variant="brand" className={`${BTN_PRIMARY} mt-auto w-full`}
                   size="sm"
-                  className={`${BTN_YELLOW} mt-auto w-full`}
                   onClick={(e) => {
                     e.stopPropagation(); // que no abra el modal
                     downloadCv(c.user_id);
@@ -544,13 +560,13 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
                     className="size-16 rounded-2xl object-cover"
                   />
                 ) : (
-                  <span className="grid size-16 place-items-center rounded-2xl bg-yellow-400 text-lg font-bold text-black">
+                  <span className="grid size-16 place-items-center rounded-2xl bg-white text-lg font-bold text-black">
                     {initials(active.name, active.last_name ?? "")}
                   </span>
                 )}
                 <div className="min-w-0">
                   {active.headline && (
-                    <p className="t-eyebrow text-yellow-300">{active.headline}</p>
+                    <p className="t-eyebrow text-white">{active.headline}</p>
                   )}
                   <a
                     {...composeEmailProps(active.email)}
@@ -601,9 +617,8 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
                     <span className="truncate">{active.cv_original_name || "CV"}</span>
                   </p>
                   <Button
-                    variant="brand"
+                    variant="brand" className={BTN_PRIMARY}
                     size="sm"
-                    className={BTN_YELLOW}
                     onClick={() => downloadCv(active.user_id, active.cv_original_name)}
                   >
                     <Download className="size-4" /> Descargar CV
@@ -633,7 +648,7 @@ export default function CandidatesView({ initialRubro = null }: { initialRubro?:
                     href={active.video_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-yellow-400 hover:text-yellow-300"
+                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-white hover:text-white/70"
                   >
                     <ExternalLink className="size-4" /> Abrir en pestaña nueva
                   </a>

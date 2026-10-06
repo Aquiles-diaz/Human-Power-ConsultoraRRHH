@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ResumenDashboard from "./ResumenDashboard";
+import type { CandidateStats } from "./candidate-stats";
 
 const { authFetchMock } = vi.hoisted(() => ({ authFetchMock: vi.fn() }));
 vi.mock("@/lib/api", async (orig) => {
@@ -13,122 +14,171 @@ vi.mock("@/features/auth/AuthContext", () => {
   return { useAuth: () => ({ getAuthHeader }) };
 });
 
-const STATS = {
+const persona = (user_id: number, name: string, extra: Record<string, unknown> = {}) => ({
+  user_id,
+  name,
+  last_name: "Test",
+  email: `${name.toLowerCase()}@x.com`,
+  phone: null,
+  created_at: "2026-10-01T12:00:00Z",
+  percent: 10,
+  missing: [],
+  ...extra,
+});
+
+const STATS: CandidateStats = {
+  total: 200,
+  complete: 30,
+  with_cv: 150,
+  with_video: 40,
+  empty: 20,
+  complete_people: [persona(1, "Completa", { percent: 100 })],
+  empty_people: [persona(2, "Vacia")],
+  almost_complete: [persona(3, "Casi", { percent: 91, phone: "341-555", missing: ["photo", "personal"] })],
+  by_area: [
+    { area: "IT / Tecnología", total: 12, with_cv: 9, with_video: 4, complete: 3 },
+    { area: "Sin área", total: 5, with_cv: 1, with_video: 0, complete: 0 },
+  ],
+};
+
+const ADMIN_STATS = {
   kpis: {
     postulaciones: { value: 834, deltaPct: 12 },
-    candidatos: { value: 226, withCv: 180, withoutCv: 46 },
+    candidatos: { value: 200, withCv: 150, withoutCv: 50 },
     puestosActivos: { value: 5, drafts: 2 },
     hoy: 3,
   },
-  byMonth: [{ ym: "2026-10", label: "oct", count: 40 }],
-  byArea: [
-    { area: "IT / Tecnología", count: 12 },
-    { area: "Sin área", count: 4 },
-  ],
+  byMonth: [],
+  byArea: [],
   topJobs: [{ jobId: "contador", title: "Contador/a", count: 9 }],
   spontaneousVsLinked: { spontaneous: 300, linked: 534 },
 };
-
-const fila = (id: number, full_name: string, extra: Record<string, unknown> = {}) => ({
-  id,
-  full_name,
-  email: `${id}@test.com`,
+const DEL_PUESTO = {
+  id: 20,
+  full_name: "Eva Contadora",
+  email: "eva@x.com",
   original_name: "cv.pdf",
   created_at: new Date().toISOString(),
-  ...extra,
-});
-const PENDIENTE = fila(1, "Ana Pendiente");
-const DE_HOY = fila(2, "Beto Hoy");
-const RECIENTES = [fila(10, "Caro Reciente"), fila(9, "Dani Reciente")];
-const DEL_PUESTO = fila(20, "Eva Contadora", { job_id: "contador", job_title: "Contador/a" });
+  job_id: "contador",
+  job_title: "Contador/a",
+};
 
 const ok = (data: unknown) => Promise.resolve({ ok: true, status: 200, json: async () => data } as Response);
 
 beforeEach(() => {
   vi.clearAllMocks();
   authFetchMock.mockImplementation((path: string) => {
-    if (path.startsWith("/admin/stats")) return ok(STATS);
-    const qs = new URLSearchParams(path.split("?")[1] ?? "");
-    if (qs.get("status") === "received") return ok({ items: [PENDIENTE], total: 7 });
-    if (qs.get("limit") === "5") return ok({ items: RECIENTES, total: 900 });
-    if (qs.get("date_from") && !qs.get("date_to")) return ok({ items: [DE_HOY], total: 3 });
-    return ok({ items: [DEL_PUESTO], total: 1 }); // filas del período (drill-down)
+    if (path.startsWith("/admin/stats")) return ok(ADMIN_STATS);
+    if (path.startsWith("/admin/candidates?")) {
+      return ok({ items: [{ user_id: 7, name: "Ana", last_name: "Buscada", email: "ana@x.com" }] });
+    }
+    return ok({ items: [DEL_PUESTO], total: 1 }); // filas del período (drill-down de puestos)
   });
 });
 
-function renderResumen() {
+function renderResumen(stats: CandidateStats | null = STATS) {
   const onOpenCv = vi.fn();
   const onNavigate = vi.fn();
-  render(<ResumenDashboard onOpenCv={onOpenCv} onNavigate={onNavigate} />);
+  render(<ResumenDashboard stats={stats} onOpenCv={onOpenCv} onNavigate={onNavigate} />);
   return { onOpenCv, onNavigate };
 }
 
-/** La tarjeta de «Para hoy» con ese rótulo (botón). */
 const tarjeta = (label: RegExp) => screen.findByRole("button", { name: label });
 
-describe("Resumen · Para hoy", () => {
-  it("muestra sin revisar, nuevas de hoy y puestos activos", async () => {
+describe("Resumen · tarjetas de candidatos", () => {
+  it("cinco tarjetas separadas, cada una con su % sobre el total", async () => {
     renderResumen();
-    expect(await tarjeta(/sin revisar/i)).toHaveTextContent("7");
-    expect(await tarjeta(/nuevas hoy/i)).toHaveTextContent("3");
-    expect(await tarjeta(/puestos activos/i)).toHaveTextContent("5");
+    expect(await tarjeta(/total de registrados/i)).toHaveTextContent("200");
+    expect(await tarjeta(/perfil al 100%/i)).toHaveTextContent(/30.*15% de 200/);
+    expect(await tarjeta(/con cv subido/i)).toHaveTextContent(/150.*75% de 200/);
+    expect(await tarjeta(/con video subido/i)).toHaveTextContent(/40.*20% de 200/);
+    expect(await tarjeta(/sin nada cargado/i)).toHaveTextContent(/20.*10% de 200/);
   });
 
-  it("«Sin revisar» abre la lista y tocar una persona abre su ficha", async () => {
-    const user = userEvent.setup();
-    const { onOpenCv } = renderResumen();
-    await user.click(await tarjeta(/sin revisar/i));
-    const modal = await screen.findByRole("dialog");
-    await user.click(within(modal).getByRole("button", { name: /ana pendiente/i }));
-    expect(onOpenCv).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
-  });
-
-  it("«Nuevas hoy» abre las de hoy", async () => {
-    const user = userEvent.setup();
-    renderResumen();
-    await user.click(await tarjeta(/nuevas hoy/i));
-    expect(within(await screen.findByRole("dialog")).getByText("Beto Hoy")).toBeInTheDocument();
-  });
-
-  it("«Puestos activos» lleva a la tab de Puestos", async () => {
+  it("registrados, CV y video llevan a Candidatos (filtrado cuando corresponde)", async () => {
     const user = userEvent.setup();
     const { onNavigate } = renderResumen();
-    await user.click(await tarjeta(/puestos activos/i));
-    expect(onNavigate).toHaveBeenCalledWith("jobs");
+    await user.click(await tarjeta(/total de registrados/i));
+    expect(onNavigate).toHaveBeenLastCalledWith("candidates", {});
+    await user.click(await tarjeta(/con cv subido/i));
+    expect(onNavigate).toHaveBeenLastCalledWith("candidates", { onlyCv: true });
+    await user.click(await tarjeta(/con video subido/i));
+    expect(onNavigate).toHaveBeenLastCalledWith("candidates", { onlyVideo: true });
   });
 
-  it("las últimas postulaciones abren la ficha de la persona", async () => {
+  it("100% abre la lista y tocar una persona abre su ficha en Candidatos", async () => {
     const user = userEvent.setup();
-    const { onOpenCv } = renderResumen();
-    await user.click(await screen.findByRole("button", { name: /caro reciente/i }));
-    expect(onOpenCv).toHaveBeenCalledWith(expect.objectContaining({ id: 10 }));
+    const { onNavigate } = renderResumen();
+    await user.click(await tarjeta(/perfil al 100%/i));
+    const modal = await screen.findByRole("dialog");
+    await user.click(within(modal).getByRole("button", { name: /completa test/i }));
+    expect(onNavigate).toHaveBeenCalledWith("candidates", { openUserId: 1 });
+  });
+
+  it("«Sin nada cargado» muestra quiénes son, con email", async () => {
+    const user = userEvent.setup();
+    renderResumen();
+    await user.click(await tarjeta(/sin nada cargado/i));
+    const modal = await screen.findByRole("dialog");
+    expect(within(modal).getByText("Vacia Test")).toBeInTheDocument();
+    expect(within(modal).getByText(/vacia@x\.com/)).toBeInTheDocument();
+  });
+
+  it("sin datos todavía muestra la carga, no ceros", () => {
+    renderResumen(null);
+    expect(screen.queryByRole("button", { name: /perfil al 100%/i })).not.toBeInTheDocument();
   });
 });
 
-describe("Resumen · Cómo viene", () => {
-  it("dice el período en palabras y el total con contexto, sin torta", async () => {
-    renderResumen();
-    // El día 1 del mes el rango es un solo día: «El 1 de …».
-    expect(await screen.findByText(/^(Del|El) 1 /)).toBeInTheDocument();
-    expect(await screen.findByText("834")).toBeInTheDocument();
-    expect(screen.getByText("12% más que el período anterior")).toBeInTheDocument();
-    expect(screen.getByText(/534 a puestos · 300 espontáneas/)).toBeInTheDocument();
-  });
-
-  it("tocar un área lleva a Candidatos filtrado por ese rubro; «Sin área» no es tocable", async () => {
+describe("Resumen · casi completos, áreas y puestos", () => {
+  it("casi completos: %, teléfono y qué les falta; tocar abre la ficha", async () => {
     const user = userEvent.setup();
     const { onNavigate } = renderResumen();
-    await user.click(await screen.findByRole("button", { name: /it \/ tecnología/i }));
+    const fila = await screen.findByRole("button", { name: /casi test/i });
+    expect(fila).toHaveTextContent("91%");
+    expect(fila).toHaveTextContent("341-555");
+    expect(fila).toHaveTextContent("Falta: Foto, Datos personales");
+    await user.click(fila);
+    expect(onNavigate).toHaveBeenCalledWith("candidates", { openUserId: 3 });
+  });
+
+  it("áreas con el detalle de carga; tocar lleva a Candidatos por rubro", async () => {
+    const user = userEvent.setup();
+    const { onNavigate } = renderResumen();
+    const it_ = await screen.findByRole("button", { name: /it \/ tecnología/i });
+    expect(it_).toHaveTextContent("9 con CV · 4 con video · 3 al 100%");
+    await user.click(it_);
     expect(onNavigate).toHaveBeenCalledWith("candidates", { area: "it" });
     expect(screen.queryByRole("button", { name: /sin área/i })).not.toBeInTheDocument();
   });
 
-  it("tocar un puesto abre sus postulantes, y de ahí la ficha", async () => {
+  it("tocar un puesto abre sus postulantes, y de ahí la ficha de la postulación", async () => {
     const user = userEvent.setup();
     const { onOpenCv } = renderResumen();
     await user.click(await screen.findByRole("button", { name: /contador\/a/i }));
     const modal = await screen.findByRole("dialog");
     await user.click(within(modal).getByRole("button", { name: /eva contadora/i }));
     expect(onOpenCv).toHaveBeenCalledWith(expect.objectContaining({ id: 20 }));
+  });
+
+  it("ya no muestra números de postulaciones", async () => {
+    renderResumen();
+    await screen.findByRole("button", { name: /perfil al 100%/i });
+    for (const t of [/últimas postulaciones/i, /sin revisar/i, /nuevas hoy/i, /postulaciones del período/i]) {
+      expect(screen.queryByText(t)).not.toBeInTheDocument();
+    }
+  });
+});
+
+describe("Resumen · buscar candidato", () => {
+  it("busca en /admin/candidates y al elegir abre la ficha", async () => {
+    const user = userEvent.setup();
+    const { onNavigate } = renderResumen();
+    await user.click(await screen.findByRole("button", { name: /abrir búsqueda/i }));
+    await user.type(await screen.findByRole("textbox", { name: /buscar/i }), "ana");
+    const opcion = await screen.findByRole("option", { name: /ana buscada/i }, { timeout: 3000 });
+    expect(authFetchMock.mock.calls.some(([p]) => String(p).startsWith("/admin/candidates?") && String(p).includes("q=ana"))).toBe(true);
+    await user.click(opcion);
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith("candidates", { openUserId: 7 }));
   });
 });

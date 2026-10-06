@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { BTN_YELLOW } from "./ui";
+import { BTN_PRIMARY } from "./ui";
 
 const JOB_TYPES = ["Presencial", "Remoto", "Híbrido"] as const;
 
@@ -135,7 +135,7 @@ export default function JobsManager() {
             <RefreshCw className="size-4" /> Actualizar
           </Button>
           <Button
-            variant="brand" className={BTN_YELLOW}
+            variant="brand" className={BTN_PRIMARY}
             onClick={() => {
               setEditing(null);
               setCreating(true);
@@ -194,7 +194,7 @@ export default function JobsManager() {
                 <span className="rounded-full border border-neutral-800 bg-neutral-900 px-2 py-0.5 text-neutral-400">
                   {j.type}
                 </span>
-                <span className="rounded-full bg-yellow-400/10 px-2 py-0.5 text-yellow-300">
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-white">
                   {CATEGORIES.find((c) => c.value === j.category)?.label ?? j.category}
                 </span>
               </div>
@@ -385,7 +385,7 @@ export function JobFormModal({
                 <button
                   type="button"
                   onClick={clearForm}
-                  className="text-yellow-400 underline-offset-2 hover:underline"
+                  className="text-white underline-offset-2 hover:underline"
                 >
                   Empezar en blanco
                 </button>
@@ -423,7 +423,7 @@ export function JobFormModal({
               size="sm"
               onClick={autofillFromPaste}
               disabled={!pasteText.trim()}
-              className="border-yellow-400/30 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
             >
               <ClipboardPaste className="size-4" /> Autocompletar
             </Button>
@@ -594,7 +594,7 @@ export function JobFormModal({
             type="checkbox"
             checked={f.isPublished}
             onChange={(e) => set("isPublished", e.target.checked)}
-            className="size-4 accent-yellow-400"
+            className="size-4 accent-white"
           />
           Publicar (visible en la página de ofertas). Si lo destildás, queda como borrador.
         </label>
@@ -603,7 +603,7 @@ export function JobFormModal({
           <Button type="button" variant="subtle" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button type="submit" variant="brand" className={BTN_YELLOW} disabled={saving}>
+          <Button type="submit" variant="brand" className={BTN_PRIMARY} disabled={saving}>
             {saving ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Guardando…

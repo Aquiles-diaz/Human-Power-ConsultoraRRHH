@@ -68,7 +68,7 @@ export default function ApplicationsView({
                 onClick={() => toggleJob(group.id)}
                 className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-800/50"
               >
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-yellow-400/10 text-yellow-300">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10 text-white">
                   <Briefcase className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -78,7 +78,7 @@ export default function ApplicationsView({
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                     group.applicants.length
-                      ? "bg-yellow-400/15 text-yellow-200"
+                      ? "bg-white/15 text-white"
                       : "bg-neutral-800 text-white/60"
                   }`}
                 >

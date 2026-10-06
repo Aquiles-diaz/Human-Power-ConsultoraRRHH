@@ -1,9 +1,12 @@
 import { CalendarRange } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { BTN_PRIMARY } from "./ui";
 import { rangeLabel, resolveRange, type Range, type RangeKey } from "./admin-stats";
 
-// «Hoy» y «Semana» salieron de acá: lo del día lo cubre el bloque «Para hoy», y
-// el rango personalizado con dos fechas sueltas confundía más de lo que ayudaba.
+// Sólo filtra «Puestos con más postulaciones» del Resumen. «Hoy» y «Semana»
+// salieron, y el rango personalizado con dos fechas sueltas confundía más de lo
+// que ayudaba.
 const PRESETS: { key: RangeKey; label: string }[] = [
   { key: "month", label: "Este mes" },
   { key: "lastMonth", label: "Mes pasado" },
@@ -29,7 +32,7 @@ export function RangeFilter({
           type="button"
           size="sm"
           variant={value.key === p.key ? "brand" : "subtle"}
-          className="rounded-full"
+          className={cn("rounded-full", value.key === p.key && BTN_PRIMARY)}
           aria-pressed={value.key === p.key}
           onClick={() => onChange(resolveRange(p.key, now))}
         >

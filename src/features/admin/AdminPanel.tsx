@@ -8,7 +8,8 @@ import {
   Mail,
   Trash2,
   FileText,
-  CalendarClock,
+  CircleCheck,
+  UserX,
   Inbox,
   LogOut,
   X,
@@ -22,7 +23,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ADMIN_SHELL, BTN_YELLOW } from "./ui";
+import { ADMIN_SHELL, BTN_PRIMARY } from "./ui";
 import { authFetch, parseApiError, photoSrc } from "@/lib/api";
 import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
@@ -30,7 +31,8 @@ import CandidatesView from "./CandidatesView";
 import VideoPreview from "./VideoPreview";
 import { getVideoEmbed } from "@/lib/video-embeds";
 import JobsManager from "./JobsManager";
-import ResumenDashboard from "./ResumenDashboard";
+import ResumenDashboard, { type CandidatesInit } from "./ResumenDashboard";
+import { useCandidateStats } from "./use-candidate-stats";
 import { PipelineSelect } from "./PipelineSelect";
 import { formatDate, formatShortDate } from "./format";
 import { composeEmailProps } from "./gmail";
@@ -38,11 +40,9 @@ import { type ResumeRow, initials } from "./resume-row";
 import { formatOwnTransport } from "@/features/profile/types";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import { buildCvQuery } from "./cv-query";
-import { panelKpis, startOfTodayIso, type PanelKpis } from "./panel-kpis";
 import ApplicationsView from "./ApplicationsView";
-import BaseGeneralView from "./BaseGeneralView";
 
-type AdminTab = "resumen" | "candidates" | "applications" | "all" | "jobs";
+type AdminTab = "resumen" | "candidates" | "applications" | "jobs";
 
 // --- utils ---
 
@@ -69,15 +69,14 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [tab, setTab] = useState<AdminTab>("resumen");
-  // Rubro con el que se entra a Candidatos desde el Resumen («Candidatos por
-  // área»). Entrar por la tab a mano lo limpia: esa es la vista de todos.
-  const [candidatesArea, setCandidatesArea] = useState<string | null>(null);
+  // Con qué se entra a Candidatos desde el Resumen (un rubro, sólo con CV o
+  // video, o directo a la ficha de alguien). Entrar por la tab a mano lo limpia.
+  const [candidatesInit, setCandidatesInit] = useState<CandidatesInit>({});
+  // Números de candidatos (Resumen + tarjetas de arriba): un solo pedido.
+  const candidateStats = useCandidateStats();
   // Conteo REAL en la base (no el largo de la página) y si quedaron filas afuera.
   const [total, setTotal] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  // Conteos agregados por el backend (no derivables de la página; ver panel-kpis).
-  const [pending, setPending] = useState<number | null>(null);
-  const [linked, setLinked] = useState<number | null>(null);
   // "recent" = las últimas N (lo de siempre); "all" = resultado de una búsqueda
   // server-side sobre todo el histórico.
   const [scope, setScope] = useState<"recent" | "all">("recent");
@@ -110,8 +109,6 @@ export default function AdminPanel() {
       setCvs(data.items || []);
       setTotal(data.total ?? null);
       setHasMore(!!data.has_more);
-      setPending(data.pending ?? null);
-      setLinked(data.linked ?? null);
       setScope(isServerSearch ? "all" : "recent");
       // Se cachea SOLO la vista sin filtros: guardar un resultado filtrado haría
       // que la próxima entrada al panel pintara ese subset como si fuera el total.
@@ -190,48 +187,6 @@ export default function AdminPanel() {
     });
   }, [q, cvs, dateFrom, dateTo]);
 
-  // KPIs de las StatCard. `total`/`pending`/`linked` los agrega el backend sobre
-  // TODA la población filtrada: calcularlos sobre `cvs` mostraba el largo de la
-  // página (500) como si fuera el total real (601). Ver panel-kpis.ts.
-  const kpis = useMemo(
-    () => panelKpis({ rows: cvs, total, pending, linked, now: new Date() }),
-    [cvs, total, pending, linked],
-  );
-
-  // Candidatos y Puestos no piden las filas de /admin/cv (ver arriba), así que
-  // sus StatCard quedaban en cero. Para los totales alcanzan dos pedidos de UNA
-  // fila: con limit=1 el backend agrega total/pending/linked con un COUNT sobre
-  // toda la base, y el segundo (desde la medianoche) da las de hoy.
-  const [globalKpis, setGlobalKpis] = useState<PanelKpis | null>(null);
-  const globalKpisRequestedRef = useRef(false);
-  async function loadGlobalKpis() {
-    globalKpisRequestedRef.current = true;
-    try {
-      const desdeHoy = encodeURIComponent(startOfTodayIso(new Date()));
-      const [todo, hoy] = await Promise.all([
-        authFetch("/admin/cv?limit=1", getAuthHeader()),
-        authFetch(`/admin/cv?limit=1&date_from=${desdeHoy}`, getAuthHeader()),
-      ]);
-      if (!todo.ok || !hoy.ok) throw new Error(await parseApiError(todo.ok ? hoy : todo));
-      const [t, h] = await Promise.all([todo.json(), hoy.json()]);
-      setGlobalKpis({ total: t.total ?? 0, pending: t.pending ?? 0, linked: t.linked ?? 0, today: h.total ?? 0 });
-    } catch {
-      globalKpisRequestedRef.current = false; // se reintenta al volver a la tab
-    }
-  }
-  useEffect(() => {
-    if (tab !== "candidates" && tab !== "jobs") return;
-    if (globalKpisRequestedRef.current) return;
-    loadGlobalKpis();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
-
-  const usesGlobalKpis = (tab === "candidates" || tab === "jobs") && globalKpis !== null;
-  const shownKpis = usesGlobalKpis ? globalKpis : kpis;
-  // El badge de "Base de datos general" se ve desde cualquier tab: mientras no
-  // se pidieron las filas, el conteo global es el dato bueno.
-  const newCount = pending === null && globalKpis ? globalKpis.pending : kpis.pending;
-
   const hasFilters = !!(dateFrom || dateTo || q.trim());
 
   async function deleteCv(id: number) {
@@ -289,7 +244,7 @@ export default function AdminPanel() {
         <div className={`${ADMIN_SHELL} flex items-center justify-between gap-3 py-3`}>
           <div className="flex items-center gap-3">
             <span
-              className="grid size-10 place-items-center rounded-xl bg-yellow-400 text-black"
+              className="grid size-10 place-items-center rounded-xl bg-white text-black"
               aria-hidden
             >
               <Inbox className="size-5" />
@@ -302,7 +257,7 @@ export default function AdminPanel() {
 
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900 py-1 pl-1 pr-3 sm:flex">
-              <span className="grid size-7 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
+              <span className="grid size-7 place-items-center rounded-full bg-white/15 text-xs font-bold text-white">
                 {initials(user?.name || user?.email)}
               </span>
               <span className="max-w-[180px] truncate text-xs text-white/60">
@@ -327,35 +282,16 @@ export default function AdminPanel() {
       </header>
 
       <div className={`${ADMIN_SHELL} relative py-6`}>
-        {/* Stat cards (el Resumen trae sus propios KPIs, no duplicamos) */}
+        {/* Números de candidatos (el Resumen los muestra a su manera). Ya no son
+            de postulaciones: al dueño le importa la carga de los perfiles. */}
         {tab !== "resumen" && (
-        <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatCard
-            icon={<FileText className="size-5" />}
-            // Con una búsqueda server-side activa los conteos son DE ESA
-            // búsqueda. Mantener el rótulo "Total recibidos" hacía que el
-            // número pareciera el de la base entera.
-            label={scope === "all" && !usesGlobalKpis ? "Resultados" : "Total recibidos"}
-            value={shownKpis.total}
-          />
-          <StatCard
-            icon={<Briefcase className="size-5" />}
-            label="Postulaciones"
-            value={shownKpis.linked}
-          />
-          <StatCard
-            icon={<CalendarClock className="size-5" />}
-            label="Hoy"
-            value={shownKpis.today}
-            accent
-          />
-          <StatCard
-            icon={<Inbox className="size-5" />}
-            label="Sin revisar"
-            value={shownKpis.pending}
-            hero
-          />
-        </div>
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <StatCard icon={<Users className="size-5" />} label="Registrados" value={candidateStats.stats?.total ?? null} />
+            <StatCard icon={<CircleCheck className="size-5" />} label="Perfil al 100%" value={candidateStats.stats?.complete ?? null} hero />
+            <StatCard icon={<FileText className="size-5" />} label="Con CV" value={candidateStats.stats?.with_cv ?? null} />
+            <StatCard icon={<Video className="size-5" />} label="Con video" value={candidateStats.stats?.with_video ?? null} />
+            <StatCard icon={<UserX className="size-5" />} label="Sin nada cargado" value={candidateStats.stats?.empty ?? null} />
+          </div>
         )}
 
         {/* Selector de vista */}
@@ -369,7 +305,7 @@ export default function AdminPanel() {
           <TabButton
             active={tab === "candidates"}
             onClick={() => {
-              setCandidatesArea(null);
+              setCandidatesInit({});
               setTab("candidates");
             }}
             icon={<Users className="size-4" />}
@@ -387,19 +323,15 @@ export default function AdminPanel() {
             icon={<Briefcase className="size-4" />}
             label="Postulaciones por puesto"
           />
-          <TabButton
-            active={tab === "all"}
-            onClick={() => setTab("all")}
-            icon={<Inbox className="size-4" />}
-            label="Base de datos general"
-            badge={newCount}
-          />
         </div>
 
         {tab === "resumen" && (
           <ResumenDashboard
+            stats={candidateStats.stats}
+            statsError={candidateStats.error}
+            onRetryStats={candidateStats.reload}
             onNavigate={(t, opts) => {
-              setCandidatesArea(opts?.area ?? null);
+              setCandidatesInit(opts ?? {});
               setTab(t);
             }}
             onOpenCv={setActive}
@@ -407,14 +339,20 @@ export default function AdminPanel() {
         )}
 
         {tab === "candidates" && (
-          // key: cambiar de rubro desde el Resumen remonta la vista con su filtro.
-          <CandidatesView key={candidatesArea ?? "todos"} initialRubro={candidatesArea} />
+          // key: entrar con otro filtro desde el Resumen remonta la vista.
+          <CandidatesView
+            key={JSON.stringify(candidatesInit)}
+            initialRubro={candidatesInit.area ?? null}
+            initialOnlyCv={candidatesInit.onlyCv}
+            initialOnlyVideo={candidatesInit.onlyVideo}
+            openUserId={candidatesInit.openUserId}
+          />
         )}
 
         {tab === "jobs" && <JobsManager />}
 
-        {/* Controles (no aplican a Candidatos ni a Puestos, que tienen su propia UI) */}
-        {tab !== "candidates" && tab !== "jobs" && (
+        {/* Controles de la lista de postulaciones (las otras tabs tienen su propia UI) */}
+        {tab === "applications" && (
         <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-neutral-800 bg-neutral-900 p-3 sm:flex-row sm:items-center">
           {/* Búsqueda */}
           <label className="relative flex-1" aria-label="Buscar">
@@ -459,7 +397,7 @@ export default function AdminPanel() {
               </Button>
             )}
             <Button
-              variant="brand" className={BTN_YELLOW}
+              variant="brand" className={BTN_PRIMARY}
               onClick={refresh}
               title="Actualizar"
               disabled={loading}
@@ -476,16 +414,15 @@ export default function AdminPanel() {
             la búsqueda completa (SQL). Sólo aparece cuando de verdad hace falta:
             si `has_more` es false, el navegador ya tiene TODAS las postulaciones
             y el filtro local no se puede estar perdiendo nada. */}
-        {tab !== "candidates" && tab !== "jobs" && scope === "recent" && hasFilters && hasMore && (
-          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-amber-100/90">
+        {tab === "applications" && scope === "recent" && hasFilters && hasMore && (
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-white/80">
               Estás filtrando sobre las <strong>{cvs.length}</strong> más recientes
               {total !== null && <> de <strong>{total}</strong> en total</>}. Puede haber
               coincidencias más viejas.
             </p>
             <Button
-              variant="brand"
-              className={`${BTN_YELLOW} shrink-0`}
+              variant="brand" className={`${BTN_PRIMARY} shrink-0`}
               onClick={searchAll}
               disabled={loading}
               aria-busy={loading}
@@ -496,7 +433,7 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {tab !== "candidates" && tab !== "jobs" && scope === "all" && (
+        {tab === "applications" && scope === "all" && (
           <div className="mb-4 flex flex-col gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
             <p className="text-white/80">
               Resultados de <strong>todo el histórico</strong>: {filtered.length}
@@ -511,14 +448,14 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {error && tab !== "candidates" && tab !== "jobs" && (
+        {error && tab === "applications" && (
           <div className="mb-4 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         )}
 
         {/* Skeleton de carga inicial */}
-        {loading && cvs.length === 0 && (
+        {tab === "applications" && loading && cvs.length === 0 && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-40 rounded-2xl bg-neutral-800" />
@@ -537,17 +474,6 @@ export default function AdminPanel() {
           />
         )}
 
-        {tab === "all" && (
-          <BaseGeneralView
-            rows={filtered}
-            loading={loading}
-            deletingId={deleting}
-            onView={setActive}
-            onDownload={(cv) => downloadCv(cv.id, cv.original_name)}
-            onDelete={deleteCv}
-            onStatusChange={updateStatus}
-          />
-        )}
       </div>
 
       {/* Drawer/Modal de detalle */}
@@ -574,26 +500,26 @@ function StatCard({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: number;
+  value: number | null; // null = todavía cargando
   hero?: boolean;   // bloque amarillo pleno (el dato accionable)
   accent?: boolean; // número en amarillo sobre superficie oscura
 }) {
   return (
     <div
       className={`rounded-2xl p-5 ${
-        hero ? "bg-yellow-400 text-black" : "border border-neutral-800 bg-neutral-900 text-white"
+        hero ? "bg-white text-black" : "border border-neutral-800 bg-neutral-900 text-white"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
         <p className={`t-label ${hero ? "text-black/60" : "text-neutral-400"}`}>{label}</p>
-        <span className={hero ? "text-black/70" : "text-yellow-300"}>{icon}</span>
+        <span className={hero ? "text-black/70" : "text-white"}>{icon}</span>
       </div>
       <p
         className={`mt-2 text-3xl font-black tabular-nums sm:text-5xl ${
-          accent && !hero ? "text-yellow-300" : ""
+          accent && !hero ? "text-white" : ""
         }`}
       >
-        {value}
+        {value ?? "—"}
       </p>
     </div>
   );
@@ -618,7 +544,7 @@ export function TabButton({
       aria-current={active ? "page" : undefined}
       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-yellow-400 font-bold text-black"
+          ? "bg-white font-bold text-black"
           : "text-neutral-400 hover:bg-neutral-900 hover:text-white"
       }`}
     >
@@ -626,7 +552,7 @@ export function TabButton({
       <span className="hidden sm:inline">{label}</span>
       {typeof badge === "number" && badge > 0 && (
         <span
-          className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] font-bold text-yellow-400"
+          className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] font-bold text-white"
           aria-label={`${badge} sin revisar`}
         >
           {badge}
@@ -653,7 +579,7 @@ export function ApplicantRow({
 }) {
   return (
     <li className="flex items-center gap-3 px-2 py-2.5">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/15 text-xs font-bold text-white">
         {initials(cv.full_name)}
       </span>
       <div className="min-w-0 flex-1">
@@ -667,7 +593,7 @@ export function ApplicantRow({
         </div>
         <a
           {...composeEmailProps(cv.email)}
-          className="inline-flex items-center gap-1 truncate text-xs text-yellow-300 hover:text-yellow-200"
+          className="inline-flex items-center gap-1 truncate text-xs text-white hover:text-white/70"
         >
           <Mail className="size-3" />
           {cv.email}
@@ -683,7 +609,7 @@ export function ApplicantRow({
       />
       <div className="flex items-center gap-1.5">
         <Button
-          variant="brand" className={BTN_YELLOW}
+          variant="brand" className={BTN_PRIMARY}
           size="icon"
           onClick={onDownload}
           title="Descargar CV"
@@ -763,7 +689,7 @@ export function ApplicantDetail({
                 className="size-11 shrink-0 rounded-full object-cover"
               />
             ) : (
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-base font-bold text-yellow-300">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white/15 text-base font-bold text-white">
                 {initials(displayName)}
               </span>
             )}
@@ -774,7 +700,7 @@ export function ApplicantDetail({
                 {cv.headline && (
                   <>
                     {" · "}
-                    <span className="normal-case text-yellow-300">{cv.headline}</span>
+                    <span className="normal-case text-white">{cv.headline}</span>
                   </>
                 )}
               </p>
@@ -795,7 +721,7 @@ export function ApplicantDetail({
             <Field label="Puesto" wrap="words">{cv.job_title || "Espontánea"}</Field>
             <Field label="Email">
               <a
-                className="text-yellow-300 hover:text-yellow-200"
+                className="text-white hover:text-white/70"
                 {...composeEmailProps(cv.email)}
               >
                 {cv.email}
@@ -805,7 +731,7 @@ export function ApplicantDetail({
               <Field label="Teléfono">
                 {/* tel: no admite espacios ni paréntesis (RFC 3966); el texto queda crudo */}
                 <a
-                  className="text-yellow-300 hover:text-yellow-200"
+                  className="text-white hover:text-white/70"
                   href={`tel:${cv.phone.replace(/[^+\d]/g, "")}`}
                 >
                   {cv.phone}
@@ -867,7 +793,7 @@ export function ApplicantDetail({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button variant="brand" onClick={onDownload}>
+          <Button variant="brand" className={BTN_PRIMARY} onClick={onDownload}>
             <Download className="size-4" />
             Descargar CV
           </Button>

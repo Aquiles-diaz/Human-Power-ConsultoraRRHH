@@ -33,4 +33,9 @@ describe("RankedList (Top puestos / Candidatos por área)", () => {
     render(<RankedList items={[]} empty="Sin postulaciones en este período." />);
     expect(screen.getByText("Sin postulaciones en este período.")).toBeInTheDocument();
   });
+
+  it("muestra la línea de detalle debajo del nombre", () => {
+    render(<RankedList items={[{ id: "it", label: "IT", count: 12, detail: "9 con CV · 4 con video" }]} />);
+    expect(screen.getByText("9 con CV · 4 con video")).toBeInTheDocument();
+  });
 });

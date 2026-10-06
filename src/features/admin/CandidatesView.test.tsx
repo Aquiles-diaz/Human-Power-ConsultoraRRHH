@@ -449,3 +449,25 @@ describe("CandidatesView · entrar ya filtrado por rubro (desde el Resumen)", ()
     expect(screen.getByRole("button", { name: /it \/ tecnología/i })).toHaveAttribute("aria-pressed", "true");
   });
 });
+
+describe("CandidatesView · otras entradas desde el Resumen", () => {
+  const listados = () =>
+    authFetchMock.mock.calls.map(([p]) => p as string).filter((p) => p.startsWith("/admin/candidates?"));
+
+  it("«Con CV subido» entra con el filtro de sólo CV", async () => {
+    render(<CandidatesView initialOnlyCv />);
+    await waitFor(() => expect(listados().length).toBeGreaterThan(0));
+    expect(listados().every((p) => new URLSearchParams(p.split("?")[1]).get("only_with_cv") === "true")).toBe(true);
+  });
+
+  it("«Con video subido» entra con el filtro de sólo video", async () => {
+    render(<CandidatesView initialOnlyVideo />);
+    await waitFor(() => expect(listados().length).toBeGreaterThan(0));
+    expect(listados().every((p) => new URLSearchParams(p.split("?")[1]).get("only_with_video") === "true")).toBe(true);
+  });
+
+  it("con openUserId abre directo la ficha de esa persona", async () => {
+    render(<CandidatesView openUserId={42} />);
+    await waitFor(() => expect(authFetchMock.mock.calls.some(([p]) => p === "/admin/candidates/42")).toBe(true));
+  });
+});

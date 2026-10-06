@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { nf } from "./dashboard-theme";
 
-export type RankedItem = { id: string; label: string; count: number };
+export type RankedItem = { id: string; label: string; count: number; detail?: string };
 
 // Lista ordenada con el número escrito y una barra de fondo proporcional. Reemplaza
 // a los gráficos de dona/barras del Resumen: el dueño tenía que pasar el mouse
@@ -10,7 +10,7 @@ export function RankedList({
   items,
   onSelect,
   isSelectable = () => true,
-  color = "#facc15",
+  color = "#ffffff",
   empty = "Todavía no hay datos.",
 }: {
   items: RankedItem[];
@@ -33,7 +33,10 @@ export function RankedList({
               className="absolute inset-y-0 left-0 rounded-lg opacity-15"
               style={{ width: `${(item.count / max) * 100}%`, background: color }}
             />
-            <span className="relative min-w-0 flex-1 truncate">{item.label}</span>
+            <span className="relative min-w-0 flex-1">
+              <span className="block truncate">{item.label}</span>
+              {item.detail && <span className="block truncate text-xs text-white/50">{item.detail}</span>}
+            </span>
             <span className="relative shrink-0 font-semibold tabular-nums">{nf.format(item.count)}</span>
             {clickable && <ChevronRight aria-hidden className="relative size-4 shrink-0 text-white/40" />}
           </>
