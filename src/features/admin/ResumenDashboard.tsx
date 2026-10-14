@@ -23,7 +23,7 @@ export type CandidatesInit = { area?: string; onlyCv?: boolean; onlyVideo?: bool
 // Sergio, 05/10/2026): cinco números separados —registrados, 100%, con CV, con
 // video y sin nada cargado—, quiénes están casi completos y el detalle por área.
 // Lo único de postulaciones que queda es «Puestos con más postulaciones».
-// Grilla bento (tarjeta basada en VengeanceUI) y monocromático.
+// Grilla bento (tarjeta basada en VengeanceUI) con la paleta flat amarillo/negro del panel.
 
 function jobLabel(r: CvRow) {
   if (r.job_title) return r.job_title;
@@ -50,7 +50,7 @@ export function CvList<T extends CvRow>({
             <div className="min-w-0">
               <p className="truncate font-medium capitalize text-white">{r.full_name || "—"}</p>
               <p className="truncate text-xs text-white/60">{r.email}</p>
-              {showJob && <p className="truncate text-xs font-medium text-white/80">{jobLabel(r)}</p>}
+              {showJob && <p className="truncate text-xs font-medium text-yellow-300/90">{jobLabel(r)}</p>}
             </div>
             <span className="shrink-0 text-xs text-white/60">{r.created_at ? formatShortDate(r.created_at) : "—"}</span>
           </>
@@ -108,7 +108,7 @@ function PeopleList({
                 {showRegistered ? (
                   <>Se registró {p.created_at ? formatShortDate(p.created_at) : "—"}</>
                 ) : (
-                  <span className="text-sm font-semibold tabular-nums text-white">{p.percent}%</span>
+                  <span className="text-sm font-semibold tabular-nums text-yellow-300">{p.percent}%</span>
                 )}
               </span>
             </button>
@@ -122,7 +122,7 @@ function PeopleList({
 function StatValue({ value, share }: { value: number; share?: string }) {
   return (
     <div>
-      <p className="t-stat text-white">{nf.format(value)}</p>
+      <p className="t-stat text-yellow-300">{nf.format(value)}</p>
       {share && <p className="mt-1 text-xs text-white/50">{share}</p>}
     </div>
   );
@@ -191,9 +191,10 @@ export default function ResumenDashboard({
               title="Total de registrados"
               description="Todas las personas con cuenta en HumanPower."
               className="sm:col-span-2 lg:col-span-1 lg:row-span-2"
+              hero
               onClick={() => onNavigate?.("candidates", {})}
             >
-              <p className="text-6xl font-black tabular-nums text-white lg:text-7xl">{nf.format(stats.total)}</p>
+              <p className="text-6xl font-black tabular-nums text-black lg:text-7xl">{nf.format(stats.total)}</p>
             </BentoCard>
             <BentoCard
               index={1}

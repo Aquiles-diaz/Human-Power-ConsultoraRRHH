@@ -1,7 +1,7 @@
 import { CalendarRange } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BTN_PRIMARY } from "./ui";
+import { BTN_YELLOW } from "./ui";
 import { rangeLabel, resolveRange, type Range, type RangeKey } from "./admin-stats";
 
 // Sólo filtra «Puestos con más postulaciones» del Resumen. «Hoy» y «Semana»
@@ -32,7 +32,7 @@ export function RangeFilter({
           type="button"
           size="sm"
           variant={value.key === p.key ? "brand" : "subtle"}
-          className={cn("rounded-full", value.key === p.key && BTN_PRIMARY)}
+          className={cn("rounded-full", value.key === p.key && BTN_YELLOW)}
           aria-pressed={value.key === p.key}
           onClick={() => onChange(resolveRange(p.key, now))}
         >

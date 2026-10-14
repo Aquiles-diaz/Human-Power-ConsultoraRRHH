@@ -15,8 +15,8 @@ const hitLabel = (h: Hit) => {
 
 // GooeySearch pinta con var(--foreground)/var(--background) como colores
 // completos; acá son componentes HSL sueltos (index.css). Se redefinen sólo
-// dentro del buscador: burbujas blancas con texto negro, como el resto del panel.
-const MONO_VARS = { "--foreground": "#ffffff", "--background": "#0a0a0a" } as React.CSSProperties;
+// dentro del buscador: burbujas amarillas (yellow-400) con texto negro, como los botones del panel.
+const BRAND_VARS = { "--foreground": "#facc15", "--background": "#0a0a0a" } as React.CSSProperties;
 
 export function CandidateSearch({ onPick }: { onPick: (userId: number) => void }) {
   const { getAuthHeader } = useAuth();
@@ -39,7 +39,7 @@ export function CandidateSearch({ onPick }: { onPick: (userId: number) => void }
   }, [getAuthHeader]);
 
   return (
-    <div style={MONO_VARS}>
+    <div style={BRAND_VARS}>
       <GooeySearch
         onSearch={search}
         placeholder="Nombre o email…"

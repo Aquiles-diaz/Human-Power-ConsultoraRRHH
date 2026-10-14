@@ -23,7 +23,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ADMIN_SHELL, BTN_PRIMARY } from "./ui";
+import { ADMIN_SHELL, BTN_YELLOW } from "./ui";
 import { authFetch, parseApiError, photoSrc } from "@/lib/api";
 import { safeDownloadName } from "@/lib/filename";
 import { getErrorMessage } from "@/lib/utils";
@@ -244,7 +244,7 @@ export default function AdminPanel() {
         <div className={`${ADMIN_SHELL} flex items-center justify-between gap-3 py-3`}>
           <div className="flex items-center gap-3">
             <span
-              className="grid size-10 place-items-center rounded-xl bg-white text-black"
+              className="grid size-10 place-items-center rounded-xl bg-yellow-400 text-black"
               aria-hidden
             >
               <Inbox className="size-5" />
@@ -257,7 +257,7 @@ export default function AdminPanel() {
 
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900 py-1 pl-1 pr-3 sm:flex">
-              <span className="grid size-7 place-items-center rounded-full bg-white/15 text-xs font-bold text-white">
+              <span className="grid size-7 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
                 {initials(user?.name || user?.email)}
               </span>
               <span className="max-w-[180px] truncate text-xs text-white/60">
@@ -397,7 +397,7 @@ export default function AdminPanel() {
               </Button>
             )}
             <Button
-              variant="brand" className={BTN_PRIMARY}
+              variant="brand" className={BTN_YELLOW}
               onClick={refresh}
               title="Actualizar"
               disabled={loading}
@@ -415,14 +415,14 @@ export default function AdminPanel() {
             si `has_more` es false, el navegador ya tiene TODAS las postulaciones
             y el filtro local no se puede estar perdiendo nada. */}
         {tab === "applications" && scope === "recent" && hasFilters && hasMore && (
-          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-white/80">
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-amber-100/90">
               Estás filtrando sobre las <strong>{cvs.length}</strong> más recientes
               {total !== null && <> de <strong>{total}</strong> en total</>}. Puede haber
               coincidencias más viejas.
             </p>
             <Button
-              variant="brand" className={`${BTN_PRIMARY} shrink-0`}
+              variant="brand" className={`${BTN_YELLOW} shrink-0`}
               onClick={searchAll}
               disabled={loading}
               aria-busy={loading}
@@ -507,16 +507,16 @@ function StatCard({
   return (
     <div
       className={`rounded-2xl p-5 ${
-        hero ? "bg-white text-black" : "border border-neutral-800 bg-neutral-900 text-white"
+        hero ? "bg-yellow-400 text-black" : "border border-neutral-800 bg-neutral-900 text-white"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
         <p className={`t-label ${hero ? "text-black/60" : "text-neutral-400"}`}>{label}</p>
-        <span className={hero ? "text-black/70" : "text-white"}>{icon}</span>
+        <span className={hero ? "text-black/70" : "text-yellow-300"}>{icon}</span>
       </div>
       <p
         className={`mt-2 text-3xl font-black tabular-nums sm:text-5xl ${
-          accent && !hero ? "text-white" : ""
+          accent && !hero ? "text-yellow-300" : ""
         }`}
       >
         {value ?? "—"}
@@ -544,7 +544,7 @@ export function TabButton({
       aria-current={active ? "page" : undefined}
       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-white font-bold text-black"
+          ? "bg-yellow-400 font-bold text-black"
           : "text-neutral-400 hover:bg-neutral-900 hover:text-white"
       }`}
     >
@@ -552,7 +552,7 @@ export function TabButton({
       <span className="hidden sm:inline">{label}</span>
       {typeof badge === "number" && badge > 0 && (
         <span
-          className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] font-bold text-white"
+          className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] font-bold text-yellow-400"
           aria-label={`${badge} sin revisar`}
         >
           {badge}
@@ -579,7 +579,7 @@ export function ApplicantRow({
 }) {
   return (
     <li className="flex items-center gap-3 px-2 py-2.5">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/15 text-xs font-bold text-white">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-xs font-bold text-yellow-300">
         {initials(cv.full_name)}
       </span>
       <div className="min-w-0 flex-1">
@@ -593,7 +593,7 @@ export function ApplicantRow({
         </div>
         <a
           {...composeEmailProps(cv.email)}
-          className="inline-flex items-center gap-1 truncate text-xs text-white hover:text-white/70"
+          className="inline-flex items-center gap-1 truncate text-xs text-yellow-300 hover:text-yellow-200"
         >
           <Mail className="size-3" />
           {cv.email}
@@ -609,7 +609,7 @@ export function ApplicantRow({
       />
       <div className="flex items-center gap-1.5">
         <Button
-          variant="brand" className={BTN_PRIMARY}
+          variant="brand" className={BTN_YELLOW}
           size="icon"
           onClick={onDownload}
           title="Descargar CV"
@@ -689,7 +689,7 @@ export function ApplicantDetail({
                 className="size-11 shrink-0 rounded-full object-cover"
               />
             ) : (
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white/15 text-base font-bold text-white">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-base font-bold text-yellow-300">
                 {initials(displayName)}
               </span>
             )}
@@ -700,7 +700,7 @@ export function ApplicantDetail({
                 {cv.headline && (
                   <>
                     {" · "}
-                    <span className="normal-case text-white">{cv.headline}</span>
+                    <span className="normal-case text-yellow-300">{cv.headline}</span>
                   </>
                 )}
               </p>
@@ -721,7 +721,7 @@ export function ApplicantDetail({
             <Field label="Puesto" wrap="words">{cv.job_title || "Espontánea"}</Field>
             <Field label="Email">
               <a
-                className="text-white hover:text-white/70"
+                className="text-yellow-300 hover:text-yellow-200"
                 {...composeEmailProps(cv.email)}
               >
                 {cv.email}
@@ -731,7 +731,7 @@ export function ApplicantDetail({
               <Field label="Teléfono">
                 {/* tel: no admite espacios ni paréntesis (RFC 3966); el texto queda crudo */}
                 <a
-                  className="text-white hover:text-white/70"
+                  className="text-yellow-300 hover:text-yellow-200"
                   href={`tel:${cv.phone.replace(/[^+\d]/g, "")}`}
                 >
                   {cv.phone}
@@ -793,7 +793,7 @@ export function ApplicantDetail({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button variant="brand" className={BTN_PRIMARY} onClick={onDownload}>
+          <Button variant="brand" className={BTN_YELLOW} onClick={onDownload}>
             <Download className="size-4" />
             Descargar CV
           </Button>
