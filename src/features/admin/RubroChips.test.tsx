@@ -4,7 +4,7 @@ import { RubroChips } from "./RubroChips";
 import { CATEGORIES } from "@/features/jobs/categories";
 
 describe("RubroChips", () => {
-  it("renderiza Todos + los 23 rubros", () => {
+  it("renderiza Todos + los 24 rubros", () => {
     render(<RubroChips value={null} onChange={() => {}} />);
     // una sola consulta al DOM: getByRole con name es carísimo en jsdom (timeout)
     const names = screen.getAllByRole("button").map((b) => b.textContent);

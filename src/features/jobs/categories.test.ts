@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest";
 import { CATEGORIES, HOT_CATEGORIES, isValidCategory, categoryLabel } from "./categories";
 
 describe("categories", () => {
-  it("tiene 23 rubros con values únicos", () => {
-    expect(CATEGORIES).toHaveLength(23);
+  it("tiene 24 rubros con values únicos", () => {
+    expect(CATEGORIES).toHaveLength(24);
     const values = CATEGORIES.map((c) => c.value);
-    expect(new Set(values).size).toBe(23);
+    expect(new Set(values).size).toBe(24);
   });
   it("incluye los rubros agregados en 2026-07", () => {
     for (const v of [
