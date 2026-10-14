@@ -15,6 +15,12 @@ const contactLink =
 export default function Contacto() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Datos comerciales, opcionales: el form también lo usa gente que no es
+  // empresa. Son lo que convierte la consulta en un contacto que se puede
+  // trabajar desde el panel (pestaña «Consultas»).
+  const [company, setCompany] = useState("");
+  const [phone, setPhone] = useState("");
+  const [position, setPosition] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -32,6 +38,10 @@ export default function Contacto() {
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim(),
+          // undefined no viaja en el JSON: el backend los toma como null.
+          company: company.trim() || undefined,
+          phone: phone.trim() || undefined,
+          position: position.trim() || undefined,
           message: message.trim(),
         }),
       });
@@ -41,6 +51,9 @@ export default function Contacto() {
       });
       setName("");
       setEmail("");
+      setCompany("");
+      setPhone("");
+      setPosition("");
       setMessage("");
     } catch (err) {
       toast.error("No se pudo enviar la consulta", {
@@ -118,6 +131,32 @@ export default function Contacto() {
                   autoComplete="email"
                 />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  placeholder="Empresa"
+                  aria-label="Empresa"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  maxLength={200}
+                  autoComplete="organization"
+                />
+                <Input
+                  type="tel"
+                  placeholder="Teléfono"
+                  aria-label="Teléfono"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={50}
+                  autoComplete="tel"
+                />
+              </div>
+              <Input
+                placeholder="Puesto a cubrir (opcional)"
+                aria-label="Puesto a cubrir"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                maxLength={200}
+              />
               <Textarea
                 placeholder="Mensaje"
                 rows={5}

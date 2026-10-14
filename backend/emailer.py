@@ -12,6 +12,7 @@ Variables de entorno (ver .env.example):
 """
 from __future__ import annotations
 
+import html
 import logging
 import os
 import smtplib
@@ -261,4 +262,125 @@ def send_email_verification(to: str, token: str) -> None:
             link,
         ),
         text_body=f"Confirmá tu email: {link} (vence en 24 horas).",
+    )
+# ── Circuito de postulación y consultas de empresas ─────────────────────────
+# Estados de la postulación que le avisan al candidato. Sólo los que le dicen
+# algo: «Vista» se marca sola al abrir el CV y avisarla sería ruido. El backend
+# consulta este set antes de agendar el mail.
+APPLICATION_STATUS_MAILS = frozenset({"in_process", "finished"})
+
+
+def _postulacion(job_title: str | None, company: str | None) -> str:
+    """«tu postulación a X en Y» / «tu postulación espontánea». Escapa lo que
+    viene de la base: el título lo carga el admin, pero igual no confiamos."""
+    if not job_title:
+        return "tu postulación espontánea"
+    frase = f"tu postulación a {html.escape(job_title)}"
+    if company:
+        frase += f" en {html.escape(company)}"
+    return frase
+
+
+def send_application_received(to: str, name: str, job_title: str, company: str) -> None:
+    """Confirmación al candidato apenas se postula (POST /apply)."""
+    url = f"{FRONTEND_URL}/perfil?tab=postulaciones"
+    nombre = html.escape(name or "")
+    saludo = f"Hola {nombre}: " if nombre else ""
+    send_email(
+        to,
+        f"Recibimos tu postulación a {job_title} — Human Power",
+        _branded_html(
+            "¡Postulación recibida!",
+            f"{saludo}{_postulacion(job_title, company)} ya está en manos del equipo "
+            "de Human Power. Vamos a revisar tu perfil y, si avanza, te contactamos por "
+            "este mismo correo o por teléfono. Podés seguir el estado en Mis postulaciones.",
+            "Ver mis postulaciones",
+            url,
+            "Consejo: un perfil al 100%, con video de presentación, tiene más chances de ser elegido.",
+        ),
+        text_body=(
+            f"{saludo}recibimos tu postulación a {job_title} en {company}. "
+            f"Seguí el estado acá: {url}"
+        ),
+    )
+
+
+def send_application_status(to: str, name: str, job_title: str | None, company: str | None,
+                            status: str) -> None:
+    """Aviso al candidato cuando el admin pasa su postulación a «En proceso» o
+    «Finalizada» (PATCH /admin/cv/{id}/status). Otros estados: ValueError, para
+    que un uso fuera de APPLICATION_STATUS_MAILS no pase en silencio."""
+    url = f"{FRONTEND_URL}/perfil?tab=postulaciones"
+    nombre = html.escape(name or "")
+    saludo = f"Hola {nombre}: " if nombre else ""
+    que = _postulacion(job_title, company)
+    titulo = job_title or "tu postulación"
+    if status == "in_process":
+        subject = f"Tu postulación a {titulo} está en proceso — Human Power"
+        heading = "Tu postulación avanzó"
+        intro = (f"{saludo}{que} pasó a «En proceso». El equipo está revisando tu perfil "
+                 "con atención y puede contactarte por este correo o por teléfono para los "
+                 "próximos pasos.")
+    elif status == "finished":
+        subject = f"Finalizó la búsqueda: {titulo} — Human Power"
+        heading = "La búsqueda finalizó"
+        intro = (f"{saludo}{que} llegó a su fin: la búsqueda ya finalizó. "
+                 "Gracias por haber participado. Tu perfil queda en nuestra base y vamos a "
+                 "tenerte en cuenta para próximas búsquedas de tu rubro.")
+    else:
+        raise ValueError(f"sin plantilla de mail para el estado {status!r}")
+    send_email(
+        to,
+        subject,
+        _branded_html(heading, intro, "Ver mis postulaciones", url),
+        text_body=f"{heading}. {html.unescape(intro)} Mis postulaciones: {url}",
+    )
+
+
+def send_new_application_notice(to: str, candidate_name: str, candidate_email: str,
+                                job_title: str, company: str, admin_url: str) -> None:
+    """Aviso interno al equipo por cada postulación nueva. Reply-To al candidato,
+    así se le responde directo desde el mail."""
+    nombre = html.escape(candidate_name or candidate_email)
+    send_email(
+        to,
+        f"Nueva postulación: {candidate_name or candidate_email} → {job_title}",
+        _branded_html(
+            "Nueva postulación",
+            f"{nombre} ({html.escape(candidate_email)}) se postuló a "
+            f"{html.escape(job_title)} en {html.escape(company)}. El CV y la ficha "
+            "están en el panel.",
+            "Ver en el panel",
+            admin_url,
+        ),
+        text_body=(f"{candidate_name or candidate_email} ({candidate_email}) se postuló a "
+                   f"{job_title} en {company}. Panel: {admin_url}"),
+        reply_to=candidate_email,
+    )
+
+
+def send_contact_request(to: str, *, name: str, email: str, company: str | None,
+                         phone: str | None, position: str | None, message: str,
+                         admin_url: str) -> None:
+    """Consulta del formulario público «¿Sos empresa? Hablemos.» reenviada al
+    equipo. Reply-To al remitente para responderle directo."""
+    filas = [("Nombre", name), ("Email", email), ("Empresa", company),
+             ("Teléfono", phone), ("Puesto a cubrir", position)]
+    filas_html = "".join(
+        f'<p style="margin:0 0 6px;"><strong>{k}:</strong> {html.escape(v)}</p>'
+        for k, v in filas if v
+    )
+    msg_html = html.escape(message).replace("\n", "<br>")
+    asunto = f"Nueva consulta web de {name}" + (f" ({company})" if company else "")
+    send_email(
+        to,
+        asunto,
+        _branded_html(
+            "Nueva consulta de empresa",
+            f'{filas_html}<p style="margin:12px 0 0;"><strong>Mensaje:</strong></p><p>{msg_html}</p>',
+            "Ver en el panel",
+            admin_url,
+        ),
+        text_body="\n".join(f"{k}: {v}" for k, v in filas if v) + f"\nMensaje:\n{message}\nPanel: {admin_url}",
+        reply_to=email,
     )

@@ -16,8 +16,9 @@ import {
   Briefcase,
   Users,
   LayoutDashboard,
+  MessageSquare,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,8 +42,17 @@ import { formatOwnTransport } from "@/features/profile/types";
 import { CV_CACHE_KEY, clearAdminCache, readAdminCache, writeAdminCache } from "./admin-cache";
 import { buildCvQuery } from "./cv-query";
 import ApplicationsView from "./ApplicationsView";
+import ConsultasView from "./ConsultasView";
+import { useContactRequests } from "./use-contact-requests";
 
-type AdminTab = "resumen" | "candidates" | "applications" | "jobs";
+type AdminTab = "resumen" | "candidates" | "applications" | "jobs" | "consultas";
+
+const ADMIN_TABS: readonly AdminTab[] = ["resumen", "candidates", "applications", "jobs", "consultas"];
+
+/** Pestaña inicial desde `?tab=` (los mails al equipo linkean directo a una). Inválida → Resumen. */
+function initialTab(param: string | null): AdminTab {
+  return (ADMIN_TABS as readonly string[]).includes(param ?? "") ? (param as AdminTab) : "resumen";
+}
 
 // --- utils ---
 
@@ -56,6 +66,7 @@ function ymd(date?: Date) {
 // --- Componente principal ---
 export default function AdminPanel() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, getAuthHeader, logout } = useAuth();
 
   // Arranca con lo último conocido (sessionStorage) y revalida en segundo plano:
@@ -68,12 +79,15 @@ export default function AdminPanel() {
   const [active, setActive] = useState<ResumeRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [tab, setTab] = useState<AdminTab>("resumen");
+  const [tab, setTab] = useState<AdminTab>(() => initialTab(searchParams.get("tab")));
   // Con qué se entra a Candidatos desde el Resumen (un rubro, sólo con CV o
   // video, o directo a la ficha de alguien). Entrar por la tab a mano lo limpia.
   const [candidatesInit, setCandidatesInit] = useState<CandidatesInit>({});
   // Números de candidatos (Resumen + tarjetas de arriba): un solo pedido.
   const candidateStats = useCandidateStats();
+  // Consultas de empresas: el badge de la pestaña necesita el conteo de nuevas
+  // desde que se entra al panel, por eso el hook vive acá y no en la vista.
+  const consultas = useContactRequests();
   // Conteo REAL en la base (no el largo de la página) y si quedaron filas afuera.
   const [total, setTotal] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -153,7 +167,7 @@ export default function AdminPanel() {
   // último conocido (badge incluido).
   const cvsRequestedRef = useRef(false);
   useEffect(() => {
-    if (tab === "resumen" || tab === "candidates" || tab === "jobs") return;
+    if (tab === "resumen" || tab === "candidates" || tab === "jobs" || tab === "consultas") return;
     if (cvsRequestedRef.current) return;
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -323,6 +337,13 @@ export default function AdminPanel() {
             icon={<Briefcase className="size-4" />}
             label="Postulaciones por puesto"
           />
+          <TabButton
+            active={tab === "consultas"}
+            onClick={() => setTab("consultas")}
+            icon={<MessageSquare className="size-4" />}
+            label="Consultas"
+            badge={consultas.pending}
+          />
         </div>
 
         {tab === "resumen" && (
@@ -350,6 +371,18 @@ export default function AdminPanel() {
         )}
 
         {tab === "jobs" && <JobsManager />}
+
+        {tab === "consultas" && (
+          <ConsultasView
+            items={consultas.items}
+            loading={consultas.loading}
+            error={consultas.error}
+            busyId={consultas.busyId}
+            onReload={consultas.reload}
+            onStatusChange={consultas.setStatus}
+            onDelete={consultas.remove}
+          />
+        )}
 
         {/* Controles de la lista de postulaciones (las otras tabs tienen su propia UI) */}
         {tab === "applications" && (

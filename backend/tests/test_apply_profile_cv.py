@@ -50,8 +50,8 @@ class FakeCursor:
 
     def execute(self, sql, params=()):
         s = " ".join(sql.split()).lower()
-        if s.startswith("select title from jobs"):
-            self._row = DualRow(["title"], ["Contador/a"]) if self.state.get("job_exists", True) else None
+        if s.startswith("select title, company from jobs"):
+            self._row = DualRow(["title", "company"], ["Contador/a", "Estudio Sur"]) if self.state.get("job_exists", True) else None
         elif s.startswith("select 1 from resumes"):
             # Chequeo de postulación duplicada (email+job_id, no dada de baja).
             self._row = DualRow(["exists"], [1]) if self.state.get("already_applied") else None

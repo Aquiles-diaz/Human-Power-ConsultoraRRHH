@@ -66,6 +66,15 @@ ENABLE_DOCS = os.getenv("ENABLE_DOCS", "0") == "1"
 # Destinatario de las consultas del formulario de contacto público.
 CONTACT_TO = os.getenv("CONTACT_TO", "humanpower.rrhh@gmail.com")
 
+# Aviso interno por cada postulación nueva (para enterarse sin entrar al panel).
+# Default: la misma casilla del contacto. "off" lo apaga; los mails al candidato
+# no dependen de esto.
+APPLICATION_NOTIFY_TO = os.getenv("APPLICATION_NOTIFY_TO", "").strip() or CONTACT_TO
+
+
+def _application_notify_to() -> Optional[str]:
+    return None if APPLICATION_NOTIFY_TO.lower() in ("off", "0", "none") else APPLICATION_NOTIFY_TO
+
 # Rate limits de subida de archivos (anti-abuso del bucket de Storage). Sin esto,
 # cualquiera podría martillar /cv o /apply y llenar el bucket de Supabase. Se
 # aplican por IP del cliente (ver ratelimit.py) y son configurables por env para
@@ -227,6 +236,11 @@ class ContactDTO(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     email: EmailStr
     message: str = Field(..., min_length=1, max_length=5000)
+    # Datos de la empresa (opcionales: el form también lo usa gente que no es
+    # empresa). Son lo que hace útil la consulta como contacto comercial.
+    company: Optional[str] = Field(None, max_length=200)
+    phone: Optional[str] = Field(None, max_length=50)
+    position: Optional[str] = Field(None, max_length=200)
 
 class ContactOut(BaseModel):
     message: str
@@ -374,6 +388,8 @@ class ApplicationsOut(BaseModel):
 
 # Estados de pipeline visibles (candidato + admin); reusado por el PATCH de la Task 3.
 _PIPELINE_STATUSES = {"received", "viewed", "in_process", "finished"}
+# Seguimiento de las consultas de empresas (tabla contact_requests).
+_CONTACT_STATUSES = {"new", "contacted", "closed"}
 
 # Tope de filas por página en /admin/cv. Es el mismo 500 de antes, ahora explícito
 # y acompañado de `total`/`has_more`: el problema no era el tope en sí, era que
@@ -946,32 +962,115 @@ def health_head(request: Request) -> Response:
 @app.post("/contacto", response_model=ContactOut, tags=["default"])
 @limiter.limit("5/minute")
 def contacto(request: Request, dto: ContactDTO) -> ContactOut:
-    """Recibe una consulta del formulario público y la reenvía por email al equipo.
+    """Recibe una consulta del formulario público: la guarda en contact_requests
+    (para verla y seguirla desde el panel) y la reenvía por email al equipo.
 
-    Si no hay SMTP configurado, `emailer` loguea el contenido (no se pierde en
-    silencio). El Reply-To apunta al email del remitente para responder directo.
+    Las dos cosas son best-effort e independientes: si la tabla todavía no está
+    migrada o la base falla, el mail sale igual; si el proveedor de mail falla,
+    la consulta queda guardada. En ambos casos el cliente recibe OK (no se
+    revela infraestructura ni se convierte un fallo transitorio en una mala
+    experiencia). No se loguea el contenido: es PII.
     """
     name = dto.name.strip()
     message = dto.message.strip()
-    safe_msg = html.escape(message).replace("\n", "<br>")
+    email = str(dto.email)
+    company = (dto.company or "").strip() or None
+    phone = (dto.phone or "").strip() or None
+    position = (dto.position or "").strip() or None
     try:
-        emailer.send_email(
-            CONTACT_TO,
-            f"Nueva consulta web de {name}",
-            f"<p><strong>Nombre:</strong> {html.escape(name)}</p>"
-            f"<p><strong>Email:</strong> {html.escape(str(dto.email))}</p>"
-            f"<p><strong>Mensaje:</strong></p><p>{safe_msg}</p>",
-            text_body=f"Nombre: {name}\nEmail: {dto.email}\nMensaje:\n{message}",
-            reply_to=str(dto.email),
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO contact_requests (name, email, company, phone, position, message)"
+                " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                (name, email, company, phone, position, message),
+            )
+            conn.commit()
+    except Exception:
+        log.exception("No se pudo guardar la consulta de contacto (se manda igual por mail)")
+    try:
+        emailer.send_contact_request(
+            CONTACT_TO, name=name, email=email, company=company, phone=phone,
+            position=position, message=message,
+            admin_url=f"{emailer.FRONTEND_URL}/admin?tab=consultas",
         )
     except Exception:
-        # No exponemos el contenido del contacto en logs: nombre, email y mensaje
-        # son PII y los proveedores de observabilidad suelen retenerlos más que
-        # la propia aplicación. El cliente ya recibió un OK para no revelar
-        # detalles de la infraestructura ni convertir un fallo transitorio del
-        # proveedor de email en una mala experiencia.
         log.exception("Fallo al enviar una consulta de contacto")
     return ContactOut(message="¡Gracias! Recibimos tu consulta y te vamos a contactar a la brevedad.")
+
+
+class ContactRequestItem(BaseModel):
+    id: int
+    created_at: Optional[str] = None
+    name: str
+    email: str
+    company: Optional[str] = None
+    phone: Optional[str] = None
+    position: Optional[str] = None
+    message: str
+    status: str = "new"
+
+class ContactRequestsOut(BaseModel):
+    items: list[ContactRequestItem]
+    pending: int  # cuántas siguen en "new" (badge de la pestaña)
+
+class ContactStatusUpdate(BaseModel):
+    status: str
+
+class ContactStatusOut(BaseModel):
+    id: int
+    status: str
+
+@app.get("/admin/contact-requests", response_model=ContactRequestsOut,
+         dependencies=[Depends(require_admin)], tags=["admin"])
+def list_contact_requests() -> ContactRequestsOut:
+    """Consultas de empresas, de la más nueva a la más vieja."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, created_at, name, email, company, phone, position, message, status"
+            " FROM contact_requests ORDER BY created_at DESC, id DESC LIMIT 300"
+        )
+        rows = cur.fetchall()
+    items = [
+        ContactRequestItem(
+            id=r[0], created_at=_legacy_ts(r[1]), name=r[2], email=r[3], company=r[4],
+            phone=r[5], position=r[6], message=r[7] or "", status=r[8] or "new",
+        )
+        for r in rows
+    ]
+    return ContactRequestsOut(items=items, pending=sum(1 for i in items if i.status == "new"))
+
+@app.patch("/admin/contact-requests/{request_id}/status", response_model=ContactStatusOut,
+           dependencies=[Depends(require_admin)], tags=["admin"])
+def update_contact_request_status(request_id: int, dto: ContactStatusUpdate) -> ContactStatusOut:
+    status = (dto.status or "").strip().lower()
+    if status not in _CONTACT_STATUSES:
+        raise HTTPException(status_code=400, detail="Estado inválido")
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE contact_requests SET status = %s,"
+            " handled_at = CASE WHEN %s = 'new' THEN NULL ELSE now() END"
+            " WHERE id = %s RETURNING id",
+            (status, status, request_id),
+        )
+        row = cur.fetchone()
+        conn.commit()
+    if not row:
+        raise HTTPException(status_code=404, detail="Consulta no encontrada")
+    return ContactStatusOut(id=request_id, status=status)
+
+@app.delete("/admin/contact-requests/{request_id}", dependencies=[Depends(require_admin)], tags=["admin"])
+def delete_contact_request(request_id: int):
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM contact_requests WHERE id = %s", (request_id,))
+        deleted = cur.rowcount
+        conn.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Consulta no encontrada")
+    return {"ok": True}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Puestos / ofertas laborales
@@ -1020,6 +1119,37 @@ def _send_job_alerts(recipients: list[str], job_title: str, company: str, job_id
         except Exception:
             log.exception("Fallo enviando alerta de empleo a %s", to)
 
+def _schedule_job_alerts(cur, out: "JobOut", background_tasks: BackgroundTasks) -> None:
+    """Alertas de un aviso que acaba de quedar publicado (alta publicada, o
+    borrador que se publica después). Se juntan los destinatarios ahora
+    (conexión viva) y el envío va a background para no demorar la respuesta del
+    admin. Best-effort: la operación ya está commiteada, así que un fallo al
+    juntar/mandar alertas se traga (log) y nunca la convierte en un 500."""
+    try:
+        cur.execute(
+            """
+            SELECT DISTINCT u.email FROM job_alert_subscriptions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.category = %s
+            """,
+            (out.category,),
+        )
+        recipients = [r[0] for r in cur.fetchall()]
+        if recipients:
+            background_tasks.add_task(_send_job_alerts, recipients, out.title, out.company, out.id)
+    except Exception:
+        log.exception("No se pudieron juntar/agendar las alertas del aviso %s (operación OK)", out.id)
+
+
+def _mail_best_effort(fn, *args, **kwargs) -> None:
+    """Corre en background: un fallo del proveedor de mail se loguea y no afecta
+    la respuesta, que ya salió."""
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        log.exception("Fallo enviando email (%s)", getattr(fn, "__name__", fn))
+
+
 @app.post("/admin/jobs", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
 def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
     posted = (dto.postedAt or "").strip() or None
@@ -1044,31 +1174,20 @@ def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
         conn.commit()
         out = _job_row_to_out(row)
         if out.isPublished:
-            # Alertas: se juntan los destinatarios ahora (conexión viva) y el envío
-            # va a background para no demorar la respuesta del admin. Best-effort:
-            # el alta ya está commiteada, así que un fallo al juntar/mandar alertas
-            # se traga (log) y nunca convierte un alta exitosa en un 500.
-            try:
-                cur.execute(
-                    """
-                    SELECT DISTINCT u.email FROM job_alert_subscriptions s
-                    JOIN users u ON u.id = s.user_id
-                    WHERE s.category = %s
-                    """,
-                    (out.category,),
-                )
-                recipients = [r[0] for r in cur.fetchall()]
-                if recipients:
-                    background_tasks.add_task(_send_job_alerts, recipients, out.title, out.company, out.id)
-            except Exception:
-                log.exception("No se pudieron juntar/agendar las alertas del aviso %s (alta OK)", out.id)
+            _schedule_job_alerts(cur, out, background_tasks)
     return out
 
 @app.put("/admin/jobs/{job_id}", response_model=JobOut, dependencies=[Depends(require_admin)], tags=["admin"])
-def update_job(job_id: str, dto: JobUpsert) -> JobOut:
+def update_job(job_id: str, dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
     posted = (dto.postedAt or "").strip() or None
     with get_db() as conn:
         cur = conn.cursor()
+        # Un borrador que se publica después tiene que avisar a los suscriptos
+        # igual que un alta publicada; para saber si es ese caso hay que mirar
+        # cómo estaba ANTES del UPDATE.
+        cur.execute("SELECT is_published FROM jobs WHERE id = %s", (job_id,))
+        prev = cur.fetchone()
+        was_published = bool(prev[0]) if prev else False
         cur.execute(
             """
             UPDATE jobs SET title=%s, company=%s, location=%s, type=%s, category=%s, seniority=%s,
@@ -1085,9 +1204,12 @@ def update_job(job_id: str, dto: JobUpsert) -> JobOut:
         )
         row = cur.fetchone()
         conn.commit()
-    if not row:
+        out = _job_row_to_out(row) if row else None
+        if out and out.isPublished and not was_published:
+            _schedule_job_alerts(cur, out, background_tasks)
+    if not out:
         raise HTTPException(status_code=404, detail="Puesto no encontrado")
-    return _job_row_to_out(row)
+    return out
 
 @app.delete("/admin/jobs/{job_id}", dependencies=[Depends(require_admin)], tags=["admin"])
 def delete_job(job_id: str):
@@ -1297,6 +1419,7 @@ async def upload_cv(
 @limiter.limit(APPLY_RATE_LIMIT_MIN)
 async def apply_to_job(
     request: Request,
+    background_tasks: BackgroundTasks,
     job_id: str = Form(..., max_length=100),
     job_title: str = Form(..., max_length=300),
     message: Optional[str] = Form(None, max_length=10_000),
@@ -1313,7 +1436,7 @@ async def apply_to_job(
     # (ignoramos el job_title del Form para evitar inconsistencias/spoofing).
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT title FROM jobs WHERE id = %s AND is_published = true", (job_id,))
+        cur.execute("SELECT title, company FROM jobs WHERE id = %s AND is_published = true", (job_id,))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="El puesto no existe o ya no está disponible")
@@ -1343,7 +1466,30 @@ async def apply_to_job(
         user_id=current_user["id"], full_name=full_name, email=current_user["email"],
         message=message, job_id=job_id, job_title=row[0],
     )
+    _schedule_application_mails(
+        background_tasks, candidate_name=full_name, candidate_email=current_user["email"],
+        job_title=row[0], company=row[1] or "",
+    )
     return UploadCvOut(resume_id=resume_id)
+
+
+def _schedule_application_mails(background_tasks: BackgroundTasks, *, candidate_name: str,
+                                candidate_email: str, job_title: str, company: str) -> None:
+    """Mails de una postulación recién creada, en background y best-effort (la
+    postulación ya está guardada: un fallo de mail nunca la convierte en error).
+    Al candidato, la confirmación con link a Mis postulaciones; al equipo, el
+    aviso con link al panel (APPLICATION_NOTIFY_TO; "off" lo apaga)."""
+    background_tasks.add_task(
+        _mail_best_effort, emailer.send_application_received,
+        candidate_email, candidate_name, job_title, company,
+    )
+    notify_to = _application_notify_to()
+    if notify_to:
+        background_tasks.add_task(
+            _mail_best_effort, emailer.send_new_application_notice,
+            notify_to, candidate_name, candidate_email, job_title, company,
+            f"{emailer.FRONTEND_URL}/admin?tab=applications",
+        )
 
 @app.get("/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])
 def download_cv(cv_id: int, request: Request):
@@ -1784,14 +1930,18 @@ class CvStatusOut(BaseModel):
 
 @app.patch("/admin/cv/{cv_id}/status", response_model=CvStatusOut,
            dependencies=[Depends(require_admin)], tags=["admin"])
-def update_cv_status(cv_id: int, dto: CvStatusUpdate) -> CvStatusOut:
+def update_cv_status(cv_id: int, dto: CvStatusUpdate, background_tasks: BackgroundTasks) -> CvStatusOut:
     # 400 explícito (no 422): el enum es contrato de la API, no forma del body.
     status = (dto.status or "").strip().lower()
     if status not in _PIPELINE_STATUSES:
         raise HTTPException(status_code=400, detail="Estado inválido")
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT withdrawn_at FROM resumes WHERE id = %s", (cv_id,))
+        cur.execute(
+            "SELECT r.withdrawn_at, r.status, r.email, r.full_name, r.job_title, j.company"
+            " FROM resumes r LEFT JOIN jobs j ON j.id = r.job_id WHERE r.id = %s",
+            (cv_id,),
+        )
         found = cur.fetchone()
         if not found:
             raise HTTPException(status_code=404, detail="No encontrado")
@@ -1799,6 +1949,14 @@ def update_cv_status(cv_id: int, dto: CvStatusUpdate) -> CvStatusOut:
             raise HTTPException(status_code=409, detail="La postulación está dada de baja")
         cur.execute("UPDATE resumes SET status = %s WHERE id = %s", (status, cv_id))
         conn.commit()
+    # Mail al candidato sólo cuando el estado realmente cambia y es uno que le
+    # dice algo («En proceso», «Finalizada»); ver emailer.APPLICATION_STATUS_MAILS.
+    previous, to = found[1], found[2]
+    if to and status != previous and status in emailer.APPLICATION_STATUS_MAILS:
+        background_tasks.add_task(
+            _mail_best_effort, emailer.send_application_status,
+            to, found[3] or "", found[4], found[5], status,
+        )
     return CvStatusOut(id=cv_id, pipeline_status=status)
 
 @app.delete("/admin/cv/{cv_id}", dependencies=[Depends(require_admin)], tags=["admin"])

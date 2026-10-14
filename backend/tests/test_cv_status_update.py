@@ -36,10 +36,11 @@ class FakeCursor:
             cv_id = params[0]
             row = self.state["resumes"].get(cv_id)
             self._rows = [DualRow(["id"], [row["id"]])] if row else []
-        elif s.startswith("select withdrawn_at from resumes where id"):
+        elif s.startswith("select r.withdrawn_at, r.status, r.email, r.full_name, r.job_title, j.company from resumes r"):
             cv_id = params[0]
             row = self.state["resumes"].get(cv_id)
-            self._rows = [DualRow(["withdrawn_at"], [row.get("withdrawn_at")])] if row else []
+            cols = ["withdrawn_at", "status", "email", "full_name", "job_title", "company"]
+            self._rows = [DualRow(cols, [row.get(c) for c in cols])] if row else []
         elif s.startswith("select filename, original_name, status from resumes"):
             cv_id = params[0]
             row = self.state["resumes"].get(cv_id)
