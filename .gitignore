@@ -32,6 +32,10 @@ uploads/
 # Respaldo local de scripts/shrink-photos.py: son fotos de personas reales
 # bajadas del bucket. Nunca versionar.
 backup-fotos/
+# Ídem para los videos (scripts/unificar-videos.py) y el backup de Storage
+# (scripts/backup-storage.py): CVs, fotos y videos de candidatos. El repo es público.
+backup-videos/
+backup-storage/
 # ── Secretos / variables de entorno (NUNCA versionar credenciales) ──
 .env
 .env.*
