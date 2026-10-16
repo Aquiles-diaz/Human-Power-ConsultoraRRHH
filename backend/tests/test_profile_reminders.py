@@ -18,12 +18,16 @@ os.environ.setdefault("RUN_INIT_DB", "0")
 
 from fastapi.testclient import TestClient
 
-from backend import main
+from backend import emailer, main
 from backend.auth import create_purpose_token
 from backend.db import DualRow
 from backend.ratelimit import limiter
 
 limiter.enabled = False
+
+# Referencia a la plantilla REAL tomada al importar: los tests de la tarea pisan
+# emailer.send_profile_reminder con lambdas y no la restauran.
+_REAL_SEND_PROFILE_REMINDER = emailer.send_profile_reminder
 
 NOW = datetime.now(timezone.utc)
 USER_COLS = ["id", "name", "email", "created_at", "nudges"]
@@ -257,7 +261,29 @@ def test_unsubscribe_token_invalido_redirige_con_error():
     assert executed == []
 
 
-TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
+# ── Plantilla del mail ───────────────────────────────────────────────────────
+
+def test_mail_de_recordatorio_escapa_el_nombre():
+    """El nombre lo elige quien se registra (hasta 80 caracteres libres) y el
+    recordatorio sale al email que esa persona puso, que puede ser de un tercero.
+    Sin escapar, un nombre con HTML se vuelve un link de phishing mandado desde
+    el remitente verificado de Human Power."""
+    enviados = []
+    original = emailer.send_email
+    emailer.send_email = lambda to, subject, html_body, text_body=None, reply_to=None: \
+        enviados.append(html_body)
+    try:
+        _REAL_SEND_PROFILE_REMINDER(
+            "tercero@x.com", '<a href="https://evil.test">Cobrá tu bono</a>', "https://unsub",
+        )
+    finally:
+        emailer.send_email = original
+    (html_body,) = enviados
+    assert '<a href="https://evil.test">' not in html_body, html_body
+    assert "&lt;a href=&quot;https://evil.test&quot;&gt;" in html_body, html_body
+
+
+TESTS =[v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 if __name__ == "__main__":
     failed = 0

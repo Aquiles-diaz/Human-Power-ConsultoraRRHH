@@ -225,12 +225,15 @@ def send_profile_reminder(to: str, name: str, unsub_url: str) -> None:
     directo al perfil, con el ebook de regalo al 100% como incentivo. Lo dispara
     la tarea POST /tasks/profile-reminders (cron), no una acción del usuario."""
     perfil_url = f"{FRONTEND_URL}/perfil"
+    # El nombre lo escribe quien se registra y el mail sale al email que puso,
+    # que puede ser de otra persona: sin escapar es phishing con nuestra firma.
+    nombre = html.escape(name or "")
     send_email(
         to,
         "Completá tu perfil y llevate el Ebook de regalo — Human Power",
         _branded_html(
             "Tu perfil te está esperando",
-            f"Hola {name}: creaste tu cuenta en Human Power, pero tu perfil "
+            f"Hola {nombre}: creaste tu cuenta en Human Power, pero tu perfil "
             "todavía no tiene CV ni video de presentación, y son lo primero que "
             "mira RRHH al elegir candidatos. Completarlo te lleva unos minutos: "
             "entrá directo desde el botón. Y si llegás al 100%, te llevás de "
