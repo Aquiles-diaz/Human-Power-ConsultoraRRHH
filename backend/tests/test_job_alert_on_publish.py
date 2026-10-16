@@ -62,6 +62,9 @@ class FakeCursor:
             category = params[0]
             emails = sorted({x["email"] for x in self.state["subs"] if x["category"] == category})
             self._rows = [DualRow(["email"], [e]) for e in emails]
+        elif s.startswith("insert into email_bulk_budget"):
+            # Presupuesto de masivos siempre con cupo acá (se testea en test_mail_budget.py).
+            self._rows = [DualRow(["sent"], [1])]
         else:
             self._rows = []
         return self

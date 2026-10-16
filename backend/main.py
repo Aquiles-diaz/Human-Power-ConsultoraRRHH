@@ -31,6 +31,7 @@ from slowapi import _rate_limit_exceeded_handler
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (bucket `videos` del principal)
 from . import emailer  # envío de emails (consultas de contacto)
+from . import mail_budget  # presupuesto diario de mails masivos (alertas, recordatorios)
 from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
 
@@ -433,8 +434,9 @@ EBOOK_PROFESSIONAL_FIELDS = [
 REMINDER_HOURS = sorted(
     int(h) for h in os.getenv("REMINDER_HOURS", "24,72,168").split(",") if h.strip()
 )
-# Techo de mails por corrida: el plan free de Brevo corta en 300/día; con el
-# cron horario, 100 por corrida deja margen para los transaccionales.
+# Techo de mails por corrida. Ojo: con el cron horario NO protege la cuota diaria
+# del proveedor (100 × 24 corridas); eso lo hace el presupuesto diario de masivos
+# (BULK_EMAIL_DAILY_MAX, ver mail_budget.py), compartido con las alertas.
 REMINDER_BATCH_MAX = int(os.getenv("REMINDER_BATCH_MAX", "100"))
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 
@@ -1106,18 +1108,56 @@ def list_jobs_admin() -> list[JobOut]:
         rows = cur.fetchall()
     return [_job_row_to_out(r) for r in rows]
 
+def _reserve_bulk_mail() -> bool:
+    """Toma un lugar del presupuesto diario de masivos (ver mail_budget.py).
+    Fail-closed: si no se puede leer el presupuesto, el masivo no sale — es
+    preferible perder una alerta a dejar sin cuota al reset de contraseña."""
+    try:
+        with get_db() as conn:
+            return mail_budget.reserve(conn)
+    except Exception:
+        log.exception("No se pudo reservar cupo de mail masivo; no se manda")
+        return False
+
+
+def _release_bulk_mail() -> None:
+    try:
+        with get_db() as conn:
+            mail_budget.release(conn)
+    except Exception:
+        log.exception("No se pudo devolver el cupo de un mail masivo fallido")
+
+
 def _send_job_alerts(recipients: list[str], job_title: str, company: str, job_id: str) -> None:
     """Corre en background (ver create_job): manda la alerta a cada suscripto del
     rubro. Best-effort — un fallo de mail individual no debe tumbar a los demás,
-    por eso el try/except está DENTRO del loop."""
+    por eso el try/except está DENTRO del loop. Cada envío consume del
+    presupuesto diario de masivos, y la tanda se corta si se agota o si fallan
+    varios seguidos (cuota del proveedor agotada)."""
     job_url = f"{emailer.FRONTEND_URL}/ofertas/{job_id}"
-    for to in recipients:
+    fallas_seguidas = 0
+    for i, to in enumerate(recipients):
+        if not _reserve_bulk_mail():
+            log.warning(
+                "Presupuesto diario de mails masivos agotado: %d alertas del aviso %s sin enviar",
+                len(recipients) - i, job_id,
+            )
+            return
         try:
             token = create_purpose_token(to, "alert_unsub", 60 * 24 * 180)
             unsub_url = emailer.job_alert_unsub_link(token)
             emailer.send_job_alert(to, job_title, company, job_url, unsub_url)
+            fallas_seguidas = 0
         except Exception:
             log.exception("Fallo enviando alerta de empleo a %s", to)
+            _release_bulk_mail()
+            fallas_seguidas += 1
+            if fallas_seguidas >= mail_budget.MAX_CONSECUTIVE_FAILURES:
+                log.error(
+                    "%d alertas seguidas fallaron; corto la tanda del aviso %s "
+                    "(%d sin intentar)", fallas_seguidas, job_id, len(recipients) - i - 1,
+                )
+                return
 
 def _schedule_job_alerts(cur, out: "JobOut", background_tasks: BackgroundTasks) -> None:
     """Alertas de un aviso que acaba de quedar publicado (alta publicada, o
@@ -2606,8 +2646,14 @@ def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOu
     if dry_run:
         return NudgeRunOut(eligible=eligible, sent=0, failed=0, dry_run=True, items=items)
 
-    sent = failed = 0
+    sent = failed = fallas_seguidas = 0
     for user_id, name, email, tier in pending:
+        # Presupuesto diario de masivos: lo que no entra hoy queda sin registrar
+        # en profile_nudges y sale solo en una corrida de mañana.
+        if not _reserve_bulk_mail():
+            log.warning("profile-reminders: presupuesto diario de mails masivos agotado; "
+                        "el resto sale mañana.")
+            break
         # Best-effort por usuario (mismo criterio que _send_job_alerts): un mail
         # que falla no debe frenar a los demás; sin registro en profile_nudges,
         # ese usuario se reintenta solo en la próxima corrida.
@@ -2615,9 +2661,15 @@ def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOu
             token = create_purpose_token(email, "nudge_unsub", 60 * 24 * 180)
             unsub_url = emailer.profile_nudge_unsub_link(token)
             emailer.send_profile_reminder(email, name, unsub_url)
+            fallas_seguidas = 0
         except Exception:
             log.exception("Fallo el recordatorio de perfil a %s", email)
+            _release_bulk_mail()
             failed += 1
+            fallas_seguidas += 1
+            if fallas_seguidas >= mail_budget.MAX_CONSECUTIVE_FAILURES:
+                log.error("profile-reminders: %d fallas seguidas; corto la corrida.", fallas_seguidas)
+                break
             continue
         # Marca el escalón enviado Y los menores: si el estreno lo agarra con el
         # de 168h, los de 24h/72h no deben dispararse en la corrida siguiente.

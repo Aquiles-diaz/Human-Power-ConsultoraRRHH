@@ -48,6 +48,9 @@ class FakeCursor:
         self.executed.append((s, params))
         if "from users u" in s:
             self._rows = list(self.state.get("users", []))
+        elif s.startswith("insert into email_bulk_budget"):
+            # Presupuesto de masivos siempre con cupo acá (se testea en test_mail_budget.py).
+            self._rows = [DualRow(["sent"], [1])]
         else:
             self._rows = []
         return self
@@ -176,7 +179,8 @@ def test_task_manda_y_registra_escalones():
         (1, "perfil_24h"),
         (2, "perfil_24h"), (2, "perfil_72h"), (2, "perfil_168h"),
     ], executed
-    assert conn.commits == 2
+    # Por usuario: la reserva del presupuesto de masivos + el registro del escalón.
+    assert conn.commits == 4
 
 
 def test_task_salta_al_que_ya_recibio_su_escalon():
