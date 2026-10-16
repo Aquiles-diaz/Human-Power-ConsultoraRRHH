@@ -16,9 +16,13 @@ export function photoSrc(url: string | null | undefined): string | undefined {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+// Las subidas (multipart) llevan otro tope: el timeout cubre también el envío
+// del body, y un CV de 15 MB con 2 Mbps de subida (4G) tarda ~60 s, más un
+// posible cold start de Render. Con 30 s el candidato no podía cargar el CV.
+const UPLOAD_TIMEOUT_MS = 180_000;
 
 export type ApiFetchOptions = RequestInit & {
-  /** Timeout en ms; aborta la request si el backend no responde (default 30s). */
+  /** Timeout en ms; aborta la request si el backend no responde (default 30s, 180s si el body es FormData). */
   timeoutMs?: number;
 };
 
@@ -29,7 +33,8 @@ export type ApiFetchOptions = RequestInit & {
  * usar `authFetch`.
  */
 export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promise<Response> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...init } = opts;
+  const isUpload = typeof FormData !== "undefined" && opts.body instanceof FormData;
+  const { timeoutMs = isUpload ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS, signal, ...init } = opts;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // Respeta también un signal externo si el caller lo pasa.

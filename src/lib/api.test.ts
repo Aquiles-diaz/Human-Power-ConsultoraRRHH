@@ -1,5 +1,53 @@
-import { describe, it, expect } from "vitest";
-import { API, photoSrc, parseApiError } from "./api";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { API, apiFetch, photoSrc, parseApiError } from "./api";
+
+describe("apiFetch timeout", () => {
+  // fetch que nunca responde y rechaza recién cuando lo abortan, como el real.
+  function hangingFetch() {
+    const signals: AbortSignal[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        signals.push(init.signal as AbortSignal);
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        });
+      }),
+    );
+    return signals;
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("una subida (FormData) no se corta a los 30 s: un CV de 15 MB en 4G tarda más", async () => {
+    vi.useFakeTimers();
+    const signals = hangingFetch();
+    const fd = new FormData();
+    fd.append("file", new Blob(["x"]), "cv.pdf");
+
+    const p = apiFetch("/me/profile/cv", { method: "POST", body: fd });
+    p.catch(() => {});
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(signals[0].aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(180_000);
+    await expect(p).rejects.toThrow("La solicitud tardó demasiado");
+  });
+
+  it("un request común sigue cortando a los 30 s", async () => {
+    vi.useFakeTimers();
+    hangingFetch();
+    const p = apiFetch("/me/profile", { method: "PUT", body: "{}" });
+    p.catch(() => {});
+    await vi.advanceTimersByTimeAsync(30_001);
+    await expect(p).rejects.toThrow("La solicitud tardó demasiado");
+  });
+});
 
 describe("photoSrc", () => {
   it("deja las URLs absolutas tal cual (foto externa de Google)", () => {
