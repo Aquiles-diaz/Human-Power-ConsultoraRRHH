@@ -9,7 +9,8 @@ endpoint llegan como alerta por mail (plan gratis: 5.000 eventos/mes).
 Privacidad (Ley 25.326): send_default_pii=False no alcanza, porque varios logs
 llevan el email del usuario en el texto ("Fallo el recordatorio de perfil a
 x@y.com"). scrub_event tacha cualquier email del evento antes de que salga del
-servidor; para investigar alcanza con el resto del contexto.
+servidor, y las variables locales de los frames no se mandan; para investigar
+alcanza con el mensaje y el stacktrace.
 """
 from __future__ import annotations
 
@@ -48,6 +49,10 @@ def init_sentry(dsn: str | None = None, **extra) -> bool:
         environment=os.getenv("SENTRY_ENVIRONMENT")
         or ("production" if os.getenv("RENDER") else "development"),
         send_default_pii=False,
+        # Por defecto Sentry adjunta las variables locales de cada frame: en un
+        # endpoint de perfil serían nombre, teléfono o fecha de nacimiento del
+        # candidato, y el tachado sólo cubre emails. Con el stacktrace alcanza.
+        include_local_variables=False,
         # Sólo errores: el tracing de performance consume la cuota gratis.
         traces_sample_rate=0.0,
         before_send=scrub_event,

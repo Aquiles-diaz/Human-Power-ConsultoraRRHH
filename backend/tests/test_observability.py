@@ -77,6 +77,36 @@ def test_un_log_exception_llega_como_alerta_y_sin_el_email():
     assert ev["logentry"]["formatted"] == "Fallo enviando email a [email]"
 
 
+def test_el_evento_no_lleva_las_variables_locales():
+    """Por defecto Sentry adjunta las variables locales de cada frame: en un
+    endpoint de perfil serían el nombre, el teléfono o la fecha de nacimiento
+    del candidato. El tachado sólo cubre emails, así que se apagan."""
+    transporte = _Captura()
+
+    def guardar_perfil(telefono):  # noqa: ARG001 — es lo que no tiene que viajar
+        raise ValueError("falló el guardado")
+
+    # Armado en runtime: Sentry adjunta también las líneas del código fuente, y
+    # un literal acá aparecería ahí (eso es código, no datos de un candidato).
+    telefono_del_candidato = "-".join(["341", "555", "0199"])
+
+    try:
+        observability.init_sentry(dsn="https://clave@o0.ingest.sentry.io/0", transport=transporte)
+        try:
+            guardar_perfil(telefono_del_candidato)
+        except ValueError:
+            logging.getLogger("humanpower.test_observability").exception("Error guardando perfil")
+        sentry_sdk.flush()
+    finally:
+        sentry_sdk.init(dsn=None)
+
+    assert len(transporte.eventos) == 1, transporte.eventos
+    ev = transporte.eventos[0]
+    frames = [f for exc in ev["exception"]["values"] for f in exc["stacktrace"]["frames"]]
+    assert frames and not any("vars" in f for f in frames), frames
+    assert "341-555-0199" not in repr(ev)
+
+
 # ── Mail sin proveedor ───────────────────────────────────────────────────────
 
 class _Registro(logging.Handler):
