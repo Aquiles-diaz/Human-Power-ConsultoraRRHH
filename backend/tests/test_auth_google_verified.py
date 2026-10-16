@@ -35,6 +35,7 @@ _PARCHEADAS = (
     "set_email_verified",
     "set_profile_photo_url",
     "touch_last_login",
+    "update_password",
 )
 
 
@@ -67,6 +68,13 @@ def make_client(idinfo, existing_user=None, record=None):
     # traga, pero se paga la espera).
     auth.touch_last_login = lambda uid: record.__setitem__("last_login", uid)
     auth.set_profile_photo_url = lambda uid, url: None
+
+    def _update_password(email, new_password):
+        record["password_rotated"] = email
+        if existing_user is not None:
+            existing_user["password_hash"] = "rotated-password-hash"
+
+    auth.update_password = _update_password
     return TestClient(app), record
 
 
@@ -100,9 +108,33 @@ def test_verified_email_existing_user_ok():
         client, rec = make_client(idinfo, existing_user=existing)
         r = _post(client)
         assert r.status_code == 200, (r.status_code, r.text)
+        assert "password_rotated" not in rec, "una cuenta ya verificada conserva su contraseña"
 
 
-TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
+def test_cuenta_sin_verificar_rota_la_contrasena_al_entrar_con_google():
+    """Pre-account takeover: alguien registra victima@gmail.com con SU contraseña
+    sin verificar el mail. Cuando la víctima entra con Google, esa contraseña
+    tiene que dejar de servir y el token nuevo no puede quedar atado al hash viejo
+    (si no, el atacante sigue entrando y ve todo lo que la víctima cargue)."""
+    with _auth_intacto():
+        existing = {"id": 1, "email": "victima@gmail.com", "name": "V", "last_name": "",
+                    "password_hash": "attacker-password-hash", "role": "user",
+                    "email_verified": False}
+        idinfo = {"email": "victima@gmail.com", "email_verified": True}
+        client, rec = make_client(idinfo, existing_user=existing)
+        r = _post(client)
+        assert r.status_code == 200, (r.status_code, r.text)
+        assert rec.get("password_rotated") == "victima@gmail.com", rec
+        assert rec.get("verified") == "victima@gmail.com", rec
+
+        token = r.json()["access_token"]
+        claims = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        assert claims["pwd"] == auth._password_fingerprint("rotated-password-hash"), \
+            "el token tiene que validar contra el hash NUEVO"
+        assert r.json()["user"]["email_verified"] is True
+
+
+TESTS =[v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 if __name__ == "__main__":
     failed = 0

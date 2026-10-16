@@ -350,6 +350,17 @@ def auth_google(request: Request, dto: GoogleAuthDTO):
         picture = (idinfo.get("picture") or "").strip()
         if picture:
             set_profile_photo_url(user["id"], picture)
+    elif not user.get("email_verified"):
+        # La cuenta existe pero nadie probó ser dueño del mail: pudo crearla un
+        # tercero con SU contraseña, esperando a que la víctima entre con Google
+        # y cargue CV y datos (pre-account takeover). Google acaba de probar la
+        # titularidad: se descarta esa contraseña (y con ella todo JWT emitido,
+        # por la huella `pwd`) y la cuenta queda verificada. El dueño real puede
+        # volver a tener contraseña con "olvidé mi contraseña".
+        update_password(email, secrets.token_urlsafe(32))
+        set_email_verified(email)
+        user = get_user_by_email(email)
+        user["email_verified"] = True
 
     touch_last_login(user["id"])
     access_token = create_access_token(data={"sub": email}, password_hash=user["password_hash"])
