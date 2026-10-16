@@ -55,6 +55,32 @@ def test_verify_returns_200_even_if_send_fails():
     assert rec.get("verify_sent") == "u@test.com"
 
 
+class _Niveles:
+    """Handler que junta el nivel de cada log del módulo auth."""
+
+    def __init__(self):
+        import logging
+        self.niveles = []
+        self.handler = logging.Handler()
+        self.handler.emit = lambda record: self.niveles.append(record.levelname)
+
+    def __enter__(self):
+        auth.log.addHandler(self.handler)
+        return self.niveles
+
+    def __exit__(self, *a):
+        auth.log.removeHandler(self.handler)
+
+
+def test_fallo_de_mail_de_reset_y_verificacion_se_loguea_como_error():
+    """Como WARNING no salta ninguna alerta (Sentry sólo alerta desde ERROR) y
+    el usuario ya vio "te enviamos el mail": nadie se entera de que no salió."""
+    for endpoint in ("/password-reset/request", "/verify-email/request"):
+        with _Niveles() as niveles:
+            make_client({}, user=USER).post(endpoint, json={"email": "u@test.com"})
+        assert "ERROR" in niveles, (endpoint, niveles)
+
+
 def test_reset_token_expires_in_5_minutes():
     """El link de reset debe durar 5 minutos (no 30)."""
     captured = {}

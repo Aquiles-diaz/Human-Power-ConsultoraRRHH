@@ -32,6 +32,7 @@ from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (bucket `videos` del principal)
 from . import emailer  # envío de emails (consultas de contacto)
 from . import mail_budget  # presupuesto diario de mails masivos (alertas, recordatorios)
+from . import observability  # alertas de fallas (Sentry, opcional)
 from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
 from .ratelimit import limiter  # rate limiting compartido (slowapi)
 
@@ -104,6 +105,10 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 log = logging.getLogger("humanpower.api")
+
+# Alertas de fallas (Sentry): sólo si hay SENTRY_DSN. Antes de crear la app, así
+# la integración de FastAPI instrumenta los endpoints. Ver observability.py.
+observability.init_sentry()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # App & Middleware

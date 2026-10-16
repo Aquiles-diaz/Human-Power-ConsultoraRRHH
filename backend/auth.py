@@ -286,7 +286,7 @@ def register(request: Request, dto: RegisterDTO):
             token = create_purpose_token(user["email"], "verify", 60 * 24)
             emailer.send_email_verification(user["email"], token)
         except Exception as e:
-            log.warning("No se pudo enviar el email de verificación a %s: %s", user["email"], e)
+            log.error("No se pudo enviar el email de verificación a %s: %s", user["email"], e)
         access_token = create_access_token(data={"sub": user["email"]}, password_hash=user["password_hash"])
         return {"access_token": access_token, "user": user}
     except psycopg.errors.UniqueViolation:
@@ -389,7 +389,7 @@ def change_password(request: Request, dto: ChangePasswordDTO,
     try:
         emailer.send_password_changed(current_user["email"])
     except Exception as e:
-        log.warning("No se pudo enviar el aviso de cambio de contraseña a %s: %s",
+        log.error("No se pudo enviar el aviso de cambio de contraseña a %s: %s",
                     current_user["email"], e)
     return {"message": "Contraseña actualizada."}
 
@@ -407,10 +407,12 @@ def password_reset_request(request: Request, dto: PasswordResetRequestDTO):
         )
         # No propagar fallos de envío: un 500 acá delataría que el email existe
         # (enumeración). Logueamos y respondemos igual que para un email no registrado.
+        # ERROR y no WARNING: el usuario ya leyó "te enviamos el mail", así que la
+        # alerta (Sentry) es la única forma de enterarse de que no salió.
         try:
             emailer.send_password_reset(user["email"], token)
         except Exception as e:
-            log.warning("No se pudo enviar el email de reset a %s: %s", user["email"], e)
+            log.error("No se pudo enviar el email de reset a %s: %s", user["email"], e)
     return {"message": "Si el email está registrado, te enviamos un enlace para restablecer la contraseña."}
 
 
@@ -437,7 +439,7 @@ def verify_email_request(request: Request, dto: EmailVerifyRequestDTO):
         try:
             emailer.send_email_verification(user["email"], token)
         except Exception as e:
-            log.warning("No se pudo enviar el email de verificación a %s: %s", user["email"], e)
+            log.error("No se pudo enviar el email de verificación a %s: %s", user["email"], e)
     return {"message": "Si el email está registrado y sin verificar, te enviamos un enlace de confirmación."}
 
 

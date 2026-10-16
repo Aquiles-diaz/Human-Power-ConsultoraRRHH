@@ -50,6 +50,14 @@ services:
         sync: false # hoy el gmail; tras autenticar el dominio, no-reply@humanpower.com.ar
       - key: SMTP_REPLY_TO
         sync: false # humanpower.rrhh@gmail.com — no-reply@ no recibe
+      # Alertas de fallas (Sentry, plan gratis). Sin DSN no se activa; con DSN,
+      # todo log.error/exception (mails que no salen, 500s) llega por mail.
+      - key: SENTRY_DSN
+        sync: false
+      # Tope diario de mails masivos (alertas + recordatorios). Lo que sobra hasta
+      # la cuota del proveedor queda para reset/verificación/postulación.
+      - key: BULK_EMAIL_DAILY_MAX
+        value: "100"
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL

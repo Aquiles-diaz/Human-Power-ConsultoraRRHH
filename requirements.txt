@@ -26,6 +26,9 @@ slowapi>=0.1.9
 # hasta 5 MB para mostrarse a 56 px y la grilla de Candidatos bajaba ~140 MB por
 # carga: eso agotó la cuota de egress del plan Free (ver _shrink_image en main.py).
 Pillow>=11
+# Alertas de fallas: con SENTRY_DSN cargado, todo log.error/exception llega como
+# alerta (ver backend/observability.py). Sin DSN no hace nada.
+sentry-sdk[fastapi]>=2.0
 # Login con Google: verificación del ID token (endpoint /auth/google).
 # El extra [requests] trae la librería `requests`, que usa
 # google.auth.transport.requests para validar el token. Sin ella, /auth/google

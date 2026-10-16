@@ -74,6 +74,10 @@ API_PUBLIC_URL = _resolve_api_public_url()
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
+# Render define RENDER=true en todo servicio. Ahí, no tener proveedor de mail es
+# un error de configuración, no "modo desarrollo" (ver send_email).
+RUNNING_ON_RENDER = bool(os.getenv("RENDER"))
+
 # Última red: si vamos a mandar mail DE VERDAD (hay proveedor configurado) y la
 # URL de la API sigue siendo la de desarrollo, los links de baja que salen en esos
 # mails no le sirven a nadie. No abortamos —tumbar el arranque dejaría sin login ni
@@ -136,6 +140,15 @@ def send_email(to: str, subject: str, html_body: str, text_body: str | None = No
         _send_via_brevo(to, subject, html_body, text_body, reply_to)
         return
     if not SMTP_HOST:
+        if RUNNING_ON_RENDER:
+            # En producción el "modo dev" no mandaba nada, dejaba en el log el
+            # link de reset con su token vigente y la tarea de recordatorios lo
+            # daba por enviado. Que falle: quien llama lo loguea como error y
+            # salta la alerta (Sentry).
+            raise RuntimeError(
+                "Sin proveedor de mail configurado en producción (falta BREVO_API_KEY "
+                "o SMTP_HOST): el mail no salió."
+            )
         log.warning(
             "[EMAIL DEV] SMTP no configurado; no se envía. Para: %s | Asunto: %s\n%s",
             to, subject, text_body or html_body,
