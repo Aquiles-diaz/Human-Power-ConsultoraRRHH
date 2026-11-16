@@ -54,6 +54,20 @@ class Resultado:
     marcados_faltantes: int = 0
     borrados: int = 0
     errores: list[str] = field(default_factory=list)
+    purga_frenada: bool = False
+
+
+# Purgar es lo único irreversible del backup. Si de golpe falta buena parte de lo
+# que había, lo más probable no es "lo borraron a propósito" sino un borrado
+# masivo por error, la key filtrada o una variable apuntando a otro proyecto: el
+# momento exacto en que las copias hacen falta. Por encima de este umbral no se
+# purga nada (se sigue marcando) hasta que alguien lo revise y use --forzar-purga.
+PURGA_MAX_FALTANTES = 10       # hasta acá se purga siempre (buckets chicos)
+PURGA_MAX_FRACCION = 0.20      # o hasta el 20% de lo respaldado
+
+
+def _purga_sospechosa(faltantes: int, respaldados: int) -> bool:
+    return faltantes > max(PURGA_MAX_FALTANTES, PURGA_MAX_FRACCION * respaldados)
 
 
 def listar(bucket_api, prefix: str = "", page: int = PAGE) -> dict[str, Optional[int]]:
@@ -91,7 +105,7 @@ def _leer_manifest(destino: Path) -> dict:
 
 def backup_bucket(remotos: dict[str, Optional[int]], descargar: Callable[[str], bytes],
                   destino: Path, hoy: date, retencion_dias: int = 30,
-                  dry_run: bool = False) -> Resultado:
+                  dry_run: bool = False, forzar_purga: bool = False) -> Resultado:
     """Sincroniza `destino` con el listado `remotos` ({key: tamaño})."""
     r = Resultado()
     manifest = _leer_manifest(destino)
@@ -122,11 +136,15 @@ def backup_bucket(remotos: dict[str, Optional[int]], descargar: Callable[[str], 
         manifest[key] = {"size": size if size is not None else len(data), "missing_since": None}
         r.descargados += 1
 
-    for key in sorted(set(manifest) - set(remotos)):
+    faltantes = sorted(set(manifest) - set(remotos))
+    r.purga_frenada = not forzar_purga and _purga_sospechosa(len(faltantes), len(manifest))
+    for key in faltantes:
         entrada = manifest[key]
         if entrada["missing_since"] is None:
             entrada["missing_since"] = hoy.isoformat()
             r.marcados_faltantes += 1
+        elif r.purga_frenada:
+            continue  # vencido, pero no se borra: ver PURGA_MAX_*
         elif (hoy - date.fromisoformat(entrada["missing_since"])).days >= retencion_dias:
             if not dry_run:
                 ruta = _ruta_segura(destino, key)
@@ -149,6 +167,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="no escribe nada, sólo informa")
     ap.add_argument("--retencion-dias", type=int, default=30,
                     help="días que se conserva lo que se borró del bucket (default 30)")
+    ap.add_argument("--forzar-purga", action="store_true",
+                    help="purga aunque falte buena parte del bucket (usar sólo tras revisar por qué falta)")
     args = ap.parse_args()
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -164,9 +184,13 @@ def main() -> int:
         remotos = listar(api)
         r = backup_bucket(
             remotos, lambda key, b=nombre: storage.download_bytes(b, key),
-            args.dest / nombre, hoy, args.retencion_dias, args.dry_run,
+            args.dest / nombre, hoy, args.retencion_dias, args.dry_run, args.forzar_purga,
         )
-        hubo_errores |= bool(r.errores)
+        hubo_errores |= bool(r.errores) or r.purga_frenada
+        if r.purga_frenada:
+            print(f"  ATENCIÓN {nombre}: falta buena parte de lo respaldado y NO se purgó nada. "
+                  "Revisá el bucket antes de volver a correr; si el borrado fue a propósito, "
+                  "usá --forzar-purga.", file=sys.stderr)
         print(f"{nombre}: {len(remotos)} en el bucket · {r.descargados} "
               f"{'a bajar' if args.dry_run else 'bajados'} · {r.sin_cambios} sin cambios · "
               f"{r.marcados_faltantes} ya no están (se conservan {args.retencion_dias} días) · "
