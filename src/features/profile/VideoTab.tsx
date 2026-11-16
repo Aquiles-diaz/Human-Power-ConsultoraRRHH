@@ -265,7 +265,8 @@ export default function VideoTab({ authHeaders, videoUrl, onUpdated }: Props) {
         )}
 
         <p className="mt-6 text-center text-xs text-white/40">
-          Solo lo ve el equipo de RRHH de HumanPower. Máx 30 segundos · 8 MB.
+          Lo usamos solo para presentarte a búsquedas. Queda en un enlace directo: quien lo tenga
+          puede verlo. Máx. 30 segundos · 8 MB.
         </p>
       </div>
 

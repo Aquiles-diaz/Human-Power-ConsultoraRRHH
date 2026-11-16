@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
  * Aviso de "cold start": el backend gratuito (Render free) tarda unos
  * segundos en despertar si estaba dormido. Si la carga no terminó tras
  * `delayMs`, mostramos un mensaje para que el usuario no piense que se colgó.
+ * El texto no menciona el alojamiento: es un sitio comercial.
  */
 export default function SlowLoadingHint({ delayMs = 4000 }: { delayMs?: number }) {
   const [show, setShow] = useState(false);
@@ -18,7 +19,7 @@ export default function SlowLoadingHint({ delayMs = 4000 }: { delayMs?: number }
 
   return (
     <p className="text-xs text-slate-400">
-      El servidor gratuito puede tardar unos segundos en despertar…
+      Estamos cargando los datos. Puede tardar unos segundos…
     </p>
   );
 }

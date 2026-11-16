@@ -13,7 +13,7 @@ describe("SlowLoadingHint", () => {
 
   it("no muestra nada antes de que pase el delay", () => {
     render(<SlowLoadingHint />);
-    expect(screen.queryByText(/servidor gratuito/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/puede tardar unos segundos/i)).not.toBeInTheDocument();
   });
 
   it("muestra el aviso de cold start tras el delay por defecto (4000ms)", () => {
@@ -22,12 +22,22 @@ describe("SlowLoadingHint", () => {
     act(() => {
       vi.advanceTimersByTime(3999);
     });
-    expect(screen.queryByText(/servidor gratuito/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/puede tardar unos segundos/i)).not.toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(screen.getByText(/servidor gratuito/i)).toBeInTheDocument();
+    expect(screen.getByText(/puede tardar unos segundos/i)).toBeInTheDocument();
+  });
+
+  it("no le cuenta al visitante cómo está alojado el sitio", () => {
+    // Decía "El servidor gratuito puede tardar…": es un sitio comercial.
+    render(<SlowLoadingHint delayMs={1000} />);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByText(/gratuito|servidor|despertar/i)).not.toBeInTheDocument();
   });
 
   it("respeta un delayMs custom", () => {
@@ -36,7 +46,7 @@ describe("SlowLoadingHint", () => {
     act(() => {
       vi.advanceTimersByTime(1000);
     });
-    expect(screen.getByText(/servidor gratuito/i)).toBeInTheDocument();
+    expect(screen.getByText(/puede tardar unos segundos/i)).toBeInTheDocument();
   });
 
   it("limpia el timer al desmontar (no explota si se desmonta antes del delay)", () => {

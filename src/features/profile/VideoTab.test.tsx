@@ -37,6 +37,15 @@ describe("VideoTab", () => {
     expect(screen.getByText(/pegá el link/i)).toBeInTheDocument();
   });
 
+  it("no promete una privacidad que el video no tiene", () => {
+    // El video queda en un enlace directo, sin login y que no vence (así lo
+    // dice la Política de Privacidad). La pantalla decía "Solo lo ve el equipo
+    // de RRHH", que es lo contrario.
+    render(<VideoTab authHeaders={headers} videoUrl={null} onUpdated={vi.fn()} />);
+    expect(screen.queryByText(/solo lo ve/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/enlace directo/i)).toBeInTheDocument();
+  });
+
   it("rechaza un archivo no permitido sin llamar a la API", async () => {
     render(<VideoTab authHeaders={headers} videoUrl={null} onUpdated={vi.fn()} />);
     const input = screen.getByTestId("video-file-input") as HTMLInputElement;
