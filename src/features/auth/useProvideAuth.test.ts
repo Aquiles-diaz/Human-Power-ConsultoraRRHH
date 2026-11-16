@@ -132,3 +132,53 @@ describe("useProvideAuth · verificación de sesión (/me)", () => {
     expect(intentos).toBe(1);
   });
 });
+
+// El panel guarda en sessionStorage las listas de postulaciones y candidatos
+// (nombre, email, teléfono) para pintar rápido. Sólo se borraban al salir con
+// el botón del panel: cerrar sesión desde el menú del sitio, o que la sesión
+// venciera, las dejaba ahí para el siguiente que usara esa pestaña.
+describe("useProvideAuth · la caché del panel no sobrevive a la sesión", () => {
+  const ADMIN = { id: 1, email: "admin@test.com", name: "Admin", role: "admin" };
+  const CACHE = ["hp.admin.cv.v1", "hp.admin.candidates.v1"];
+  const cargarCache = () => CACHE.forEach((k) => sessionStorage.setItem(k, '{"items":[{"email":"ana@test.com"}]}'));
+  const cacheVacia = () => CACHE.every((k) => sessionStorage.getItem(k) === null);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("hp_token", "un-token-valido");
+  });
+
+  async function conSesion() {
+    apiFetchMock.mockImplementation(() =>
+      Promise.resolve({ ok: true, status: 200, json: async () => ADMIN } as Response));
+    const hook = renderHook(() => useProvideAuth());
+    await vi.waitFor(() => expect(hook.result.current.user).toMatchObject({ role: "admin" }));
+    cargarCache();
+    return hook;
+  }
+
+  it("se borra al cerrar sesión, sea desde donde sea", async () => {
+    const { result } = await conSesion();
+    sessionStorage.setItem("hp-pending-application", "mozo-a");
+
+    act(() => result.current.logout());
+
+    expect(cacheVacia()).toBe(true);
+    // Sólo lo del panel: lo demás de la pestaña no se toca.
+    expect(sessionStorage.getItem("hp-pending-application")).toBe("mozo-a");
+  });
+
+  it("se borra cuando la sesión resulta vencida al entrar", async () => {
+    cargarCache();
+    apiFetchMock.mockImplementation(() =>
+      Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response));
+
+    const { result } = renderHook(() => useProvideAuth());
+    await vi.waitFor(() => expect(result.current.isInitialLoading).toBe(false));
+
+    expect(result.current.token).toBeNull();
+    expect(cacheVacia()).toBe(true);
+  });
+});

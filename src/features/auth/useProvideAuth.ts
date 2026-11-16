@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, parseApiError, setUnauthorizedHandler } from "@/lib/api";
 import { trackRegistroCompletado } from "@/lib/analytics";
+import { clearAdminCache } from "@/features/admin/admin-cache";
 
 const TOKEN_KEY = "hp_token";
 
@@ -55,6 +56,10 @@ export function useProvideAuth() {
     } catch {
       // ignore storage errors (e.g., private mode)
     }
+    // Sin sesión no queda en la pestaña la caché del panel (datos de
+    // candidatos). Va acá porque por acá pasan TODAS las formas de quedarse sin
+    // sesión: el logout de cualquier menú, un 401 y un token vencido al entrar.
+    if (!t) clearAdminCache();
     setToken(t);
   }, []);
 
