@@ -52,6 +52,9 @@ class FakeCursor:
             self._rows = []
         elif "from users u" in s:
             self._rows = list(self.state.get("users", []))
+        elif s.startswith("insert into profile_nudges"):
+            # ON CONFLICT DO NOTHING RETURNING nudge: acá el escalón siempre es nuevo.
+            self._rows = [DualRow(["nudge"], [params[1]])]
         else:
             self._rows = []
         return self

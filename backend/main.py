@@ -2605,16 +2605,67 @@ def _reminder_due(created_at, already_sent: set[str], now) -> Optional[int]:
     due = [h for h in REMINDER_HOURS if hours >= h and f"perfil_{h}h" not in already_sent]
     return max(due) if due else None
 
+
+def _claim_profile_nudges(user_id: int, tier: int) -> list[str]:
+    """Registra el escalón (y los menores) ANTES de mandar el mail. Devuelve los
+    que insertó esta llamada; si el escalón pedido no está en la lista, ya lo
+    había tomado otra corrida.
+
+    El orden es lo que evita duplicados: si se mandara primero y se registrara
+    después, dos corridas simultáneas (el cron reintenta cuando el backend tarda
+    en despertar) le mandarían el mismo recordatorio a la misma persona. Con el
+    registro primero, la clave primaria (user_id, nudge) deja pasar a una sola.
+
+    Se marcan también los escalones menores: si el estreno lo agarra con el de
+    168h, los de 24h/72h no deben dispararse en la corrida siguiente."""
+    mine: list[str] = []
+    with get_db() as conn:
+        cur = conn.cursor()
+        for h in (h for h in REMINDER_HOURS if h <= tier):
+            cur.execute(
+                "INSERT INTO profile_nudges (user_id, nudge) VALUES (%s, %s) "
+                "ON CONFLICT DO NOTHING RETURNING nudge",
+                (user_id, f"perfil_{h}h"),
+            )
+            if cur.fetchone():
+                mine.append(f"perfil_{h}h")
+        conn.commit()
+    return mine
+
+
+def _unclaim_profile_nudges(user_id: int, nudges: list[str]) -> None:
+    """Libera escalones registrados por _claim_profile_nudges cuando el mail no
+    salió: sin registro, la próxima corrida lo reintenta. Sólo borra los que
+    insertó esa llamada, nunca uno que ya se había mandado antes.
+
+    Si este borrado falla, esa persona se queda sin ese escalón: se prefiere
+    perder un recordatorio a mandarlo dos veces."""
+    if not nudges:
+        return
+    try:
+        with get_db() as conn:
+            conn.cursor().execute(
+                "DELETE FROM profile_nudges WHERE user_id = %s AND nudge = ANY(%s)",
+                (user_id, nudges),
+            )
+            conn.commit()
+    except Exception:
+        log.exception("No se pudo liberar el recordatorio reservado del usuario %s", user_id)
+
+
 @app.post("/tasks/profile-reminders", response_model=NudgeRunOut, tags=["tasks"])
 def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOut:
     """Tarea del cron (GitHub Actions, cada hora): recordatorio por email a los
     usuarios que se registraron y siguen sin CV ni video.
 
     Autenticación por header X-Cron-Secret (no JWT: la llama una máquina). Es
-    idempotente: cada envío queda en profile_nudges y no se repite, así correrla
-    de más no spamea a nadie. Con ?dry_run=1 solo informa a quiénes les tocaría."""
+    idempotente: cada escalón se registra en profile_nudges antes de mandarlo y
+    no se repite, así correrla de más —o dos veces a la vez— no spamea a nadie.
+    Con ?dry_run=1 solo informa a quiénes les tocaría."""
+    # En bytes: compare_digest con texto sólo acepta ASCII, y un header con una
+    # ñ tiraba TypeError (un 500 anónimo en vez de un 403).
     if not CRON_SECRET or not secrets.compare_digest(
-        request.headers.get("x-cron-secret", ""), CRON_SECRET
+        request.headers.get("x-cron-secret", "").encode("utf-8"), CRON_SECRET.encode("utf-8")
     ):
         raise HTTPException(status_code=403, detail="No autorizado")
 
@@ -2670,15 +2721,24 @@ def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOu
                         "el resto sale mañana.")
             break
         # Best-effort por usuario (mismo criterio que _send_job_alerts): un mail
-        # que falla no debe frenar a los demás; sin registro en profile_nudges,
-        # ese usuario se reintenta solo en la próxima corrida.
+        # que falla no debe frenar a los demás; se libera su registro en
+        # profile_nudges y ese usuario se reintenta solo en la próxima corrida.
+        claimed: list[str] = []
         try:
+            claimed = _claim_profile_nudges(user_id, tier)
+            if f"perfil_{tier}h" not in claimed:
+                # Otra corrida lo registró entre nuestra lectura y ahora: ya se
+                # lo mandó (o se lo está mandando) ella.
+                _unclaim_profile_nudges(user_id, claimed)
+                _release_bulk_mail()
+                continue
             token = create_purpose_token(email, "nudge_unsub", 60 * 24 * 180)
             unsub_url = emailer.profile_nudge_unsub_link(token)
             emailer.send_profile_reminder(email, name, unsub_url)
             fallas_seguidas = 0
         except Exception:
             log.exception("Fallo el recordatorio de perfil a %s", email)
+            _unclaim_profile_nudges(user_id, claimed)
             _release_bulk_mail()
             failed += 1
             fallas_seguidas += 1
@@ -2686,17 +2746,6 @@ def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOu
                 log.error("profile-reminders: %d fallas seguidas; corto la corrida.", fallas_seguidas)
                 break
             continue
-        # Marca el escalón enviado Y los menores: si el estreno lo agarra con el
-        # de 168h, los de 24h/72h no deben dispararse en la corrida siguiente.
-        with get_db() as conn:
-            cur = conn.cursor()
-            for h in (h for h in REMINDER_HOURS if h <= tier):
-                cur.execute(
-                    "INSERT INTO profile_nudges (user_id, nudge) VALUES (%s, %s) "
-                    "ON CONFLICT DO NOTHING",
-                    (user_id, f"perfil_{h}h"),
-                )
-            conn.commit()
         sent += 1
 
     log.info("profile-reminders: %d elegibles, %d enviados, %d fallidos", eligible, sent, failed)
