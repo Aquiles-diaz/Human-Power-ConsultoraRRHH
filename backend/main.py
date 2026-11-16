@@ -1166,7 +1166,10 @@ def _send_job_alerts(recipients: list[str], job_title: str, company: str, job_id
     fallas_seguidas = 0
     for i, to in enumerate(recipients):
         if not _reserve_bulk_mail():
-            log.warning(
+            # error y no warning: estas alertas no se reintentan, así que los
+            # suscriptos que faltaban no se enteran nunca del aviso. Con warning
+            # no le llegaba a nadie (Sentry sólo recibe error y exception).
+            log.error(
                 "Presupuesto diario de mails masivos agotado: %d alertas del aviso %s sin enviar",
                 len(recipients) - i, job_id,
             )
