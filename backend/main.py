@@ -784,7 +784,15 @@ def _shrink_image(data: bytes) -> tuple[bytes, Optional[str]]:
     try:
         from PIL import Image, ImageOps
 
-        with Image.open(io.BytesIO(data)) as img:
+        try:
+            opened = Image.open(io.BytesIO(data))
+        except Image.DecompressionBombError as e:
+            # Por encima de ~179 MP es Pillow el que se niega a abrirla, antes de
+            # llegar al chequeo de abajo. Sin esto ese error caía en el `except
+            # Exception` del final y se subía el original: la imagen más grande
+            # era justo la única que pasaba entera.
+            raise ImagenDemasiadoGrande("supera lo que Pillow acepta abrir") from e
+        with opened as img:
             # Image.open sólo parsea el header: acá los píxeles TODAVÍA no se
             # decodificaron. Es el único punto donde se puede frenar una bomba,
             # porque exif_transpose y thumbnail ya materializan el bitmap entero.

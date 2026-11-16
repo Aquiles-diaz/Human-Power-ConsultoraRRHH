@@ -151,6 +151,19 @@ def test_rechaza_una_bomba_de_descompresion():
         _shrink_image(bomba)
 
 
+def test_rechaza_tambien_la_imagen_que_el_propio_pillow_se_niega_a_abrir():
+    """Por encima de ~179 MP Pillow levanta DecompressionBombError al abrir, o
+    sea antes del chequeo propio de megapíxeles. Ese error caía en el `except
+    Exception` genérico y la función devolvía el original "para no dar un 500":
+    justo la imagen más grande era la única que llegaba entera al bucket y al
+    navegador del admin."""
+    bomba = _png_de_color_plano(14000, 14000)  # 196 MP
+    assert len(bomba) < 5 * 1024 * 1024, "tiene que pasar el tope de bytes"
+
+    with pytest.raises(ImagenDemasiadoGrande):
+        _shrink_image(bomba)
+
+
 def test_acepta_la_foto_de_un_celular_normal():
     """El tope por megapíxeles no puede rechazar fotos legítimas: 12 MP es lo que
     saca un celular estándar y tiene que seguir entrando."""
