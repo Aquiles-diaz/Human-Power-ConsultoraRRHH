@@ -33,7 +33,7 @@ from . import emailer  # envío de emails (consultas de contacto)
 from . import mail_budget  # presupuesto diario de mails masivos (alertas, recordatorios)
 from . import observability  # alertas de fallas (Sentry, opcional)
 from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
-from .ratelimit import MAIL_REQUEST_RATE_LIMIT_HOUR, limiter  # rate limiting compartido (slowapi)
+from .ratelimit import MAIL_REQUEST_RATE_LIMIT_HOUR, client_ip_key, limiter  # rate limiting compartido (slowapi)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuración
@@ -1861,6 +1861,38 @@ def get_candidate_stats() -> CandidateStatsOut:
         complete_people=complete_people, empty_people=empty_people,
         almost_complete=almost, by_area=by_area,
     )
+
+
+class ClientIpOut(BaseModel):
+    limiter_key: str                # lo que hoy usa el rate limiting como "IP del cliente"
+    client_host: Optional[str]      # request.client.host (lo que resuelve uvicorn)
+    x_forwarded_for: list[str]      # los saltos, en el orden en que llegan
+    cf_connecting_ip: Optional[str]
+    true_client_ip: Optional[str]
+
+
+@app.get("/admin/client-ip", response_model=ClientIpOut,
+         dependencies=[Depends(require_admin)], tags=["admin"])
+@limiter.limit("30/minute")
+def admin_client_ip(request: Request) -> ClientIpOut:
+    """Diagnóstico: qué ve el backend de la red de quien llama.
+
+    El rate limiting toma como clave el ÚLTIMO salto de X-Forwarded-For, que es
+    correcto con un solo proxy delante de la app. En Render hay dos (Cloudflare y
+    el balanceador): si ese último salto es la IP de un proxy, todos los
+    visitantes comparten cupo y un tope por IP pasa a ser un tope global. Desde
+    afuera no se puede saber qué llega; esto lo muestra, sólo al admin y sólo
+    sobre su propio pedido. Si `limiter_key` no coincide con la IP pública de
+    quien consulta, hay que cambiar client_ip_key (ver ratelimit.py)."""
+    xff = request.headers.get("x-forwarded-for", "")
+    return ClientIpOut(
+        limiter_key=client_ip_key(request),
+        client_host=request.client.host if request.client else None,
+        x_forwarded_for=[p.strip() for p in xff.split(",") if p.strip()],
+        cf_connecting_ip=request.headers.get("cf-connecting-ip"),
+        true_client_ip=request.headers.get("true-client-ip"),
+    )
+
 
 @app.get("/admin/stats", response_model=AdminStatsOut,
          dependencies=[Depends(require_admin)], tags=["admin"])
