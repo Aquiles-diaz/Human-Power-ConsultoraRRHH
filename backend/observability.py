@@ -30,9 +30,26 @@ def _scrub(value):
     return value
 
 
+# Headers que no salen del servidor. Sentry ya filtra Authorization y Cookie
+# cuando send_default_pii=False, pero no conoce el secreto del cron; van los
+# tres para no depender de la versión del SDK.
+_SENSITIVE_HEADERS = {"x-cron-secret", "authorization", "cookie"}
+
+
 def scrub_event(event, hint):
     """before_send de Sentry: el evento sale sin ningún email adentro (mensaje,
-    parámetros del log, texto de la excepción, breadcrumbs)."""
+    parámetros del log, texto de la excepción, breadcrumbs) y sin el contenido
+    del request: ni body, ni cookies, ni headers con credenciales. Queda la URL
+    y el método, que alcanzan para saber dónde falló."""
+    request = event.get("request")
+    if isinstance(request, dict):
+        request.pop("data", None)
+        request.pop("cookies", None)
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            request["headers"] = {
+                k: v for k, v in headers.items() if str(k).lower() not in _SENSITIVE_HEADERS
+            }
     return _scrub(event)
 
 
@@ -53,6 +70,12 @@ def init_sentry(dsn: str | None = None, **extra) -> bool:
         # endpoint de perfil serían nombre, teléfono o fecha de nacimiento del
         # candidato, y el tachado sólo cubre emails. Con el stacktrace alcanza.
         include_local_variables=False,
+        # Por defecto Sentry también adjunta el body del request y sólo tacha
+        # campos llamados exactamente `password` o `token`: `new_password`,
+        # `current_password` o el `credential` de Google viajaban en claro.
+        # "never" hace que ni lo lea; scrub_event lo vuelve a quitar por si una
+        # versión futura del SDK cambia el comportamiento.
+        max_request_body_size="never",
         # Sólo errores: el tracing de performance consume la cuota gratis.
         traces_sample_rate=0.0,
         before_send=scrub_event,

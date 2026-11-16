@@ -107,6 +107,52 @@ def test_el_evento_no_lleva_las_variables_locales():
     assert "341-555-0199" not in repr(ev)
 
 
+def test_el_evento_no_lleva_el_cuerpo_del_pedido_ni_el_secreto_del_cron():
+    """Sentry adjunta el body del request a cada evento y sólo tacha campos que
+    se llaman exactamente `password` o `token`: `current_password`,
+    `new_password` y el `credential` de Google viajaban en claro, igual que el
+    header X-Cron-Secret. Un error dentro de /me/password alcanzaba para que la
+    contraseña de un usuario quedara guardada en un servicio externo."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    transporte = _Captura()
+    # Armados en runtime, igual que arriba: que no figuren como código fuente.
+    clave_actual = "-".join(["clave", "actual", "del", "usuario"])
+    clave_nueva = "-".join(["clave", "nueva", "del", "usuario"])
+    token_google = "-".join(["id", "token", "de", "google"])
+    secreto_cron = "-".join(["secreto", "del", "cron"])
+
+    try:
+        observability.init_sentry(dsn="https://clave@o0.ingest.sentry.io/0", transport=transporte)
+        app = FastAPI()  # después del init: así la integración engancha el request
+
+        @app.post("/me/password")
+        def cambiar_clave(body: dict):  # noqa: ARG001 — el body es lo que no tiene que viajar
+            logging.getLogger("humanpower.test_observability").error(
+                "No se pudo enviar el aviso de cambio de contraseña")
+            return {"ok": True}
+
+        r = TestClient(app).post(
+            "/me/password",
+            json={"current_password": clave_actual, "new_password": clave_nueva,
+                  "credential": token_google},
+            headers={"X-Cron-Secret": secreto_cron},
+        )
+        assert r.status_code == 200, r.text
+        sentry_sdk.flush()
+    finally:
+        sentry_sdk.init(dsn=None)
+
+    assert len(transporte.eventos) == 1, transporte.eventos
+    ev = transporte.eventos[0]
+    # El evento tiene que seguir diciendo en qué endpoint pasó: eso sí sirve.
+    assert ev["request"]["url"].endswith("/me/password"), ev.get("request")
+    texto = repr(ev)
+    for secreto in (clave_actual, clave_nueva, token_google, secreto_cron):
+        assert secreto not in texto, f"viajó a Sentry: {secreto}"
+
+
 # ── Mail sin proveedor ───────────────────────────────────────────────────────
 
 class _Registro(logging.Handler):

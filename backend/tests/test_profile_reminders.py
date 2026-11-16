@@ -46,8 +46,18 @@ class FakeCursor:
     def execute(self, sql, params=()):
         s = " ".join(sql.split()).lower()
         self.executed.append((s, params))
+        nudges = self.state.setdefault("nudges", set())  # (user_id, nudge) ya registrados
         if "from users u" in s:
             self._rows = list(self.state.get("users", []))
+        elif s.startswith("insert into profile_nudges"):
+            # ON CONFLICT DO NOTHING RETURNING nudge: devuelve fila sólo si insertó.
+            nuevo = tuple(params) not in nudges
+            nudges.add(tuple(params))
+            self._rows = [DualRow(["nudge"], [params[1]])] if nuevo else []
+        elif s.startswith("delete from profile_nudges"):
+            user_id, borrar = params
+            nudges.difference_update({(user_id, n) for n in borrar})
+            self._rows = []
         elif s.startswith("insert into email_bulk_budget"):
             # Presupuesto de masivos siempre con cupo acá (se testea en test_mail_budget.py).
             self._rows = [DualRow(["sent"], [1])]
@@ -237,7 +247,76 @@ def test_task_un_mail_que_falla_no_frena_a_los_demas():
     body = r.json()
     assert (body["sent"], body["failed"]) == (1, 1), body
     assert calls == ["beto@x.com"]
-    assert _inserted_nudges(executed) == [(2, "perfil_24h")], executed
+    # Lo que importa es cómo queda la tabla: Ana sin registro (se reintenta).
+    assert state["nudges"] == {(2, "perfil_24h")}, state["nudges"]
+
+
+def test_task_registra_el_escalon_antes_de_mandar():
+    """Si el mail saliera antes de quedar registrado, una segunda corrida que
+    arranca en el medio (el cron reintenta a los 150 s) le mandaría el mismo
+    recordatorio a la misma persona. Cuando sale el mail, el escalón ya está."""
+    main.CRON_SECRET = "s3cr3t"
+    state = {"users": [_user_row(1, "Ana", "ana@x.com", hours_ago=30)]}
+    registrado_al_enviar = []
+    main.emailer.send_profile_reminder = lambda *a, **k: registrado_al_enviar.append(
+        (1, "perfil_24h") in state["nudges"])
+    client, _ = make_client(state, [])
+
+    r = client.post("/tasks/profile-reminders", headers={"X-Cron-Secret": "s3cr3t"})
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert registrado_al_enviar == [True], registrado_al_enviar
+
+
+def test_task_no_manda_si_otra_corrida_ya_tomo_el_escalon():
+    """Dos corridas a la vez leen a Ana como pendiente. La que llega segunda
+    encuentra el escalón ya registrado: no manda y devuelve el cupo de mail."""
+    main.CRON_SECRET = "s3cr3t"
+    calls = []
+    main.emailer.send_profile_reminder = lambda *a, **k: calls.append(a)
+    executed = []
+    state = {
+        "users": [_user_row(1, "Ana", "ana@x.com", hours_ago=30)],  # lectura vieja: sin nudges
+        "nudges": {(1, "perfil_24h")},                               # la otra corrida ya lo tomó
+    }
+    client, _ = make_client(state, executed)
+
+    r = client.post("/tasks/profile-reminders", headers={"X-Cron-Secret": "s3cr3t"})
+    assert r.status_code == 200, (r.status_code, r.text)
+    body = r.json()
+    assert calls == [], calls
+    assert (body["sent"], body["failed"]) == (0, 0), body
+    assert any(s.startswith("update email_bulk_budget") for s, _ in executed), executed
+
+
+def test_task_si_el_mail_falla_no_borra_escalones_que_ya_se_habian_mandado():
+    """A las 80 h con el de 24 h ya enviado toca el de 72 h. Si ese mail falla
+    se libera el de 72 h (para reintentar) pero el de 24 h queda como estaba."""
+    main.CRON_SECRET = "s3cr3t"
+
+    def _boom(*a, **k):
+        raise RuntimeError("Brevo caído")
+
+    main.emailer.send_profile_reminder = _boom
+    state = {
+        "users": [_user_row(1, "Ana", "ana@x.com", hours_ago=80, nudges=["perfil_24h"])],
+        "nudges": {(1, "perfil_24h")},
+    }
+    client, _ = make_client(state, [])
+
+    r = client.post("/tasks/profile-reminders", headers={"X-Cron-Secret": "s3cr3t"})
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert r.json()["failed"] == 1, r.json()
+    assert state["nudges"] == {(1, "perfil_24h")}, state["nudges"]
+
+
+def test_task_un_header_con_caracteres_raros_es_403_y_no_500():
+    """compare_digest sólo acepta ASCII cuando compara texto: un X-Cron-Secret
+    con una ñ tiraba TypeError, o sea un 500 anónimo y una alerta por pedido."""
+    main.CRON_SECRET = "s3cr3t"
+    main._get_conn = lambda: FakeConn({"users": []}, [])
+    client = TestClient(main.app, raise_server_exceptions=False)
+    r = client.post("/tasks/profile-reminders", headers={"X-Cron-Secret": "señal".encode("latin-1")})
+    assert r.status_code == 403, (r.status_code, r.text)
 
 
 # ── GET /nudges/unsubscribe ──────────────────────────────────────────────────

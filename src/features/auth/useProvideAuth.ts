@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, parseApiError, setUnauthorizedHandler } from "@/lib/api";
 import { trackRegistroCompletado } from "@/lib/analytics";
+import { clearAdminCache } from "@/features/admin/admin-cache";
+import { tokenExpiresAt } from "./token";
 
 const TOKEN_KEY = "hp_token";
+
+// Renovación de la sesión. El token de acceso dura 60 minutos; mientras la
+// pestaña está a la vista se cambia por uno nuevo cuando le quedan menos de 20,
+// así nadie pierde lo que está cargando por haber tardado más de una hora. El
+// servidor deja de renovar a las 12 horas del login (SESSION_MAX_HOURS).
+const RENEW_BEFORE_MS = 20 * 60_000;
+const RENEW_CHECK_MS = 60_000;
 
 export type User = {
   id?: string | number;
@@ -45,22 +54,46 @@ export function useProvideAuth() {
   );
   const [loading, setLoading] = useState(false);
   const [isInitialLoading, setInitialLoading] = useState(true);
+  // `token` (estado) marca la sesión: cambia al entrar y al salir. El token que
+  // de verdad viaja en los pedidos vive acá, porque una renovación lo reemplaza
+  // sin ser una sesión nueva. Si la renovación cambiara el estado, cambiaría
+  // getAuthHeader y todas las listas del panel volverían a pedir sus datos.
+  const bearerRef = useRef<string | null>(token);
+  // Los headers de auth son UN solo objeto por sesión. Las pantallas lo piden
+  // una vez y lo reutilizan en cada pedido (authFetch lo lee recién al llamar),
+  // así que la renovación le cambia el valor por dentro y todas pasan a mandar
+  // el token nuevo. Si cada llamada devolviera un objeto distinto, las que se
+  // lo guardaron seguirían mandando el viejo hasta recibir el 401.
+  const headerRef = useRef<Record<string, string>>(
+    token ? { Authorization: `Bearer ${token}` } : {}
+  );
 
   const isAuthenticated = !!token && !!user;
 
   const saveToken = useCallback((t: string | null) => {
+    bearerRef.current = t;
+    // Sesión nueva (o ninguna): objeto nuevo. Al anterior se le quita el token
+    // por si alguna pantalla todavía lo tiene en la mano.
+    delete headerRef.current.Authorization;
+    headerRef.current = t ? { Authorization: `Bearer ${t}` } : {};
     try {
       if (t) localStorage.setItem(TOKEN_KEY, t);
       else localStorage.removeItem(TOKEN_KEY);
     } catch {
       // ignore storage errors (e.g., private mode)
     }
+    // Sin sesión no queda en la pestaña la caché del panel (datos de
+    // candidatos). Va acá porque por acá pasan TODAS las formas de quedarse sin
+    // sesión: el logout de cualquier menú, un 401 y un token vencido al entrar.
+    if (!t) clearAdminCache();
     setToken(t);
   }, []);
 
   const getAuthHeader = useCallback(
-    (): Record<string, string> =>
-      token ? { Authorization: `Bearer ${token}` } : {},
+    // Con sesión devuelve siempre el mismo objeto, que lleva el último token
+    // renovado (ver headerRef). Depende de `token` para que cambie de identidad
+    // al entrar y al salir, que es cuando las pantallas tienen que recargar.
+    (): Record<string, string> => (token ? headerRef.current : {}),
     [token]
   );
 
@@ -74,6 +107,71 @@ export function useProvideAuth() {
     });
     return () => setUnauthorizedHandler(null);
   }, [saveToken]);
+
+  // Renueva el token mientras la pestaña está en uso (ver RENEW_BEFORE_MS).
+  useEffect(() => {
+    if (!token) return;
+    let busy = false;
+    let capped = false; // el servidor avisó que esta sesión ya no se extiende
+
+    const renew = async () => {
+      const bearer = bearerRef.current;
+      if (!bearer || busy || capped || document.visibilityState !== "visible") return;
+      const expiresAt = tokenExpiresAt(bearer);
+      if (expiresAt === null) return;
+      const left = expiresAt - Date.now();
+      // Si ya venció no hay nada que renovar: el próximo pedido da 401 y la
+      // sesión se cierra por el camino de siempre.
+      if (left > RENEW_BEFORE_MS || left <= 0) return;
+
+      busy = true;
+      try {
+        const res = await apiFetch(`/auth/refresh`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${bearer}` },
+        });
+        // Si mientras tanto hubo logout u otro login, este resultado ya no aplica.
+        if (bearerRef.current !== bearer) return;
+        if (res.status === 401) {
+          saveToken(null);
+          setUser(null);
+          return;
+        }
+        if (res.status === 403) {
+          // Tope de duración: el token actual sigue valiendo hasta su hora, así
+          // que no se cierra nada; se avisa para que guarde lo que tenga abierto.
+          capped = true;
+          toast("Tu sesión está por terminar", {
+            description: "Guardá lo que estés cargando y volvé a ingresar para seguir.",
+          });
+          return;
+        }
+        if (!res.ok) return; // falla transitoria: se reintenta en la próxima revisión
+        const data = (await res.json()) as LoginResponse;
+        if (!data?.access_token || bearerRef.current !== bearer) return;
+        bearerRef.current = data.access_token;
+        headerRef.current.Authorization = `Bearer ${data.access_token}`;
+        try {
+          localStorage.setItem(TOKEN_KEY, data.access_token);
+        } catch {
+          // sin storage el token nuevo igual sirve mientras la pestaña siga abierta
+        }
+      } catch {
+        // Sin red o backend dormido: se reintenta en la próxima revisión.
+      } finally {
+        busy = false;
+      }
+    };
+
+    const interval = window.setInterval(renew, RENEW_CHECK_MS);
+    const onVisibility = () => void renew();
+    document.addEventListener("visibilitychange", onVisibility);
+    void renew();
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [token, saveToken]);
 
   const login = useCallback(
     async (payload: LoginPayload) => {
@@ -203,7 +301,9 @@ export function useProvideAuth() {
 
           if (res.ok) {
             const data: User = await res.json();
-            setUser(data);
+            // Si la sesión se cerró mientras este pedido estaba en viaje (logout,
+            // o un 401 al renovar), no hay que volver a cargar al usuario.
+            if (bearerRef.current) setUser(data);
             return;
           }
           // 5xx u otro: transitorio, cae al reintento de abajo.

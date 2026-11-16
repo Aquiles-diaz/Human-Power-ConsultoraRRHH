@@ -12,6 +12,11 @@ import "./index.css";
 import App from "./App";
 import { AppProviders } from "@/app/providers";
 import { Analytics } from "@vercel/analytics/react";
+import { installStaleChunkReload } from "@/app/stale-chunk-reload";
+
+// Antes de montar: una pestaña abierta durante un deploy se recarga sola en vez
+// de romper al navegar (ver stale-chunk-reload.ts).
+installStaleChunkReload();
 
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("No se encontró el elemento #root en index.html");

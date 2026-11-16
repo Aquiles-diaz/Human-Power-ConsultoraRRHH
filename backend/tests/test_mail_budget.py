@@ -52,6 +52,9 @@ class FakeCursor:
             self._rows = []
         elif "from users u" in s:
             self._rows = list(self.state.get("users", []))
+        elif s.startswith("insert into profile_nudges"):
+            # ON CONFLICT DO NOTHING RETURNING nudge: acá el escalón siempre es nuevo.
+            self._rows = [DualRow(["nudge"], [params[1]])]
         else:
             self._rows = []
         return self
@@ -104,6 +107,34 @@ def test_alertas_cortan_cuando_se_agota_el_presupuesto():
 
     assert enviados == ["a@x.com", "b@x.com"], enviados
     assert state["budget_used"] == 2
+
+
+class _LogEspia:
+    """Reemplaza main.log y anota (nivel, mensaje). No se usa un Handler porque
+    otros tests le cambian el nivel al logger real."""
+
+    def __init__(self):
+        self.llamadas = []
+
+    def __getattr__(self, nivel):
+        return lambda msg="", *a, **k: self.llamadas.append((nivel, str(msg)))
+
+
+def test_las_alertas_que_no_salen_por_cupo_agotado_se_avisan_como_error():
+    """Esas alertas no se reintentan: los suscriptos que faltaban no se enteran
+    nunca del aviso. Con log.warning no le llegaba a nadie (Sentry sólo recibe
+    error y exception); tiene que ser un error."""
+    emailer.send_job_alert = lambda to, *a, **k: None
+    _setup({}, limite=1)
+    original, espia = main.log, _LogEspia()
+    main.log = espia
+    try:
+        main._send_job_alerts(["a@x.com", "b@x.com", "c@x.com"], "Mozo/a", "Bar Sur", "mozo")
+    finally:
+        main.log = original
+
+    avisos = [nivel for nivel, msg in espia.llamadas if "sin enviar" in msg]
+    assert avisos == ["error"], espia.llamadas
 
 
 def test_tres_fallas_seguidas_cortan_las_alertas_y_devuelven_el_cupo():

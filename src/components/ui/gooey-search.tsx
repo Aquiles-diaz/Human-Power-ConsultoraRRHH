@@ -38,10 +38,10 @@ function useDebounce<T>(value: T, delay: number): T {
 
 // ── Animation variants ───────────────────────────────────────────────────────
 
-const buttonMotionVariants = {
+const getButtonVariants = (expandedWidth: number) => ({
   step1: { x: 0, width: 100 },
-  step2: { x: -30, width: 180 },
-};
+  step2: { x: -30, width: expandedWidth },
+});
 
 const iconMotionVariants = {
   hidden: { x: -50, opacity: 0 },
@@ -164,6 +164,8 @@ export interface GooeySearchProps {
   debounceMs?: number;
   /** Maximum number of results to render. Defaults to 5. */
   maxResults?: number;
+  /** Ancho en px del buscador abierto; los resultados miden lo mismo. Por defecto 180. */
+  expandedWidth?: number;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -179,6 +181,7 @@ export function GooeySearch({
   className,
   debounceMs = 500,
   maxResults = 5,
+  expandedWidth = 180,
 }: GooeySearchProps) {
   const uid = useId().replace(/:/g, "_");
   const filterId = `gooey-search-${uid}`;
@@ -190,6 +193,7 @@ export function GooeySearch({
   const [isLoading, setIsLoading] = useState(false);
 
   const isUnsupported = useMemo(() => detectUnsupportedBrowser(), []);
+  const buttonMotionVariants = useMemo(() => getButtonVariants(expandedWidth), [expandedWidth]);
   const debouncedQuery = useDebounce(searchText, debounceMs);
 
   // Step only ever advances 1 -> 2, so the effect's sole job is to focus the
@@ -287,6 +291,7 @@ export function GooeySearch({
                   key={item}
                   role="option"
                   tabIndex={0}
+                  title={item}
                   onClick={() => onSelect?.(item)}
                   onKeyDown={(e) => e.key === "Enter" && onSelect?.(item)}
                   whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
@@ -307,13 +312,24 @@ export function GooeySearch({
                     cursor: "pointer",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
                     <InfoSvgIcon index={index} />
+                    {/* Una sola línea con puntos suspensivos: las burbujas tienen
+                        alto y separación fijos, y un texto que parte en dos
+                        líneas se encimaba con la de abajo y quedaba cortado. El
+                        texto entero va en el `title` de la opción. */}
                     <motion.span
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.12 + 0.3 }}
-                      style={{ position: "relative", top: -0.35 }}
+                      style={{
+                        position: "relative",
+                        top: -0.35,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
                     >
                       {item}
                     </motion.span>
@@ -344,6 +360,10 @@ export function GooeySearch({
             border: "none",
             borderRadius: 9999,
             padding: btnPadding,
+            // Nunca más ancho que la pantalla: deja lugar para el corrimiento
+            // de 30 px y la burbuja del ícono (importa con `expandedWidth` grande
+            // en un celular).
+            maxWidth: "calc(100vw - 6rem)",
           }}
         >
           {step === 1 ? (

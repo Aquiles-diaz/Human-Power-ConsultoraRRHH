@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr, Field
 from passlib.context import CryptContext
 
 from .db import get_conn
-from .ratelimit import limiter
+from .ratelimit import MAIL_REQUEST_RATE_LIMIT_HOUR, REGISTER_RATE_LIMIT_HOUR, limiter
 from . import emailer
 
 log = logging.getLogger("auth")
@@ -32,6 +32,10 @@ if not SECRET_KEY or len(SECRET_KEY) < 32:
     )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# La sesión se renueva mientras se usa (POST /auth/refresh), pero no para
+# siempre: pasadas estas horas desde el login hay que volver a ingresar. Es lo
+# que acota cuánto le sirve un token robado a quien lo vaya renovando.
+SESSION_MAX_HOURS = int(os.getenv("SESSION_MAX_HOURS", "12"))
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 # Login con Google (opcional). Si está vacío, el endpoint /auth/google responde 503.
@@ -171,13 +175,18 @@ def set_profile_photo_url(user_id: int, url: str) -> None:
         )
 
 # --- Funciones de Autenticación y Tokens ---
-def create_access_token(data: dict, password_hash: str) -> str:
+def create_access_token(data: dict, password_hash: str, auth_time: int | None = None) -> str:
     """Crea un JWT de acceso ligado a la contraseña vigente.
 
     El claim ``pwd`` no contiene la contraseña ni su hash: es una huella corta
     del hash ya almacenado. Al validar el token se vuelve a calcular contra la
     base. Por lo tanto, un token emitido antes de un cambio o reset de
     contraseña deja de autenticar de inmediato, sin una tabla de sesiones.
+
+    ``auth_time`` es el momento del login (segundos Unix). Un login lo fija en
+    "ahora"; una renovación le pasa el del token anterior, para que el tope de
+    SESSION_MAX_HOURS se cuente desde que la persona ingresó y no desde la
+    última renovación.
     """
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
@@ -191,6 +200,7 @@ def create_access_token(data: dict, password_hash: str) -> str:
         "iat": now,
         "type": "access",
         "pwd": _password_fingerprint(password_hash),
+        "auth_time": auth_time if auth_time is not None else int(now.timestamp()),
     })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -275,6 +285,7 @@ def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
 
 # --- Endpoints de la API ---
 @router.post("/register", response_model=TokenData, status_code=201)
+@limiter.limit(REGISTER_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def register(request: Request, dto: RegisterDTO):
     if get_user_by_email(dto.email):
@@ -373,6 +384,41 @@ def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
+@router.post("/auth/refresh", response_model=TokenData)
+@limiter.limit("30/minute")
+def refresh_session(request: Request, authorization: str | None = Header(default=None),
+                    current_user: dict = Depends(get_current_user)):
+    """Cambia un token de acceso todavía válido por otro con una hora más.
+
+    El token dura 60 minutos fijos: quien tardaba más en completar el perfil (o
+    un admin cargando un aviso) recibía un 401 al guardar y perdía lo escrito.
+    El frontend llama acá cuando al token le queda poco y la pestaña está en uso.
+
+    No renueva para siempre: pasadas SESSION_MAX_HOURS desde el login responde
+    403. Es 403 y no 401 a propósito: el token actual sigue valiendo hasta su
+    vencimiento, sólo que ya no se extiende, y el frontend no tiene que cerrar
+    la sesión antes de tiempo.
+    """
+    # get_current_user ya validó firma, vencimiento, tipo y contraseña vigente;
+    # acá sólo hace falta leer cuándo empezó la sesión.
+    payload = jwt.decode(authorization.split(" ")[1], SECRET_KEY, algorithms=[ALGORITHM])
+    # Los tokens emitidos antes de este cambio no traen auth_time: para ellos la
+    # sesión empezó cuando se emitieron.
+    started = payload.get("auth_time") or payload.get("iat")
+    now = datetime.now(timezone.utc).timestamp()
+    if not isinstance(started, (int, float)) or now - started >= SESSION_MAX_HOURS * 3600:
+        raise HTTPException(
+            status_code=403,
+            detail="La sesión llegó a su duración máxima. Volvé a iniciar sesión.",
+        )
+    token = create_access_token(
+        data={"sub": current_user["email"]},
+        password_hash=current_user["password_hash"],
+        auth_time=int(started),
+    )
+    return {"access_token": token, "user": current_user}
+
+
 @router.post("/me/password", response_model=MessageOut)
 @limiter.limit("5/minute")
 def change_password(request: Request, dto: ChangePasswordDTO,
@@ -396,6 +442,7 @@ def change_password(request: Request, dto: ChangePasswordDTO,
 
 # --- Reset de contraseña ---
 @router.post("/password-reset/request", response_model=MessageOut)
+@limiter.limit(MAIL_REQUEST_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def password_reset_request(request: Request, dto: PasswordResetRequestDTO):
     """Pide el reset. Responde SIEMPRE igual para no revelar si el email existe."""
@@ -431,6 +478,7 @@ def password_reset_confirm(request: Request, dto: PasswordResetConfirmDTO):
 
 # --- Verificación de email ---
 @router.post("/verify-email/request", response_model=MessageOut)
+@limiter.limit(MAIL_REQUEST_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def verify_email_request(request: Request, dto: EmailVerifyRequestDTO):
     user = get_user_by_email(dto.email)

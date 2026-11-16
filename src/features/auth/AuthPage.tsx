@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import LoginForm from "./LoginForm";
+import RegisterForm from "./RegisterForm";
 import GoogleAuthButton from "./GoogleAuthButton";
 import { useAuth } from "./AuthContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -11,8 +12,11 @@ import { useSeo } from "@/lib/use-seo";
 export default function AuthPage() {
   useSeo({ title: "Ingresar · Human Power" });
 
-  const { login, loading, isAuthenticated, user, logout } = useAuth();
+  const { login, register, loading, isAuthenticated, user, logout } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  // "Postularme" sin sesión trae acá a gente que todavía no tiene cuenta: la
+  // página tiene que dejar registrarse, no sólo ingresar.
+  const [mode, setMode] = useState<"login" | "register">("login");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -44,6 +48,23 @@ export default function AuthPage() {
     }
   };
 
+  const handleRegister = async (v: { name: string; last_name: string; email: string; password: string }) => {
+    setError(null);
+    try {
+      // El alta deja la sesión iniciada y el useEffect de arriba redirige al
+      // destino recordado (el aviso al que se quería postular).
+      await register(v);
+      setMode("login");
+    } catch (e) {
+      setError(getErrorMessage(e) ?? "Error al registrarse");
+    }
+  };
+
+  const switchMode = (next: "login" | "register") => {
+    setError(null);
+    setMode(next);
+  };
+
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-neutral-950 p-4 sm:p-6">
       {/* Fondo decorativo con halos ámbar */}
@@ -64,7 +85,11 @@ export default function AuthPage() {
           <div className="mb-6 text-center">
             <h1 className="t-h3 text-white">Human Power | RRHH</h1>
             <p className="mt-1 t-muted text-white/60">
-              {needsAdmin ? "Acceso al panel de administración" : "Acceso a tu cuenta"}
+              {needsAdmin
+                ? "Acceso al panel de administración"
+                : mode === "register"
+                  ? "Creá tu cuenta para postularte"
+                  : "Acceso a tu cuenta"}
             </p>
           </div>
 
@@ -100,10 +125,28 @@ export default function AuthPage() {
           /* Tarjeta oscura: el aviso legal del botón de Google trae un gris
              pensado para fondo claro (el modal de AuthSection), así que acá se
              aclara. Sus links heredan currentColor, con lo cual esta única
-             regla alcanza para todo el párrafo. */
-          <div className="[&_form]:max-w-none [&_label]:text-white/80 [&_input]:bg-white/5 [&_input]:text-white [&_input]:border-white/10 [&_input::placeholder]:text-white/30 [&_[data-legal-notice]]:text-white/60">
-            <LoginForm onSubmit={handleLogin} loading={loading} error={error} />
+             regla alcanza para todo el párrafo. Los links del consentimiento
+             del registro traen su propio color oscuro: se aclaran aparte. */
+          <div className="[&_form]:max-w-none [&_label]:text-white/80 [&_label_a]:text-white [&_.text-muted-foreground]:text-white/50 [&_input]:bg-white/5 [&_input]:text-white [&_input]:border-white/10 [&_input::placeholder]:text-white/30 [&_[data-legal-notice]]:text-white/60">
+            {mode === "register" && !needsAdmin ? (
+              <RegisterForm onSubmit={handleRegister} loading={loading} error={error} />
+            ) : (
+              <LoginForm onSubmit={handleLogin} loading={loading} error={error} />
+            )}
             <GoogleAuthButton />
+            {/* El panel de administración no se abre con una cuenta nueva. */}
+            {!needsAdmin && (
+              <p className="mt-6 text-center text-sm text-white/60">
+                {mode === "login" ? "¿No tenés cuenta?" : "¿Ya tenés cuenta?"}{" "}
+                <button
+                  type="button"
+                  onClick={() => switchMode(mode === "login" ? "register" : "login")}
+                  className="font-semibold text-amber-400 transition-colors hover:text-amber-300 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+                >
+                  {mode === "login" ? "Crear cuenta" : "Ingresar"}
+                </button>
+              </p>
+            )}
           </div>
           )}
         </div>

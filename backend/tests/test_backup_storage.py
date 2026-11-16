@@ -77,6 +77,54 @@ def test_lo_borrado_del_bucket_se_conserva_y_se_purga_pasada_la_retencion(tmp_pa
     assert "a.pdf" not in _manifest(tmp_path)
 
 
+def _bucket_de(n):
+    remotos = {f"cv-{i}.pdf": 1 for i in range(n)}
+    descargar, _ = _descargador({k: b"x" for k in remotos})
+    return remotos, descargar
+
+
+def test_si_el_bucket_aparece_vacio_no_se_purga_el_backup(tmp_path):
+    """Un listado vacío casi nunca es "se borró todo a propósito": es un borrado
+    masivo por error, la key filtrada o una variable apuntando a otro proyecto.
+    Si nadie lo notaba en 30 días, la purga borraba también las copias, que es
+    justo cuando el backup hace falta."""
+    remotos, descargar = _bucket_de(20)
+    backup.backup_bucket(remotos, descargar, tmp_path, HOY)
+    backup.backup_bucket({}, descargar, tmp_path, HOY + timedelta(days=1))
+
+    r = backup.backup_bucket({}, descargar, tmp_path, HOY + timedelta(days=31), retencion_dias=30)
+
+    assert r.borrados == 0
+    assert r.purga_frenada is True
+    assert all((tmp_path / k).exists() for k in remotos)
+    assert set(_manifest(tmp_path)) == set(remotos)
+
+
+def test_un_borrado_chico_se_purga_como_siempre(tmp_path):
+    remotos, descargar = _bucket_de(100)
+    backup.backup_bucket(remotos, descargar, tmp_path, HOY)
+    quedan = {k: v for k, v in remotos.items() if k not in ("cv-1.pdf", "cv-2.pdf", "cv-3.pdf")}
+    backup.backup_bucket(quedan, descargar, tmp_path, HOY + timedelta(days=1))
+
+    r = backup.backup_bucket(quedan, descargar, tmp_path, HOY + timedelta(days=31), retencion_dias=30)
+
+    assert r.borrados == 3
+    assert r.purga_frenada is False
+    assert not (tmp_path / "cv-1.pdf").exists()
+
+
+def test_la_purga_frenada_se_puede_forzar(tmp_path):
+    remotos, descargar = _bucket_de(20)
+    backup.backup_bucket(remotos, descargar, tmp_path, HOY)
+    backup.backup_bucket({}, descargar, tmp_path, HOY + timedelta(days=1))
+
+    r = backup.backup_bucket({}, descargar, tmp_path, HOY + timedelta(days=31),
+                             retencion_dias=30, forzar_purga=True)
+
+    assert r.borrados == 20
+    assert not any((tmp_path / k).exists() for k in remotos)
+
+
 def test_si_vuelve_a_aparecer_deja_de_estar_marcado(tmp_path):
     descargar, _ = _descargador({"a.pdf": b"AAA"})
     backup.backup_bucket({"a.pdf": 3}, descargar, tmp_path, HOY)

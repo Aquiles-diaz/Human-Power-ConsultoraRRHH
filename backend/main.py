@@ -26,7 +26,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from starlette.responses import JSONResponse, Response, RedirectResponse
 
 from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
 
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (bucket `videos` del principal)
@@ -34,7 +33,7 @@ from . import emailer  # envío de emails (consultas de contacto)
 from . import mail_budget  # presupuesto diario de mails masivos (alertas, recordatorios)
 from . import observability  # alertas de fallas (Sentry, opcional)
 from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
-from .ratelimit import limiter  # rate limiting compartido (slowapi)
+from .ratelimit import MAIL_REQUEST_RATE_LIMIT_HOUR, client_ip_key, limiter  # rate limiting compartido (slowapi)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuración
@@ -147,7 +146,30 @@ app = FastAPI(
 
 # Rate limiting (slowapi): registra el limiter y el handler del error 429.
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _rate_limit_detail(window_seconds: int) -> str:
+    """Texto del 429 según la ventana del tope que saltó: con uno por minuto
+    alcanza con esperar un minuto; con uno por hora, decir eso sería mentir."""
+    if window_seconds <= 60:
+        return "Hiciste demasiados intentos seguidos. Esperá un minuto y probá de nuevo."
+    return "Hiciste demasiados intentos. Probá de nuevo más tarde."
+
+
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    """429 en castellano y sin el tope a la vista. El handler de slowapi respondía
+    {"error": "Rate limit exceeded: 10 per 1 hour"} y el frontend mostraba ese
+    texto tal cual. Va en `detail`, como el resto de los errores de la API."""
+    try:
+        window = exc.limit.limit.get_expiry()
+    except Exception:
+        window = 60
+    response = JSONResponse({"detail": _rate_limit_detail(window)}, status_code=429)
+    # Igual que el handler original: agrega los headers del límite si están activos.
+    return request.app.state.limiter._inject_headers(response, request.state.view_rate_limit)
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 def _content_length_from_scope(headers) -> Optional[int]:
     """Content-Length (int) de una lista de headers ASGI, o None si falta/está mal."""
@@ -762,7 +784,15 @@ def _shrink_image(data: bytes) -> tuple[bytes, Optional[str]]:
     try:
         from PIL import Image, ImageOps
 
-        with Image.open(io.BytesIO(data)) as img:
+        try:
+            opened = Image.open(io.BytesIO(data))
+        except Image.DecompressionBombError as e:
+            # Por encima de ~179 MP es Pillow el que se niega a abrirla, antes de
+            # llegar al chequeo de abajo. Sin esto ese error caía en el `except
+            # Exception` del final y se subía el original: la imagen más grande
+            # era justo la única que pasaba entera.
+            raise ImagenDemasiadoGrande("supera lo que Pillow acepta abrir") from e
+        with opened as img:
             # Image.open sólo parsea el header: acá los píxeles TODAVÍA no se
             # decodificaron. Es el único punto donde se puede frenar una bomba,
             # porque exif_transpose y thumbnail ya materializan el bitmap entero.
@@ -967,6 +997,7 @@ def health_head(request: Request) -> Response:
     return Response(status_code=200 if _db_alive() else 503)
 
 @app.post("/contacto", response_model=ContactOut, tags=["default"])
+@limiter.limit(MAIL_REQUEST_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def contacto(request: Request, dto: ContactDTO) -> ContactOut:
     """Recibe una consulta del formulario público: la guarda en contact_requests
@@ -1143,7 +1174,10 @@ def _send_job_alerts(recipients: list[str], job_title: str, company: str, job_id
     fallas_seguidas = 0
     for i, to in enumerate(recipients):
         if not _reserve_bulk_mail():
-            log.warning(
+            # error y no warning: estas alertas no se reintentan, así que los
+            # suscriptos que faltaban no se enteran nunca del aviso. Con warning
+            # no le llegaba a nadie (Sentry sólo recibe error y exception).
+            log.error(
                 "Presupuesto diario de mails masivos agotado: %d alertas del aviso %s sin enviar",
                 len(recipients) - i, job_id,
             )
@@ -1206,12 +1240,12 @@ def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
             INSERT INTO jobs (id, title, company, location, type, category, seniority, salary,
                               posted_at, short_description, description,
                               responsibilities, requirements, benefits, skills, is_published)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, COALESCE(%s::date, CURRENT_DATE), %s,%s,
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, COALESCE(%s::date, (now() AT TIME ZONE %s)::date), %s,%s,
                     %s,%s,%s,%s, %s)
             RETURNING *
             """,
             (job_id, dto.title.strip(), dto.company.strip(), dto.location, dto.type,
-             dto.category, dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
+             dto.category, dto.seniority, dto.salary, posted, _DEFAULT_TZ, dto.shortDescription, dto.description,
              json.dumps(dto.responsibilities), json.dumps(dto.requirements),
              json.dumps(dto.benefits), json.dumps(dto.skills), dto.isPublished),
         )
@@ -1233,24 +1267,33 @@ def update_job(job_id: str, dto: JobUpsert, background_tasks: BackgroundTasks) -
         cur.execute("SELECT is_published FROM jobs WHERE id = %s", (job_id,))
         prev = cur.fetchone()
         was_published = bool(prev[0]) if prev else False
+        # La fecha del aviso es la del día en que quedó publicado: al pasar de
+        # borrador a publicado se pisa con la de hoy en Argentina. Sin esto, un
+        # aviso republicado reaparecía con la fecha de su primera publicación
+        # (el panel reenvía la fecha guardada en cada edición).
+        publishing_now = dto.isPublished and not was_published
         cur.execute(
             """
             UPDATE jobs SET title=%s, company=%s, location=%s, type=%s, category=%s, seniority=%s,
-                   salary=%s, posted_at=COALESCE(%s::date, posted_at), short_description=%s,
+                   salary=%s,
+                   posted_at=CASE WHEN %s THEN (now() AT TIME ZONE %s)::date
+                                  ELSE COALESCE(%s::date, posted_at) END,
+                   short_description=%s,
                    description=%s, responsibilities=%s, requirements=%s, benefits=%s,
                    skills=%s, is_published=%s, updated_at=now()
             WHERE id=%s
             RETURNING *
             """,
             (dto.title.strip(), dto.company.strip(), dto.location, dto.type, dto.category,
-             dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
+             dto.seniority, dto.salary, publishing_now, _DEFAULT_TZ, posted,
+             dto.shortDescription, dto.description,
              json.dumps(dto.responsibilities), json.dumps(dto.requirements),
              json.dumps(dto.benefits), json.dumps(dto.skills), dto.isPublished, job_id),
         )
         row = cur.fetchone()
         conn.commit()
         out = _job_row_to_out(row) if row else None
-        if out and out.isPublished and not was_published:
+        if out and publishing_now:
             _schedule_job_alerts(cur, out, background_tasks)
     if not out:
         raise HTTPException(status_code=404, detail="Puesto no encontrado")
@@ -1818,6 +1861,38 @@ def get_candidate_stats() -> CandidateStatsOut:
         complete_people=complete_people, empty_people=empty_people,
         almost_complete=almost, by_area=by_area,
     )
+
+
+class ClientIpOut(BaseModel):
+    limiter_key: str                # lo que hoy usa el rate limiting como "IP del cliente"
+    client_host: Optional[str]      # request.client.host (lo que resuelve uvicorn)
+    x_forwarded_for: list[str]      # los saltos, en el orden en que llegan
+    cf_connecting_ip: Optional[str]
+    true_client_ip: Optional[str]
+
+
+@app.get("/admin/client-ip", response_model=ClientIpOut,
+         dependencies=[Depends(require_admin)], tags=["admin"])
+@limiter.limit("30/minute")
+def admin_client_ip(request: Request) -> ClientIpOut:
+    """Diagnóstico: qué ve el backend de la red de quien llama.
+
+    El rate limiting toma como clave el ÚLTIMO salto de X-Forwarded-For, que es
+    correcto con un solo proxy delante de la app. En Render hay dos (Cloudflare y
+    el balanceador): si ese último salto es la IP de un proxy, todos los
+    visitantes comparten cupo y un tope por IP pasa a ser un tope global. Desde
+    afuera no se puede saber qué llega; esto lo muestra, sólo al admin y sólo
+    sobre su propio pedido. Si `limiter_key` no coincide con la IP pública de
+    quien consulta, hay que cambiar client_ip_key (ver ratelimit.py)."""
+    xff = request.headers.get("x-forwarded-for", "")
+    return ClientIpOut(
+        limiter_key=client_ip_key(request),
+        client_host=request.client.host if request.client else None,
+        x_forwarded_for=[p.strip() for p in xff.split(",") if p.strip()],
+        cf_connecting_ip=request.headers.get("cf-connecting-ip"),
+        true_client_ip=request.headers.get("true-client-ip"),
+    )
+
 
 @app.get("/admin/stats", response_model=AdminStatsOut,
          dependencies=[Depends(require_admin)], tags=["admin"])
@@ -2595,16 +2670,67 @@ def _reminder_due(created_at, already_sent: set[str], now) -> Optional[int]:
     due = [h for h in REMINDER_HOURS if hours >= h and f"perfil_{h}h" not in already_sent]
     return max(due) if due else None
 
+
+def _claim_profile_nudges(user_id: int, tier: int) -> list[str]:
+    """Registra el escalón (y los menores) ANTES de mandar el mail. Devuelve los
+    que insertó esta llamada; si el escalón pedido no está en la lista, ya lo
+    había tomado otra corrida.
+
+    El orden es lo que evita duplicados: si se mandara primero y se registrara
+    después, dos corridas simultáneas (el cron reintenta cuando el backend tarda
+    en despertar) le mandarían el mismo recordatorio a la misma persona. Con el
+    registro primero, la clave primaria (user_id, nudge) deja pasar a una sola.
+
+    Se marcan también los escalones menores: si el estreno lo agarra con el de
+    168h, los de 24h/72h no deben dispararse en la corrida siguiente."""
+    mine: list[str] = []
+    with get_db() as conn:
+        cur = conn.cursor()
+        for h in (h for h in REMINDER_HOURS if h <= tier):
+            cur.execute(
+                "INSERT INTO profile_nudges (user_id, nudge) VALUES (%s, %s) "
+                "ON CONFLICT DO NOTHING RETURNING nudge",
+                (user_id, f"perfil_{h}h"),
+            )
+            if cur.fetchone():
+                mine.append(f"perfil_{h}h")
+        conn.commit()
+    return mine
+
+
+def _unclaim_profile_nudges(user_id: int, nudges: list[str]) -> None:
+    """Libera escalones registrados por _claim_profile_nudges cuando el mail no
+    salió: sin registro, la próxima corrida lo reintenta. Sólo borra los que
+    insertó esa llamada, nunca uno que ya se había mandado antes.
+
+    Si este borrado falla, esa persona se queda sin ese escalón: se prefiere
+    perder un recordatorio a mandarlo dos veces."""
+    if not nudges:
+        return
+    try:
+        with get_db() as conn:
+            conn.cursor().execute(
+                "DELETE FROM profile_nudges WHERE user_id = %s AND nudge = ANY(%s)",
+                (user_id, nudges),
+            )
+            conn.commit()
+    except Exception:
+        log.exception("No se pudo liberar el recordatorio reservado del usuario %s", user_id)
+
+
 @app.post("/tasks/profile-reminders", response_model=NudgeRunOut, tags=["tasks"])
 def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOut:
     """Tarea del cron (GitHub Actions, cada hora): recordatorio por email a los
     usuarios que se registraron y siguen sin CV ni video.
 
     Autenticación por header X-Cron-Secret (no JWT: la llama una máquina). Es
-    idempotente: cada envío queda en profile_nudges y no se repite, así correrla
-    de más no spamea a nadie. Con ?dry_run=1 solo informa a quiénes les tocaría."""
+    idempotente: cada escalón se registra en profile_nudges antes de mandarlo y
+    no se repite, así correrla de más —o dos veces a la vez— no spamea a nadie.
+    Con ?dry_run=1 solo informa a quiénes les tocaría."""
+    # En bytes: compare_digest con texto sólo acepta ASCII, y un header con una
+    # ñ tiraba TypeError (un 500 anónimo en vez de un 403).
     if not CRON_SECRET or not secrets.compare_digest(
-        request.headers.get("x-cron-secret", ""), CRON_SECRET
+        request.headers.get("x-cron-secret", "").encode("utf-8"), CRON_SECRET.encode("utf-8")
     ):
         raise HTTPException(status_code=403, detail="No autorizado")
 
@@ -2660,15 +2786,24 @@ def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOu
                         "el resto sale mañana.")
             break
         # Best-effort por usuario (mismo criterio que _send_job_alerts): un mail
-        # que falla no debe frenar a los demás; sin registro en profile_nudges,
-        # ese usuario se reintenta solo en la próxima corrida.
+        # que falla no debe frenar a los demás; se libera su registro en
+        # profile_nudges y ese usuario se reintenta solo en la próxima corrida.
+        claimed: list[str] = []
         try:
+            claimed = _claim_profile_nudges(user_id, tier)
+            if f"perfil_{tier}h" not in claimed:
+                # Otra corrida lo registró entre nuestra lectura y ahora: ya se
+                # lo mandó (o se lo está mandando) ella.
+                _unclaim_profile_nudges(user_id, claimed)
+                _release_bulk_mail()
+                continue
             token = create_purpose_token(email, "nudge_unsub", 60 * 24 * 180)
             unsub_url = emailer.profile_nudge_unsub_link(token)
             emailer.send_profile_reminder(email, name, unsub_url)
             fallas_seguidas = 0
         except Exception:
             log.exception("Fallo el recordatorio de perfil a %s", email)
+            _unclaim_profile_nudges(user_id, claimed)
             _release_bulk_mail()
             failed += 1
             fallas_seguidas += 1
@@ -2676,17 +2811,6 @@ def run_profile_reminders(request: Request, dry_run: bool = False) -> NudgeRunOu
                 log.error("profile-reminders: %d fallas seguidas; corto la corrida.", fallas_seguidas)
                 break
             continue
-        # Marca el escalón enviado Y los menores: si el estreno lo agarra con el
-        # de 168h, los de 24h/72h no deben dispararse en la corrida siguiente.
-        with get_db() as conn:
-            cur = conn.cursor()
-            for h in (h for h in REMINDER_HOURS if h <= tier):
-                cur.execute(
-                    "INSERT INTO profile_nudges (user_id, nudge) VALUES (%s, %s) "
-                    "ON CONFLICT DO NOTHING",
-                    (user_id, f"perfil_{h}h"),
-                )
-            conn.commit()
         sent += 1
 
     log.info("profile-reminders: %d elegibles, %d enviados, %d fallidos", eligible, sent, failed)
