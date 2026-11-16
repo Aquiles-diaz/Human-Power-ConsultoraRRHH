@@ -39,7 +39,12 @@ export function CandidateSearch({ onPick }: { onPick: (userId: number) => void }
   }, [getAuthHeader]);
 
   return (
-    <div style={BRAND_VARS}>
+    // relative + z-20: los resultados se despliegan hacia abajo, encima de las
+    // tarjetas del Resumen. Esas tarjetas vienen después en el DOM y están
+    // posicionadas, así que sin una capa propia tapaban la lista (se veía sólo
+    // el borde amarillo asomando). Queda por debajo del encabezado fijo (z-40)
+    // y de los modales (z-50).
+    <div style={BRAND_VARS} className="relative z-20">
       <GooeySearch
         onSearch={search}
         placeholder="Nombre o email…"
