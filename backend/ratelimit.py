@@ -12,6 +12,8 @@ aplicaría por la IP del proxy (todos comparten cupo). Ver `render.yaml`.
 NOTA: no usar `slowapi.util.get_ipaddr`, que lee `X-Forwarded-For` sin validar el
 proxy y habilitaría spoofing de IP.
 """
+import os
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -36,3 +38,14 @@ def client_ip_key(request) -> str:
 
 # Límite global por defecto laxo; los endpoints sensibles ponen el suyo.
 limiter = Limiter(key_func=client_ip_key, default_limits=[])
+
+# Tope por HORA de los endpoints públicos que mandan un mail por cada pedido
+# (/register, /password-reset/request, /verify-email/request y /contacto). El
+# tope por minuto que ya tenían frena una ráfaga pero no cuida una cuota diaria:
+# 5 por minuto en los cuatro son 1.200 mails por hora desde una sola IP, y Brevo
+# free da 300 por día para todo. Con estos valores una IP saca a lo sumo 50 por
+# hora. Es una mitigación, no un presupuesto: muchas IPs distintas lo esquivan.
+# El registro va más alto porque es el único que una persona real repite poco
+# pero muchas personas hacen a la vez (una oferta que se viraliza).
+REGISTER_RATE_LIMIT_HOUR = os.getenv("REGISTER_RATE_LIMIT_HOUR", "20/hour")
+MAIL_REQUEST_RATE_LIMIT_HOUR = os.getenv("MAIL_REQUEST_RATE_LIMIT_HOUR", "10/hour")

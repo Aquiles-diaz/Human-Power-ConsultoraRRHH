@@ -34,7 +34,7 @@ from . import emailer  # envío de emails (consultas de contacto)
 from . import mail_budget  # presupuesto diario de mails masivos (alertas, recordatorios)
 from . import observability  # alertas de fallas (Sentry, opcional)
 from .auth import require_admin, get_current_user, create_purpose_token, decode_purpose_token  # autorización por JWT + rol admin
-from .ratelimit import limiter  # rate limiting compartido (slowapi)
+from .ratelimit import MAIL_REQUEST_RATE_LIMIT_HOUR, limiter  # rate limiting compartido (slowapi)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuración
@@ -967,6 +967,7 @@ def health_head(request: Request) -> Response:
     return Response(status_code=200 if _db_alive() else 503)
 
 @app.post("/contacto", response_model=ContactOut, tags=["default"])
+@limiter.limit(MAIL_REQUEST_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def contacto(request: Request, dto: ContactDTO) -> ContactOut:
     """Recibe una consulta del formulario público: la guarda en contact_requests

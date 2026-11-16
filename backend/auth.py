@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr, Field
 from passlib.context import CryptContext
 
 from .db import get_conn
-from .ratelimit import limiter
+from .ratelimit import MAIL_REQUEST_RATE_LIMIT_HOUR, REGISTER_RATE_LIMIT_HOUR, limiter
 from . import emailer
 
 log = logging.getLogger("auth")
@@ -275,6 +275,7 @@ def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
 
 # --- Endpoints de la API ---
 @router.post("/register", response_model=TokenData, status_code=201)
+@limiter.limit(REGISTER_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def register(request: Request, dto: RegisterDTO):
     if get_user_by_email(dto.email):
@@ -396,6 +397,7 @@ def change_password(request: Request, dto: ChangePasswordDTO,
 
 # --- Reset de contraseña ---
 @router.post("/password-reset/request", response_model=MessageOut)
+@limiter.limit(MAIL_REQUEST_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def password_reset_request(request: Request, dto: PasswordResetRequestDTO):
     """Pide el reset. Responde SIEMPRE igual para no revelar si el email existe."""
@@ -431,6 +433,7 @@ def password_reset_confirm(request: Request, dto: PasswordResetConfirmDTO):
 
 # --- Verificación de email ---
 @router.post("/verify-email/request", response_model=MessageOut)
+@limiter.limit(MAIL_REQUEST_RATE_LIMIT_HOUR)
 @limiter.limit("5/minute")
 def verify_email_request(request: Request, dto: EmailVerifyRequestDTO):
     user = get_user_by_email(dto.email)
