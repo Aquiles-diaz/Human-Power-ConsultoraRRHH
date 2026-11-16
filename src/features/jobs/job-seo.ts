@@ -16,7 +16,7 @@ function escapeHtml(s: string): string {
 
 // "YYYY-MM-DD" → Date local. new Date("YYYY-MM-DD") parsea en UTC y en
 // Argentina (UTC-3) correría la fecha un día para atrás.
-function parseIsoDate(iso: string): Date | null {
+export function parseIsoDate(iso: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (!m) return null;
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));

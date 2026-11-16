@@ -1,8 +1,16 @@
 // Helpers de presentación de puestos, compartidos por la lista y el detalle.
-export function timeAgo(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const days = Math.round((Date.now() - then) / 86_400_000);
+import { parseIsoDate } from "./job-seo";
+
+// posted_at es un día calendario ("YYYY-MM-DD"), no un instante: se compara
+// contra el día de hoy del visitante. Restar milisegundos contra
+// new Date("YYYY-MM-DD") (medianoche UTC) hacía que un aviso publicado hoy
+// dijera "Hace 1 día" desde las 09:00 de Argentina.
+export function timeAgo(iso: string, now: Date = new Date()): string {
+  const then = parseIsoDate(iso);
+  if (!then) return "";
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // round y no floor: un cambio de hora deja días de 23 o 25 horas.
+  const days = Math.round((today.getTime() - then.getTime()) / 86_400_000);
   if (days <= 0) return "Hoy";
   if (days === 1) return "Hace 1 día";
   if (days < 7) return `Hace ${days} días`;

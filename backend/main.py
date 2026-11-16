@@ -1206,12 +1206,12 @@ def create_job(dto: JobUpsert, background_tasks: BackgroundTasks) -> JobOut:
             INSERT INTO jobs (id, title, company, location, type, category, seniority, salary,
                               posted_at, short_description, description,
                               responsibilities, requirements, benefits, skills, is_published)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, COALESCE(%s::date, CURRENT_DATE), %s,%s,
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s, COALESCE(%s::date, (now() AT TIME ZONE %s)::date), %s,%s,
                     %s,%s,%s,%s, %s)
             RETURNING *
             """,
             (job_id, dto.title.strip(), dto.company.strip(), dto.location, dto.type,
-             dto.category, dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
+             dto.category, dto.seniority, dto.salary, posted, _DEFAULT_TZ, dto.shortDescription, dto.description,
              json.dumps(dto.responsibilities), json.dumps(dto.requirements),
              json.dumps(dto.benefits), json.dumps(dto.skills), dto.isPublished),
         )
@@ -1233,24 +1233,33 @@ def update_job(job_id: str, dto: JobUpsert, background_tasks: BackgroundTasks) -
         cur.execute("SELECT is_published FROM jobs WHERE id = %s", (job_id,))
         prev = cur.fetchone()
         was_published = bool(prev[0]) if prev else False
+        # La fecha del aviso es la del día en que quedó publicado: al pasar de
+        # borrador a publicado se pisa con la de hoy en Argentina. Sin esto, un
+        # aviso republicado reaparecía con la fecha de su primera publicación
+        # (el panel reenvía la fecha guardada en cada edición).
+        publishing_now = dto.isPublished and not was_published
         cur.execute(
             """
             UPDATE jobs SET title=%s, company=%s, location=%s, type=%s, category=%s, seniority=%s,
-                   salary=%s, posted_at=COALESCE(%s::date, posted_at), short_description=%s,
+                   salary=%s,
+                   posted_at=CASE WHEN %s THEN (now() AT TIME ZONE %s)::date
+                                  ELSE COALESCE(%s::date, posted_at) END,
+                   short_description=%s,
                    description=%s, responsibilities=%s, requirements=%s, benefits=%s,
                    skills=%s, is_published=%s, updated_at=now()
             WHERE id=%s
             RETURNING *
             """,
             (dto.title.strip(), dto.company.strip(), dto.location, dto.type, dto.category,
-             dto.seniority, dto.salary, posted, dto.shortDescription, dto.description,
+             dto.seniority, dto.salary, publishing_now, _DEFAULT_TZ, posted,
+             dto.shortDescription, dto.description,
              json.dumps(dto.responsibilities), json.dumps(dto.requirements),
              json.dumps(dto.benefits), json.dumps(dto.skills), dto.isPublished, job_id),
         )
         row = cur.fetchone()
         conn.commit()
         out = _job_row_to_out(row) if row else None
-        if out and out.isPublished and not was_published:
+        if out and publishing_now:
             _schedule_job_alerts(cur, out, background_tasks)
     if not out:
         raise HTTPException(status_code=404, detail="Puesto no encontrado")
