@@ -26,7 +26,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from starlette.responses import JSONResponse, Response, RedirectResponse
 
 from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
 
 from . import storage_supabase as storage  # Supabase Storage (buckets privados)
 from . import storage_video  # Supabase Storage para videos (bucket `videos` del principal)
@@ -147,7 +146,30 @@ app = FastAPI(
 
 # Rate limiting (slowapi): registra el limiter y el handler del error 429.
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _rate_limit_detail(window_seconds: int) -> str:
+    """Texto del 429 según la ventana del tope que saltó: con uno por minuto
+    alcanza con esperar un minuto; con uno por hora, decir eso sería mentir."""
+    if window_seconds <= 60:
+        return "Hiciste demasiados intentos seguidos. Esperá un minuto y probá de nuevo."
+    return "Hiciste demasiados intentos. Probá de nuevo más tarde."
+
+
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    """429 en castellano y sin el tope a la vista. El handler de slowapi respondía
+    {"error": "Rate limit exceeded: 10 per 1 hour"} y el frontend mostraba ese
+    texto tal cual. Va en `detail`, como el resto de los errores de la API."""
+    try:
+        window = exc.limit.limit.get_expiry()
+    except Exception:
+        window = 60
+    response = JSONResponse({"detail": _rate_limit_detail(window)}, status_code=429)
+    # Igual que el handler original: agrega los headers del límite si están activos.
+    return request.app.state.limiter._inject_headers(response, request.state.view_rate_limit)
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 def _content_length_from_scope(headers) -> Optional[int]:
     """Content-Length (int) de una lista de headers ASGI, o None si falta/está mal."""
